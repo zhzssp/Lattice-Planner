@@ -9,57 +9,63 @@
     <link rel="stylesheet" th:href="@{/css/filter.css}">
     <script th:src="@{/js/dashboard.js}"></script>
     <script th:src="@{/js/dashboard-notes.js}"></script>
+    <script th:src="@{/js/dashboard-goals.js}"></script>
 </head>
 
 <body>
 <div class="container">
-    <h2>Your Dashboard</h2>
+    <h2>Dashboard</h2>
 
-    <form th:action="@{/memo/search}" method="get" class="filter-wrapper">
-        <input name="keyword" placeholder="关键字">
-        <input type="date" name="start">
-        <input type="date" name="end">
-        <button type="submit">搜索</button>
-    </form>
-    
-    <!-- MEMOS MODE -->
-    <div th:if="${mode=='memos'}">
-        <h3>Your Memos</h3>
+    <!-- 任务模式：仅显示任务相关 -->
+    <div th:if="${mode=='tasks'}">
+        <form th:action="@{/memo/search}" method="get" class="filter-wrapper">
+            <input name="keyword" placeholder="关键字">
+            <input type="date" name="start">
+            <input type="date" name="end">
+            <button type="submit">搜索</button>
+        </form>
+
+        <!-- 目标管理（弱关联，可选） -->
+        <div class="goals-section" id="goalsSection">
+            <h3>我的目标</h3>
+            <button type="button" id="openGoalModal" class="add-btn">＋ 添加目标</button>
+            <ul id="goalList">
+                <li th:each="g : ${goals}">
+                    <span th:text="${g.name}"></span>
+                    <span class="goal-type" th:if="${g.goalType != null}" th:text="${g.goalType}"></span>
+                    <button type="button" class="goal-archive-btn" th:data-goal-id="${g.id}">归档</button>
+                </li>
+            </ul>
+        </div>
+
+        <h3>可行动任务</h3>
         <ul>
             <li th:each="memo : ${memos}" class="memo-item" th:data-memo-id="${memo.id}">
                 <div>
                     <span class="title" th:text="${memo.title}"></span>
+                    <span class="goal-tags" th:if="${taskToGoals != null and taskToGoals[memo.id] != null}">
+                        <span th:each="g : ${taskToGoals[memo.id]}" class="goal-tag" th:text="${g.name}"></span>
+                    </span>
                     <br/>
                     <small th:text="${memo.description}"></small>
                 </div>
                 <span class="deadline" th:text="${memo.deadline}"></span>
             </li>
         </ul>
-        <a href="/memo/add" class="add-btn">＋ Add Memo</a>
+        <a href="/memo/add" class="add-btn">＋ 添加任务</a>
     </div>
 
-    <!-- DUE DATES MODE -->
-    <div th:if="${mode=='dueDates'}">
-        <h3>Upcoming Due Dates (next 3 days)</h3>
-        <ul>
-            <li th:each="memo : ${dueSoonMemos}">
-                <span th:text="${memo.title}"></span>
-                <small th:text="${memo.deadline}"></small>
-            </li>
-        </ul>
-    </div>
-
-    <!-- NOTES -->
-    <div id="notesSection">
-        <h3>Notes</h3>
-        <button type="button" id="openNoteModal" class="add-btn">＋ Create Note</button>
+    <!-- 笔记模式：仅显示笔记相关 -->
+    <div th:if="${mode=='notes'}" id="notesSection">
+        <h3>笔记</h3>
+        <button type="button" id="openNoteModal" class="add-btn">＋ 创建笔记</button>
         <ul id="noteList"></ul>
     </div>
 
 </div>
 
-<!-- Note Modal -->
-<div id="noteModal" class="modal" style="display:none;">
+<!-- Note Modal（仅笔记模式存在） -->
+<div th:if="${mode=='notes'}" id="noteModal" class="modal" style="display:none;">
     <div class="modal-content">
         <h3>Create Note</h3>
         <input type="text" id="noteTitle" placeholder="Title">
@@ -71,8 +77,34 @@
     </div>
 </div>
 
+<!-- 目标添加 Modal（仅任务模式） -->
+<div th:if="${mode=='tasks'}" id="goalModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h3>添加目标</h3>
+        <input type="text" id="goalName" placeholder="目标名称">
+        <select id="goalType">
+            <option value="">不指定类型</option>
+            <option value="LONG_TERM">长期（季度/学期）</option>
+            <option value="MID_TERM">中期（项目）</option>
+            <option value="SHORT_TERM">短期</option>
+        </select>
+        <div class="modal-actions">
+            <button type="button" id="saveGoalBtn">保存</button>
+            <button type="button" id="closeGoalModal">取消</button>
+        </div>
+    </div>
+</div>
+
 <!-- 右键菜单 -->
 <div id="contextMenu" class="context-menu">
+    <div class="context-menu-item" id="completeBtn">
+        <span class="menu-icon">✓</span>
+        <span>完成</span>
+    </div>
+    <div class="context-menu-item" id="shelveBtn">
+        <span class="menu-icon">📦</span>
+        <span>搁置</span>
+    </div>
     <div class="context-menu-item" id="deleteBtn">
         <span class="menu-icon">🗑️</span>
         <span>删除</span>

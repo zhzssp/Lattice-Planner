@@ -53,6 +53,71 @@ li:hover {
     font-size: 0.9em;
 }
 
+/* 目标标签 */
+.goal-tags {
+    margin-left: 8px;
+}
+
+.goal-tag {
+    display: inline-block;
+    background: #e8f4fd;
+    color: #2c7be5;
+    font-size: 0.75em;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-right: 4px;
+}
+
+/* 目标管理区域 */
+.goals-section {
+    margin-bottom: 24px;
+    padding: 15px;
+    background: #f8faff;
+    border-radius: 10px;
+    border: 1px solid #e1e7f0;
+}
+
+.goals-section h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 1em;
+    color: #5a6c7d;
+}
+
+.goals-section .add-btn {
+    margin: 0 0 12px 0;
+    display: inline-block;
+}
+
+.goals-section ul {
+    margin: 0;
+}
+
+.goals-section li {
+    margin-bottom: 8px;
+    padding: 8px 12px;
+}
+
+.goal-type {
+    font-size: 0.8em;
+    color: #7f8c8d;
+    margin-left: 8px;
+}
+
+.goal-archive-btn {
+    margin-left: auto;
+    padding: 4px 10px;
+    font-size: 12px;
+    background: #e0e0e0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.goal-archive-btn:hover {
+    background: #d0d0d0;
+}
+
 .add-btn {
     display: block;
     width: 180px;
@@ -212,11 +277,13 @@ li:hover {
 }
 
 .modal-content input,
-.modal-content textarea {
+.modal-content textarea,
+.modal-content select {
     width: 100%;
     padding: 10px 12px;
     margin-bottom: 12px;
     border: 1px solid #d3dbe8;
+    background: white;
     border-radius: 8px;
     font-family: inherit;
     font-size: 15px;
@@ -238,6 +305,23 @@ li:hover {
     font-size: 14px;
     cursor: pointer;
     margin-left: 10px;
+}
+
+#saveGoalBtn {
+    background: #4caf50;
+    color: #fff;
+}
+
+#saveGoalBtn:hover {
+    background: #409444;
+}
+
+#closeGoalModal {
+    background: #e0e0e0;
+}
+
+#closeGoalModal:hover {
+    background: #cacaca;
 }
 
 #saveNoteBtn {

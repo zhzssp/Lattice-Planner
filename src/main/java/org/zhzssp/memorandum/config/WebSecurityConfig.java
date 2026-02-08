@@ -31,7 +31,7 @@ public class WebSecurityConfig {
                         .ignoringRequestMatchers("/user-logged-in", "/due-dates")
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/register", "/login", "/dashboard", "/select-features", "/css/**", "/js/**",  "/user-logged-in", "/due-dates").permitAll() // 允许访问register和login页面
+                        .requestMatchers("/register", "/login", "/css/**", "/js/**", "/user-logged-in").permitAll()
                         .anyRequest().authenticated()
                 )
                 .formLogin(login -> login

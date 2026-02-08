@@ -16,6 +16,22 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
+    // 完成按钮事件
+    document.getElementById('completeBtn').addEventListener('click', function () {
+        if (currentMemoId) {
+            updateTaskStatus(currentMemoId, 'complete');
+        }
+        hideContextMenu();
+    });
+
+    // 搁置按钮事件
+    document.getElementById('shelveBtn').addEventListener('click', function () {
+        if (currentMemoId) {
+            updateTaskStatus(currentMemoId, 'shelve');
+        }
+        hideContextMenu();
+    });
+
     // 删除按钮事件
     document.getElementById('deleteBtn').addEventListener('click', function () {
         if (currentMemoId) {
@@ -42,7 +58,34 @@ document.addEventListener('DOMContentLoaded', function () {
         currentMemoId = null;
     }
 
-    // 删除memo的函数
+    // 更新任务状态（完成/搁置）
+    function updateTaskStatus(taskId, action) {
+        const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content') ||
+            document.querySelector('input[name="_csrf"]')?.value;
+        const url = action === 'complete' ? `/memo/complete/${taskId}` : `/memo/shelve/${taskId}`;
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            }
+        })
+            .then(response => response.ok ? response.text() : Promise.reject(new Error(response.statusText)))
+            .then(data => {
+                if (data === 'success') {
+                    location.reload();
+                } else {
+                    alert('操作失败: ' + data);
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                alert('操作失败: ' + err.message);
+            });
+    }
+
+    // 删除任务
     function deleteMemo(memoId) {
         // 获取CSRF token
         const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content') ||

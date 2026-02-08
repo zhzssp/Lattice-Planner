@@ -9,25 +9,21 @@
 </head>
 <body>
 <div class="container">
-    <h2>Choose Dashboard Mode</h2>
+    <h2>选择视图模式</h2>
     <form th:action="@{/select-features}" method="post">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
         <div class="feature-option">
-            <input type="radio" id="memos" name="selectedFeature" value="memos" checked>
-            <label for="memos">Memos List (full detail)</label>
+            <input type="radio" id="tasks" name="selectedFeature" value="tasks" checked>
+            <label for="tasks">任务</label>
         </div>
 
-        <div class="feature-option">
-            <input type="radio" id="dueDates" name="selectedFeature" value="dueDates">
-            <label for="dueDates">Upcoming Due Dates (compact)</label>
-        </div>
         <div class="feature-option">
             <input type="radio" id="notes" name="selectedFeature" value="notes">
-            <label for="notes">Notes</label>
+            <label for="notes">笔记</label>
         </div>
 
-        <button type="submit" class="submit-btn">Continue</button>
+        <button type="submit" class="submit-btn">继续</button>
     </form>
 </div>
 </body>

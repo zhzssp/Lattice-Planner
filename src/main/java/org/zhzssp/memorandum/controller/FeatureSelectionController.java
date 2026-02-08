@@ -23,13 +23,13 @@ public class FeatureSelectionController {
     @PostMapping("/select-features")
     public String saveSelectedFeature(@RequestParam(name = "selectedFeature", required = false) String feature,
                                       HttpSession session) {
-        // default to memos if nothing sent
-        session.setAttribute(SESSION_KEY, feature != null ? feature : "memos");
+        // default to tasks if nothing sent
+        session.setAttribute(SESSION_KEY, feature != null ? feature : "tasks");
         return "redirect:/dashboard";
     }
 
     public static String getSelectedFeature(HttpSession session) {
         Object obj = session.getAttribute(SESSION_KEY);
-        return obj instanceof String ? (String) obj : "memos";
+        return obj instanceof String ? (String) obj : "tasks";
     }
 }

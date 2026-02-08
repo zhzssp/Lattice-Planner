@@ -7,13 +7,22 @@
 </head>
 <body>
 <div class="memo-form-container">
-    <h2>Add a New Memo</h2>
+    <h2>添加任务</h2>
     <form action="/memo/add" method="post">
-        <input type="text" name="title" placeholder="Memo Title" required>
-        <textarea name="description" placeholder="Description"></textarea>
+        <input type="text" name="title" placeholder="任务标题" required>
+        <textarea name="description" placeholder="描述"></textarea>
         <input type="datetime-local" name="deadline" required>
+        <div class="goal-binding" th:if="${!goals.isEmpty()}">
+            <label>绑定目标（可选，可多选）</label>
+            <div class="goal-checkboxes">
+                <label th:each="g : ${goals}">
+                    <input type="checkbox" name="goalIds" th:value="${g.id}">
+                    <span th:text="${g.name}"></span>
+                </label>
+            </div>
+        </div>
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-        <button type="submit">Add Memo</button>
+        <button type="submit">添加</button>
     </form>
 </div>
 </body>
