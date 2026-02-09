@@ -58,4 +58,23 @@ public class GoalController {
             return "error:failed";
         }
     }
+
+    /**
+     * 删除目标：
+     * mode = deleteTasks -> 级联删除绑定任务
+     * mode = keepTasks   -> 仅删除目标和关联，保留任务
+     */
+    @PostMapping("/delete/{id}")
+    @ResponseBody
+    public String deleteGoal(@PathVariable Long id,
+                             @RequestParam(name = "mode", defaultValue = "keepTasks") String mode,
+                             Principal principal) {
+        try {
+            User user = userRepository.findByUsername(principal.getName()).orElseThrow();
+            goalService.deleteGoalWithMode(id, user, mode);
+            return "success";
+        } catch (Exception e) {
+            return "error:failed";
+        }
+    }
 }

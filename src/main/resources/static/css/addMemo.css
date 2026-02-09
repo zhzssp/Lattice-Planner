@@ -55,6 +55,31 @@ body {
     height: 100px;
 }
 
+/* 任务粒度与预估时长 */
+.memo-form-container .granularity-row,
+.memo-form-container .estimate-row {
+    text-align: left;
+    margin-bottom: 12px;
+}
+
+.memo-form-container .granularity-row label,
+.memo-form-container .estimate-row label {
+    display: block;
+    font-size: 14px;
+    color: #5a6c7d;
+    margin-bottom: 6px;
+}
+
+.memo-form-container select#granularity,
+.memo-form-container input#estimatedMinutes {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+    box-sizing: border-box;
+}
+
 /* 目标绑定（可选） */
 .memo-form-container .goal-binding {
     margin-bottom: 15px;

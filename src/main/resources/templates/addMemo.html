@@ -12,6 +12,20 @@
         <input type="text" name="title" placeholder="任务标题" required>
         <textarea name="description" placeholder="描述"></textarea>
         <input type="datetime-local" name="deadline" required>
+
+        <div class="granularity-row">
+            <label for="granularity">任务粒度（可选）</label>
+            <select id="granularity" name="granularity">
+                <option value="">不指定</option>
+                <option value="ATOMIC">原子任务（≤15 分钟）</option>
+                <option value="STANDARD">标准任务（30–90 分钟）</option>
+                <option value="FUZZY">模糊任务（待拆分）</option>
+            </select>
+        </div>
+        <div class="estimate-row">
+            <label for="estimatedMinutes">预估时长（分钟，可选）</label>
+            <input type="number" id="estimatedMinutes" name="estimatedMinutes" min="1" step="5" placeholder="例如 30">
+        </div>
         <div class="goal-binding" th:if="${!goals.isEmpty()}">
             <label>绑定目标（可选，可多选）</label>
             <div class="goal-checkboxes">

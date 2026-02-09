@@ -4,12 +4,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.zhzssp.memorandum.entity.Goal;
 import org.zhzssp.memorandum.entity.Link;
+import org.zhzssp.memorandum.entity.Task;
+import org.zhzssp.memorandum.entity.TaskStatus;
 import org.zhzssp.memorandum.entity.User;
 import org.zhzssp.memorandum.repository.GoalRepository;
 import org.zhzssp.memorandum.repository.LinkRepository;
+import org.zhzssp.memorandum.repository.TaskRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -23,6 +27,9 @@ public class GoalService {
 
     @Autowired
     private LinkRepository linkRepository;
+
+    @Autowired
+    private TaskRepository taskRepository;
 
     public List<Goal> findActiveGoalsByUser(User user) {
         return goalRepository.findByUserAndArchivedAtIsNull(user);
@@ -80,10 +87,70 @@ public class GoalService {
 
     public void archive(Long goalId, User user) {
         goalRepository.findById(goalId).ifPresent(g -> {
-            if (g.getUser().getId().equals(user.getId())) {
-                g.setArchivedAt(LocalDateTime.now());
-                goalRepository.save(g);
+            if (!g.getUser().getId().equals(user.getId())) {
+                return;
             }
+            // 1) 归档目标本身
+            g.setArchivedAt(LocalDateTime.now());
+            goalRepository.save(g);
+
+            // 2) 找到所有指向该目标的 TASK→GOAL 链接
+            List<Link> links = linkRepository.findByTargetTypeAndTargetId(Link.LinkTargetType.GOAL, goalId)
+                    .stream()
+                    .filter(l -> l.getSourceType() == Link.LinkSourceType.TASK)
+                    .collect(Collectors.toList());
+
+            if (links.isEmpty()) {
+                return;
+            }
+
+            Set<Long> taskIds = links.stream()
+                    .map(Link::getSourceId)
+                    .collect(Collectors.toSet());
+
+            // 3) 将这些任务全部设为 ARCHIVED（软归档）
+            List<Task> tasks = taskRepository.findAllById(taskIds);
+            for (Task t : tasks) {
+                if (t.getUser() != null && t.getUser().getId().equals(user.getId())) {
+                    t.setStatus(TaskStatus.ARCHIVED);
+                }
+            }
+            taskRepository.saveAll(tasks);
+        });
+    }
+
+    /**
+     * 删除目标及其关联：
+     * - mode = \"deleteTasks\": 删除目标 + 相关链接 + 相关任务
+     * - mode = \"keepTasks\" : 删除目标 + 相关链接，保留任务
+     */
+    public void deleteGoalWithMode(Long goalId, User user, String mode) {
+        goalRepository.findById(goalId).ifPresent(g -> {
+            if (!g.getUser().getId().equals(user.getId())) {
+                return;
+            }
+
+            // 找出所有指向该目标的链接（主要是 TASK→GOAL）
+            List<Link> links = linkRepository.findByTargetTypeAndTargetId(Link.LinkTargetType.GOAL, goalId);
+            Set<Long> taskIds = links.stream()
+                    .filter(l -> l.getSourceType() == Link.LinkSourceType.TASK)
+                    .map(Link::getSourceId)
+                    .collect(Collectors.toSet());
+
+            if ("deleteTasks".equalsIgnoreCase(mode) && !taskIds.isEmpty()) {
+                List<Task> tasks = taskRepository.findAllById(taskIds);
+                // 仅删除当前用户的任务
+                List<Task> ownedTasks = tasks.stream()
+                        .filter(t -> t.getUser() != null && t.getUser().getId().equals(user.getId()))
+                        .collect(Collectors.toList());
+                taskRepository.deleteAll(ownedTasks);
+            }
+
+            // 删除与该目标相关的所有链接（无论是否删除任务）
+            linkRepository.deleteAll(links);
+
+            // 最后删除目标本身
+            goalRepository.delete(g);
         });
     }
 }

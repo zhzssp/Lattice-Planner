@@ -29,6 +29,21 @@
             <button type="submit">搜索</button>
         </form>
 
+        <!-- 模糊任务存在天数提示 -->
+        <div class="fuzzy-hint" th:if="${fuzzyNeedSplit != null and !fuzzyNeedSplit.isEmpty()}">
+            <h3>需要拆分的模糊任务</h3>
+            <ul>
+                <li th:each="t : ${fuzzyNeedSplit}">
+                    <span th:text="${t.title}"></span>
+                    <small>
+                        <span>已存在 </span>
+                        <span th:text="${T(java.time.temporal.ChronoUnit).DAYS.between(t.createdAt, T(java.time.LocalDateTime).now())}"></span>
+                        <span> 天，考虑拆分为更小步骤</span>
+                    </small>
+                </li>
+            </ul>
+        </div>
+
         <!-- 目标管理（弱关联，可选） -->
         <div class="goals-section" id="goalsSection">
             <h3>我的目标</h3>
@@ -38,6 +53,7 @@
                     <span th:text="${g.name}"></span>
                     <span class="goal-type" th:if="${g.goalType != null}" th:text="${g.goalType}"></span>
                     <button type="button" class="goal-archive-btn" th:data-goal-id="${g.id}">归档</button>
+                    <button type="button" class="goal-delete-btn" th:data-goal-id="${g.id}">删除</button>
                 </li>
             </ul>
         </div>
@@ -57,6 +73,22 @@
             </li>
         </ul>
         <a href="/memo/add" class="add-btn">＋ 添加任务</a>
+
+        <!-- 归档 / 搁置区：不在默认视图中打扰用户，只在此折叠浏览 -->
+        <div class="archived-section" th:if="${archivedOrShelved != null and !archivedOrShelved.isEmpty()}">
+            <h3>归档 / 搁置任务</h3>
+            <ul>
+                <li th:each="t : ${archivedOrShelved}">
+                    <div>
+                        <span class="title" th:text="${t.title}"></span>
+                        <span class="status-tag" th:text="${t.status}"></span>
+                        <br/>
+                        <small th:text="${t.description}"></small>
+                    </div>
+                    <span class="deadline" th:text="${t.deadline}"></span>
+                </li>
+            </ul>
+        </div>
     </div>
 
     <!-- 笔记模式：仅显示笔记相关 -->
@@ -95,6 +127,20 @@
         <div class="modal-actions">
             <button type="button" id="saveGoalBtn">保存</button>
             <button type="button" id="closeGoalModal">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 目标删除确认 Modal（仅任务模式） -->
+<div th:if="${mode=='tasks'}" id="goalDeleteModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h3>删除目标</h3>
+        <p class="goal-delete-message">是否将绑定到该目标的任务一并删除？</p>
+        <div class="goal-delete-subtext">删除目标后无法恢复，任务可选择保留或一并删除。</div>
+        <div class="modal-actions">
+            <button type="button" id="keepTasksBtn">仅删除目标</button>
+            <button type="button" id="deleteTasksBtn">删除目标和任务</button>
+            <button type="button" id="cancelDeleteGoalBtn">取消</button>
         </div>
     </div>
 </div>

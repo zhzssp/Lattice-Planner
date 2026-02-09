@@ -8,6 +8,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.zhzssp.memorandum.entity.Goal;
 import org.zhzssp.memorandum.entity.Task;
+import org.zhzssp.memorandum.entity.TaskGranularity;
 import org.zhzssp.memorandum.entity.TaskStatus;
 import org.zhzssp.memorandum.entity.User;
 import org.zhzssp.memorandum.repository.TaskRepository;
@@ -82,6 +83,16 @@ public class TaskController {
         model.addAttribute("taskToGoals", taskToGoals);
         model.addAttribute("goals", goalService.findActiveGoalsByUser(user));
 
+        // 模糊任务 N 天存在提示（例如 5 天）
+        List<Task> fuzzyNeedSplit = taskService.findFuzzyTasksNeedingSplit(user, 5);
+        model.addAttribute("fuzzyNeedSplit", fuzzyNeedSplit);
+
+        // 已完成 / 归档 / 搁置任务，折叠展示
+        List<Task> archivedOrShelved = allTasks.stream()
+                .filter(t -> t.getEffectiveStatus() != TaskStatus.PENDING)
+                .collect(Collectors.toList());
+        model.addAttribute("archivedOrShelved", archivedOrShelved);
+
         return "dashboard";
     }
 
@@ -140,6 +151,8 @@ public class TaskController {
     public String addTask(@RequestParam String title,
                          @RequestParam String description,
                          @RequestParam String deadline,
+                         @RequestParam(required = false) String granularity,
+                         @RequestParam(required = false) Integer estimatedMinutes,
                          @RequestParam(required = false) List<Long> goalIds,
                          Principal principal) {
         User user = userRepository.findByUsername(principal.getName()).orElseThrow();
@@ -153,6 +166,13 @@ public class TaskController {
                 .optionalEnd()
                 .toFormatter();
         task.setDeadline(LocalDateTime.parse(deadline, formatter));
+        if (granularity != null && !granularity.isEmpty()) {
+            try {
+                task.setGranularity(TaskGranularity.valueOf(granularity));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        task.setEstimatedMinutes(estimatedMinutes);
         task.setStatus(TaskStatus.PENDING);
         task.setUser(user);
         taskRepository.save(task);

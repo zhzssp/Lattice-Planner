@@ -134,18 +134,90 @@ li:hover {
     margin-left: 8px;
 }
 
-.goal-archive-btn {
-    margin-left: auto;
+.goal-archive-btn,
+.goal-delete-btn {
     padding: 4px 10px;
     font-size: 12px;
-    background: #e0e0e0;
     border: none;
-    border-radius: 4px;
+    border-radius: 999px;
     cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease;
+}
+
+.goal-archive-btn {
+    margin-left: auto;
+    background: #e3f2fd;
+    color: #1976d2;
 }
 
 .goal-archive-btn:hover {
-    background: #d0d0d0;
+    background: #bbdefb;
+    transform: translateY(-1px);
+}
+
+.goal-delete-btn {
+    margin-left: 8px;
+    background: #fdecea;
+    color: #c62828;
+}
+
+.goal-delete-btn:hover {
+    background: #f8c7c3;
+    transform: translateY(-1px);
+}
+
+/* 模糊任务提示区 */
+.fuzzy-hint {
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: #fff8e5;
+    border: 1px solid #ffe2a8;
+    border-radius: 10px;
+}
+
+.fuzzy-hint h3 {
+    margin: 0 0 8px 0;
+    font-size: 0.95em;
+    color: #a66b00;
+}
+
+.fuzzy-hint ul {
+    margin: 0;
+}
+
+.fuzzy-hint li {
+    background: transparent;
+    border: none;
+    padding: 4px 0;
+    box-shadow: none;
+}
+
+.fuzzy-hint small {
+    display: block;
+    font-size: 0.8em;
+    color: #a66b00;
+}
+
+/* 归档 / 搁置区样式 */
+.archived-section {
+    margin-top: 24px;
+    padding-top: 10px;
+    border-top: 1px dashed #d0d7e2;
+}
+
+.archived-section h3 {
+    font-size: 0.95em;
+    color: #7f8c8d;
+}
+
+.archived-section .status-tag {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    font-size: 0.75em;
+    border-radius: 999px;
+    background: #ecf0f1;
+    color: #7f8c8d;
 }
 
 .add-btn {
@@ -368,5 +440,32 @@ li:hover {
 }
 
 #closeNoteModal:hover {
+    background: #cacaca;
+}
+
+/* 目标删除确认弹窗按钮 */
+#deleteTasksBtn {
+    background: #e53935;
+    color: #fff;
+}
+
+#deleteTasksBtn:hover {
+    background: #c62828;
+}
+
+#keepTasksBtn {
+    background: #e0f2f1;
+    color: #00695c;
+}
+
+#keepTasksBtn:hover {
+    background: #b2dfdb;
+}
+
+#cancelDeleteGoalBtn {
+    background: #e0e0e0;
+}
+
+#cancelDeleteGoalBtn:hover {
     background: #cacaca;
 }

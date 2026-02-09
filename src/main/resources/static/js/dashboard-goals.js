@@ -10,6 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const goalTypeSelect = document.getElementById('goalType');
     const goalList = document.getElementById('goalList');
 
+    // 删除确认弹窗
+    const deleteModal = document.getElementById('goalDeleteModal');
+    const keepTasksBtn = document.getElementById('keepTasksBtn');
+    const deleteTasksBtn = document.getElementById('deleteTasksBtn');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteGoalBtn');
+    let currentDeleteGoalId = null;
+
     const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content');
     const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.getAttribute('content');
 
@@ -25,6 +32,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }).then(r => {
             if (r.ok) location.reload();
         });
+    }
+
+    function deleteGoal(goalId) {
+        currentDeleteGoalId = goalId;
+        if (deleteModal) {
+            deleteModal.style.display = 'flex';
+        }
     }
 
     openBtn?.addEventListener('click', () => {
@@ -63,5 +77,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
     goalList?.querySelectorAll('.goal-archive-btn').forEach(btn => {
         btn.addEventListener('click', () => archiveGoal(btn.dataset.goalId));
+    });
+
+    goalList?.querySelectorAll('.goal-delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteGoal(btn.dataset.goalId));
+    });
+
+    // 删除确认弹窗事件绑定
+    keepTasksBtn?.addEventListener('click', () => {
+        if (!currentDeleteGoalId) return;
+        const body = new URLSearchParams({ _csrf: csrfToken, mode: 'keepTasks' });
+        fetch(`/goal/delete/${currentDeleteGoalId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                [csrfHeader]: csrfToken
+            },
+            body
+        }).then(r => {
+            if (r.ok) location.reload();
+        });
+    });
+
+    deleteTasksBtn?.addEventListener('click', () => {
+        if (!currentDeleteGoalId) return;
+        const body = new URLSearchParams({ _csrf: csrfToken, mode: 'deleteTasks' });
+        fetch(`/goal/delete/${currentDeleteGoalId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                [csrfHeader]: csrfToken
+            },
+            body
+        }).then(r => {
+            if (r.ok) location.reload();
+        });
+    });
+
+    const closeDeleteModal = () => {
+        if (deleteModal) deleteModal.style.display = 'none';
+        currentDeleteGoalId = null;
+    };
+
+    cancelDeleteBtn?.addEventListener('click', closeDeleteModal);
+    // 点击遮罩关闭
+    deleteModal?.addEventListener('click', (e) => {
+        if (e.target === deleteModal) closeDeleteModal();
     });
 });
