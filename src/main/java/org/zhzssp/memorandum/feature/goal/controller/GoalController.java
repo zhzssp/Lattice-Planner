@@ -1,18 +1,20 @@
-package org.zhzssp.memorandum.controller;
+package org.zhzssp.memorandum.feature.goal.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.zhzssp.memorandum.entity.Goal;
 import org.zhzssp.memorandum.entity.GoalType;
 import org.zhzssp.memorandum.entity.User;
+import org.zhzssp.memorandum.feature.goal.entity.Goal;
+import org.zhzssp.memorandum.feature.goal.service.GoalService;
 import org.zhzssp.memorandum.repository.UserRepository;
-import org.zhzssp.memorandum.service.GoalService;
 
 import java.security.Principal;
 import java.util.List;
 
+/**
+ * 目标控制器（插件层）。
+ */
 @Controller
 @RequestMapping("/goal")
 public class GoalController {

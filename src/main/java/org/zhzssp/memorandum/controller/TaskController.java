@@ -10,8 +10,9 @@ import org.zhzssp.memorandum.entity.*;
 import org.zhzssp.memorandum.repository.NoteRepository;
 import org.zhzssp.memorandum.repository.TaskRepository;
 import org.zhzssp.memorandum.repository.UserRepository;
-import org.zhzssp.memorandum.service.GoalService;
-import org.zhzssp.memorandum.service.TaskService;
+import org.zhzssp.memorandum.core.service.TaskService;
+import org.zhzssp.memorandum.feature.goal.entity.Goal;
+import org.zhzssp.memorandum.feature.goal.service.GoalService;
 import org.zhzssp.memorandum.service.UserPreferenceService;
 import org.zhzssp.memorandum.entity.UserPreference;
 import org.zhzssp.memorandum.entity.Note;
@@ -305,8 +306,7 @@ public class TaskController {
             }
         }
         task.setStatus(TaskStatus.PENDING);
-        task.setUser(user);
-        taskRepository.save(task);
+        taskService.saveTask(task, user);
         goalService.linkTaskToGoals(task.getId(), goalIds != null ? goalIds : List.of(), user);
         return "redirect:/dashboard";
     }
@@ -347,8 +347,7 @@ public class TaskController {
             if (!task.getUser().getId().equals(user.getId())) {
                 return "error:unauthorized";
             }
-            task.setStatus(TaskStatus.DONE);
-            taskRepository.save(task);
+            taskService.completeTask(task, user);
             return "success";
         } catch (Exception e) {
             return "error:failed";

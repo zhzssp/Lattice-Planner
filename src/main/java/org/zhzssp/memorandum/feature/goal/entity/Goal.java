@@ -1,13 +1,15 @@
-package org.zhzssp.memorandum.entity;
+package org.zhzssp.memorandum.feature.goal.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
+import org.zhzssp.memorandum.entity.GoalType;
+import org.zhzssp.memorandum.entity.User;
 
 import java.time.LocalDateTime;
 
 /**
- * 目标实体。弱关联设计：不强制树状，支持临时/模糊目标。
+ * 目标实体（插件层）。弱关联设计：不强制树状，支持临时/模糊目标。
  */
 @Entity
 @Table(name = "goal")

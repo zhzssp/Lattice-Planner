@@ -1,8 +1,8 @@
-package org.zhzssp.memorandum.repository;
+package org.zhzssp.memorandum.feature.goal.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.zhzssp.memorandum.entity.Goal;
 import org.zhzssp.memorandum.entity.User;
+import org.zhzssp.memorandum.feature.goal.entity.Goal;
 
 import java.util.List;
 

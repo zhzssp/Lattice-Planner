@@ -1,13 +1,13 @@
-package org.zhzssp.memorandum.service;
+package org.zhzssp.memorandum.feature.goal.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.zhzssp.memorandum.entity.Goal;
 import org.zhzssp.memorandum.entity.Link;
 import org.zhzssp.memorandum.entity.Task;
 import org.zhzssp.memorandum.entity.TaskStatus;
 import org.zhzssp.memorandum.entity.User;
-import org.zhzssp.memorandum.repository.GoalRepository;
+import org.zhzssp.memorandum.feature.goal.entity.Goal;
+import org.zhzssp.memorandum.feature.goal.repository.GoalRepository;
 import org.zhzssp.memorandum.repository.LinkRepository;
 import org.zhzssp.memorandum.repository.TaskRepository;
 
@@ -17,7 +17,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 目标服务。Task↔Goal 多对多弱关联通过 Link 表实现。
+ * 目标服务（插件层）。Task↔Goal 多对多弱关联通过 Link 表实现。
  */
 @Service
 public class GoalService {
@@ -121,8 +121,8 @@ public class GoalService {
 
     /**
      * 删除目标及其关联：
-     * - mode = \"deleteTasks\": 删除目标 + 相关链接 + 相关任务
-     * - mode = \"keepTasks\" : 删除目标 + 相关链接，保留任务
+     * - mode = "deleteTasks": 删除目标 + 相关链接 + 相关任务
+     * - mode = "keepTasks" : 删除目标 + 相关链接，保留任务
      */
     public void deleteGoalWithMode(Long goalId, User user, String mode) {
         goalRepository.findById(goalId).ifPresent(g -> {
