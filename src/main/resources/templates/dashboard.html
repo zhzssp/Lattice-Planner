@@ -15,13 +15,73 @@
 <body>
 <div class="container">
     <div class="top-bar">
-        <span class="current-mode" th:text="${mode=='tasks' ? '当前：任务视图' : '当前：笔记视图'}"></span>
-        <a href="/change-mode" class="switch-mode-btn">切换视图模式</a>
+        <span class="current-mode" th:text="${mindsetMode=='execute' ? '当前：执行模式' : (mindsetMode=='learn' ? '当前：学习模式' : '当前：规划模式')}"></span>
+        <div>
+            <a href="/preference/settings" class="switch-mode-btn" style="margin-right: 8px;">偏好设置</a>
+            <a href="/change-mode" class="switch-mode-btn">切换思维模式</a>
+        </div>
     </div>
     <h2>Dashboard</h2>
 
-    <!-- 任务模式：仅显示任务相关 -->
-    <div th:if="${mode=='tasks'}">
+    <!-- 执行模式：低信息密度，只看今日+当前任务 -->
+    <div th:if="${mindsetMode=='execute'}">
+        <h3>今日可行动任务</h3>
+        <ul>
+            <li th:each="memo : ${memos}" class="memo-item" th:data-memo-id="${memo.id}">
+                <div>
+                    <span class="title" th:text="${memo.title}"></span>
+                    <br/>
+                    <small th:text="${memo.description}"></small>
+                </div>
+                <span class="deadline" th:text="${memo.deadline}"></span>
+            </li>
+        </ul>
+        <a href="/memo/add" class="add-btn">＋ 添加任务</a>
+    </div>
+
+    <!-- 学习模式：中信息密度，任务+笔记并排 -->
+    <div th:if="${mindsetMode=='learn'}" class="learn-mode-layout">
+        <div class="learn-tasks-column">
+            <h3>今日任务</h3>
+            <ul>
+                <li th:each="memo : ${memos}" class="memo-item" th:data-memo-id="${memo.id}">
+                    <div>
+                        <span class="title" th:text="${memo.title}"></span>
+                        <br/>
+                        <small th:text="${memo.description}"></small>
+                    </div>
+                    <span class="deadline" th:text="${memo.deadline}"></span>
+                </li>
+            </ul>
+            <a href="/memo/add" class="add-btn">＋ 添加任务</a>
+        </div>
+        <div class="learn-notes-column" id="notesSection">
+            <h3>笔记</h3>
+            <ul id="noteList">
+                <li th:each="n : ${notes}">
+                    <span th:text="'[' + (n.type ?: 'SCRATCH') + '] ' + (n.title ?: '(无标题)')"></span>
+                </li>
+            </ul>
+            <button type="button" id="openNoteModal" class="add-btn">＋ 创建笔记</button>
+        </div>
+    </div>
+
+    <!-- 规划模式：高信息密度，目标/项目/全局 -->
+    <div th:if="${mindsetMode=='plan'}">
+        <!-- 统计信息（如果用户偏好允许） -->
+        <div class="statistics-section" th:if="${showStatistics != null and showStatistics}">
+            <h3>统计</h3>
+            <div class="stat-item">
+                <span>总任务数：</span><strong th:text="${totalTasks}"></strong>
+            </div>
+            <div class="stat-item">
+                <span>已完成：</span><strong th:text="${doneTasks}"></strong>
+            </div>
+            <div class="stat-item">
+                <span>完成率：</span><strong th:text="${completionRate + '%'}"></strong>
+            </div>
+        </div>
+
         <!-- 时间层视图切换 -->
         <div class="task-view-switch">
             <a th:href="@{/dashboard(taskView='today')}"
@@ -53,8 +113,8 @@
             </ul>
         </div>
 
-        <!-- 目标管理（弱关联，可选） -->
-        <div class="goals-section" id="goalsSection">
+        <!-- 目标管理（仅在规划模式显示） -->
+        <div class="goals-section" id="goalsSection" th:if="${showGoals != null and showGoals}">
             <h3>我的目标</h3>
             <button type="button" id="openGoalModal" class="add-btn">＋ 添加目标</button>
             <ul id="goalList">
@@ -221,17 +281,12 @@
         </div>
     </div>
 
-    <!-- 笔记模式：仅显示笔记相关 -->
-    <div th:if="${mode=='notes'}" id="notesSection">
-        <h3>笔记</h3>
-        <button type="button" id="openNoteModal" class="add-btn">＋ 创建笔记</button>
-        <ul id="noteList"></ul>
     </div>
 
 </div>
 
-<!-- Note Modal（仅笔记模式存在） -->
-<div th:if="${mode=='notes'}" id="noteModal" class="modal" style="display:none;">
+<!-- Note Modal（学习模式和规划模式可用） -->
+<div th:if="${mindsetMode=='learn' or mindsetMode=='plan'}" id="noteModal" class="modal" style="display:none;">
     <div class="modal-content">
         <h3>创建笔记</h3>
 
@@ -279,8 +334,8 @@
     </div>
 </div>
 
-<!-- 目标添加 Modal（仅任务模式） -->
-<div th:if="${mode=='tasks'}" id="goalModal" class="modal" style="display:none;">
+<!-- 目标添加 Modal（仅规划模式） -->
+<div th:if="${mindsetMode=='plan'}" id="goalModal" class="modal" style="display:none;">
     <div class="modal-content">
         <h3>添加目标</h3>
         <input type="text" id="goalName" placeholder="目标名称">
@@ -297,8 +352,8 @@
     </div>
 </div>
 
-<!-- 目标删除确认 Modal（仅任务模式） -->
-<div th:if="${mode=='tasks'}" id="goalDeleteModal" class="modal" style="display:none;">
+<!-- 目标删除确认 Modal（仅规划模式） -->
+<div th:if="${mindsetMode=='plan'}" id="goalDeleteModal" class="modal" style="display:none;">
     <div class="modal-content">
         <h3>删除目标</h3>
         <p class="goal-delete-message">是否将绑定到该目标的任务一并删除？</p>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title>偏好设置</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+</head>
+<body>
+<div class="container">
+    <h2>认知负载设置</h2>
+    <form th:action="@{/preference/update}" method="post">
+        <div class="preference-item">
+            <label for="maxVisibleTasks">每屏最多显示任务数（留空表示不限制）</label>
+            <input type="number" id="maxVisibleTasks" name="maxVisibleTasks" min="1" step="1"
+                   th:value="${preference.maxVisibleTasks}">
+        </div>
+
+        <div class="preference-item">
+            <label>
+                <input type="checkbox" name="showFutureTasks" value="true"
+                       th:checked="${preference.showFutureTasks}">
+                显示未来任务
+            </label>
+        </div>
+
+        <div class="preference-item">
+            <label>
+                <input type="checkbox" name="showStatistics" value="true"
+                       th:checked="${preference.showStatistics}">
+                显示统计信息（完成率等）
+            </label>
+        </div>
+
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+        <div class="preference-actions">
+            <button type="submit" class="add-btn">保存设置</button>
+            <a href="/dashboard" class="add-btn">返回</a>
+        </div>
+    </form>
+</div>
+</body>
+</html>

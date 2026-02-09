@@ -21,16 +21,46 @@ h2 {
 }
 
 .feature-option {
-    display: flex;
-    align-items: center;
+    display: block;
     margin-bottom: 20px;
-    font-size: 1.1rem;
+    padding: 16px 20px;
+    border: 2px solid #e1e7f0;
+    border-radius: 12px;
     cursor: pointer;
+    transition: all 0.25s ease;
+    text-align: left;
+}
+
+.feature-option:hover {
+    border-color: #4a90e2;
+    background: #f0f7ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .feature-option input {
     margin-right: 12px;
     transform: scale(1.2);
+    cursor: pointer;
+}
+
+.feature-option label {
+    cursor: pointer;
+    display: block;
+}
+
+.feature-option strong {
+    display: block;
+    font-size: 1.1rem;
+    color: #2c3e50;
+    margin-bottom: 4px;
+}
+
+.feature-option small {
+    display: block;
+    font-size: 0.85em;
+    color: #7f8c8d;
+    line-height: 1.4;
 }
 
 .submit-btn {

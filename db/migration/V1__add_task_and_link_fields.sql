@@ -29,3 +29,14 @@ CREATE TABLE goal (
 );
 
 ALTER TABLE note ADD COLUMN type VARCHAR(20) NULL;
+
+-- 用户偏好表
+CREATE TABLE IF NOT EXISTS user_preference (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL UNIQUE,
+    max_visible_tasks INT NULL,
+    show_future_tasks BOOLEAN NOT NULL DEFAULT TRUE,
+    show_statistics BOOLEAN NOT NULL DEFAULT FALSE,
+    default_mindset_mode VARCHAR(20) NULL,
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+);

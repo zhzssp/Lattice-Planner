@@ -9,18 +9,32 @@
 </head>
 <body>
 <div class="container">
-    <h2>选择视图模式</h2>
+    <h2>选择思维模式</h2>
     <form th:action="@{/select-features}" method="post">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
         <div class="feature-option">
-            <input type="radio" id="tasks" name="selectedFeature" value="tasks" checked>
-            <label for="tasks">任务</label>
+            <input type="radio" id="execute" name="mindsetMode" value="execute" checked>
+            <label for="execute">
+                <strong>执行模式</strong>
+                <small>低信息密度，只看今日+当前任务，专注完成/搁置/下一个</small>
+            </label>
         </div>
 
         <div class="feature-option">
-            <input type="radio" id="notes" name="selectedFeature" value="notes">
-            <label for="notes">笔记</label>
+            <input type="radio" id="learn" name="mindsetMode" value="learn">
+            <label for="learn">
+                <strong>学习模式</strong>
+                <small>中信息密度，任务+笔记并排，创建笔记、关联任务</small>
+            </label>
+        </div>
+
+        <div class="feature-option">
+            <input type="radio" id="plan" name="mindsetMode" value="plan">
+            <label for="plan">
+                <strong>规划模式</strong>
+                <small>高信息密度，目标/项目/全局，目标树、任务列表、统计</small>
+            </label>
         </div>
 
         <button type="submit" class="submit-btn">继续</button>

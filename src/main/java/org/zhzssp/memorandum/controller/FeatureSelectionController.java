@@ -9,11 +9,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 @Controller
 public class FeatureSelectionController {
 
-    private static final String SESSION_KEY = "selectedFeature"; // store single string value
+    private static final String SESSION_KEY = "mindsetMode"; // 思维模式：execute/learn/plan
 
     @GetMapping("/select-features")
     public String selectFeaturesPage(jakarta.servlet.http.HttpSession session) {
-        // 若已经选择过功能模式则直接跳转至 dashboard，防止回退再访问
+        // 若已经选择过思维模式则直接跳转至 dashboard，防止回退再访问
         if (session.getAttribute(SESSION_KEY) != null) {
             return "redirect:/dashboard";
         }
@@ -21,21 +21,23 @@ public class FeatureSelectionController {
     }
 
     @PostMapping("/select-features")
-    public String saveSelectedFeature(@RequestParam(name = "selectedFeature", required = false) String feature,
-                                      HttpSession session) {
-        // default to tasks if nothing sent
-        session.setAttribute(SESSION_KEY, feature != null ? feature : "tasks");
+    public String saveMindsetMode(@RequestParam(name = "mindsetMode", required = false) String mode,
+                                  HttpSession session) {
+        // default to execute if nothing sent
+        String validMode = mode != null && (mode.equals("execute") || mode.equals("learn") || mode.equals("plan"))
+                ? mode : "execute";
+        session.setAttribute(SESSION_KEY, validMode);
         return "redirect:/dashboard";
     }
 
-    public static String getSelectedFeature(HttpSession session) {
+    public static String getMindsetMode(HttpSession session) {
         Object obj = session.getAttribute(SESSION_KEY);
-        return obj instanceof String ? (String) obj : "tasks";
+        return obj instanceof String ? (String) obj : "execute";
     }
 
     /**
      * 供 Dashboard 顶部的「切换视图模式」按钮使用：
-     * 清除当前会话中的视图选择，下次进入重新选择任务/笔记视图。
+     * 清除当前会话中的思维模式，下次进入重新选择。
      */
     @GetMapping("/change-mode")
     public String changeMode(HttpSession session) {
