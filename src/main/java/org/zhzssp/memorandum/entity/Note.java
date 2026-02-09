@@ -19,6 +19,10 @@ public class Note {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = true)
+    private NoteType type;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

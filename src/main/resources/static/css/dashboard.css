@@ -500,6 +500,35 @@ li:hover {
     background: #cacaca;
 }
 
+/* 笔记类型切换与结构化面板 */
+.note-type-switch {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.note-type-btn {
+    flex: 1;
+    border-radius: 999px;
+    border: 1px solid #d0d7e2;
+    background: #ffffff;
+    font-size: 0.8em;
+    padding: 6px 0;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.note-type-btn.active {
+    background: #4a90e2;
+    color: #ffffff;
+    border-color: #4a90e2;
+}
+
+.note-panel textarea,
+.note-panel input {
+    margin-bottom: 8px;
+}
+
 /* 目标删除确认弹窗按钮 */
 #deleteTasksBtn {
     background: #e53935;

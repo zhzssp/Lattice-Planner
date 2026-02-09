@@ -27,3 +27,5 @@ CREATE TABLE goal (
     user_id BIGINT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES user(id)
 );
+
+ALTER TABLE note ADD COLUMN type VARCHAR(20) NULL;

@@ -233,12 +233,48 @@
 <!-- Note Modal（仅笔记模式存在） -->
 <div th:if="${mode=='notes'}" id="noteModal" class="modal" style="display:none;">
     <div class="modal-content">
-        <h3>Create Note</h3>
-        <input type="text" id="noteTitle" placeholder="Title">
-        <textarea id="noteContent" placeholder="Content"></textarea>
+        <h3>创建笔记</h3>
+
+        <!-- 笔记类型切换 -->
+        <div class="note-type-switch">
+            <button type="button" data-type="SCRATCH" class="note-type-btn active">临时想法</button>
+            <button type="button" data-type="LEARNING" class="note-type-btn">学习笔记</button>
+            <button type="button" data-type="PROJECT" class="note-type-btn">项目笔记</button>
+            <button type="button" data-type="RETROSPECTIVE" class="note-type-btn">复盘笔记</button>
+        </div>
+
+        <!-- 通用标题 -->
+        <input type="text" id="noteTitle" placeholder="标题（可选）">
+
+        <!-- SCRATCH：快速输入 -->
+        <div id="notePanel-SCRATCH" class="note-panel">
+            <textarea id="scratchContent" placeholder="随手记下你的想法..."></textarea>
+        </div>
+
+        <!-- LEARNING：概念 / 定义 / 示例 -->
+        <div id="notePanel-LEARNING" class="note-panel" style="display:none;">
+            <input type="text" id="learningConcept" placeholder="概念 / 名称">
+            <textarea id="learningDefinition" placeholder="定义 / 关键要点"></textarea>
+            <textarea id="learningExample" placeholder="示例 / 推导（可选）"></textarea>
+        </div>
+
+        <!-- PROJECT：决策 / TODO / 问题 -->
+        <div id="notePanel-PROJECT" class="note-panel" style="display:none;">
+            <textarea id="projectContext" placeholder="项目背景 / 决策"></textarea>
+            <textarea id="projectTodos" placeholder="TODO 列表（每行一条）"></textarea>
+            <textarea id="projectIssues" placeholder="问题 / 风险（可选）"></textarea>
+        </div>
+
+        <!-- RETROSPECTIVE：失败/成功 / 原因 / 教训 -->
+        <div id="notePanel-RETROSPECTIVE" class="note-panel" style="display:none%;">
+            <textarea id="retroWhat" placeholder="发生了什么？（成功 / 失败）"></textarea>
+            <textarea id="retroWhy" placeholder="原因分析"></textarea>
+            <textarea id="retroLessons" placeholder="教训 / 改进行动"></textarea>
+        </div>
+
         <div class="modal-actions">
-            <button type="button" id="saveNoteBtn">Save</button>
-            <button type="button" id="closeNoteModal">Cancel</button>
+            <button type="button" id="saveNoteBtn">保存</button>
+            <button type="button" id="closeNoteModal">取消</button>
         </div>
     </div>
 </div>

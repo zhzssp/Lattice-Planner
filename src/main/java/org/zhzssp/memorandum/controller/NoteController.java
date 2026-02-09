@@ -3,10 +3,10 @@ package org.zhzssp.memorandum.controller;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.zhzssp.memorandum.entity.Note;
+import org.zhzssp.memorandum.entity.NoteType;
 import org.zhzssp.memorandum.entity.User;
 import org.zhzssp.memorandum.repository.NoteRepository;
 import org.zhzssp.memorandum.repository.UserRepository;
@@ -39,6 +39,16 @@ public class NoteController {
         Note note = new Note();
         note.setTitle(dto.getTitle());
         note.setContent(dto.getContent());
+
+        NoteType type = NoteType.SCRATCH;
+        if (StringUtils.hasText(dto.getType())) {
+            try {
+                type = NoteType.valueOf(dto.getType());
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        note.setType(type);
+
         note.setUser(user);
         noteRepository.save(note);
         return ResponseEntity.ok(note.getId());
@@ -48,5 +58,6 @@ public class NoteController {
     public static class NewNoteDto {
         private String title;
         private String content;
+        private String type;
     }
 }
