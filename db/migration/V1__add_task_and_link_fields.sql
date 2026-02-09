@@ -2,6 +2,9 @@
 -- 若某列已存在会报错，可跳过该句继续执行其余语句
 ALTER TABLE memo ADD COLUMN status VARCHAR(20) NULL;
 ALTER TABLE memo ADD COLUMN granularity VARCHAR(20) NULL;
+ALTER TABLE memo ADD COLUMN energy_requirement VARCHAR(20) NULL;
+ALTER TABLE memo ADD COLUMN mental_load VARCHAR(20) NULL;
+ALTER TABLE memo ADD COLUMN preferred_slot VARCHAR(20) NULL;
 ALTER TABLE memo ADD COLUMN estimated_minutes INT NULL;
 ALTER TABLE memo ADD COLUMN created_at DATETIME NULL;
 ALTER TABLE memo ADD COLUMN shelved_at DATETIME NULL;

@@ -26,6 +26,33 @@
             <label for="estimatedMinutes">预估时长（分钟，可选）</label>
             <input type="number" id="estimatedMinutes" name="estimatedMinutes" min="1" step="5" placeholder="例如 30">
         </div>
+
+        <div class="time-layer-row">
+            <label for="energyRequirement">精力需求（可选）</label>
+            <select id="energyRequirement" name="energyRequirement">
+                <option value="">不指定</option>
+                <option value="HIGH">高精力</option>
+                <option value="MEDIUM">中等</option>
+                <option value="LOW">低精力</option>
+            </select>
+        </div>
+        <div class="time-layer-row">
+            <label for="mentalLoad">心理负担（可选）</label>
+            <select id="mentalLoad" name="mentalLoad">
+                <option value="">不指定</option>
+                <option value="HEAVY">心理负担较重</option>
+                <option value="LIGHT">心理负担较轻</option>
+            </select>
+        </div>
+        <div class="time-layer-row">
+            <label for="preferredSlot">偏好时间段（可选）</label>
+            <select id="preferredSlot" name="preferredSlot">
+                <option value="">不指定</option>
+                <option value="MORNING">上午</option>
+                <option value="AFTERNOON">下午</option>
+                <option value="EVENING">晚上</option>
+            </select>
+        </div>
         <div class="goal-binding" th:if="${!goals.isEmpty()}">
             <label>绑定目标（可选，可多选）</label>
             <div class="goal-checkboxes">

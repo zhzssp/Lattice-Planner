@@ -98,6 +98,63 @@ li:hover {
     margin-right: 4px;
 }
 
+/* 任务视图切换 */
+.task-view-switch {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0 16px 0;
+}
+
+.task-view-switch a {
+    flex: 1;
+    text-align: center;
+    padding: 6px 0;
+    border-radius: 999px;
+    border: 1px solid #d0d7e2;
+    font-size: 0.85em;
+    color: #4a4a4a;
+    text-decoration: none;
+    background: #ffffff;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.task-view-switch a.active {
+    background: #4a90e2;
+    color: #ffffff;
+    border-color: #4a90e2;
+}
+
+.task-view-switch a:hover {
+    border-color: #4a90e2;
+}
+
+.task-meta {
+    margin-top: 4px;
+}
+
+.meta-chip {
+    display: inline-block;
+    font-size: 0.75em;
+    background: #ecf0f1;
+    color: #7f8c8d;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-right: 4px;
+}
+
+.slot-view,
+.energy-view {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.slot-column h3 {
+    margin: 4px 0 8px 0;
+    font-size: 0.9em;
+    color: #5a6c7d;
+}
+
 /* 目标管理区域 */
 .goals-section {
     margin-bottom: 24px;

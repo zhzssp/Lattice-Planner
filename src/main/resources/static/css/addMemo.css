@@ -80,6 +80,28 @@ body {
     box-sizing: border-box;
 }
 
+/* 时间层相关下拉 */
+.memo-form-container .time-layer-row {
+    text-align: left;
+    margin-bottom: 12px;
+}
+
+.memo-form-container .time-layer-row label {
+    display: block;
+    font-size: 14px;
+    color: #5a6c7d;
+    margin-bottom: 6px;
+}
+
+.memo-form-container .time-layer-row select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+    box-sizing: border-box;
+}
+
 /* 目标绑定（可选） */
 .memo-form-container .goal-binding {
     margin-bottom: 15px;

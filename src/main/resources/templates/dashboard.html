@@ -22,6 +22,15 @@
 
     <!-- 任务模式：仅显示任务相关 -->
     <div th:if="${mode=='tasks'}">
+        <!-- 时间层视图切换 -->
+        <div class="task-view-switch">
+            <a th:href="@{/dashboard(taskView='today')}"
+               th:classappend="${taskView=='today'} ? ' active' : ''">今日视图</a>
+            <a th:href="@{/dashboard(taskView='slot')}"
+               th:classappend="${taskView=='slot'} ? ' active' : ''">时间段视图</a>
+            <a th:href="@{/dashboard(taskView='energy')}"
+               th:classappend="${taskView=='energy'} ? ' active' : ''">精力视图</a>
+        </div>
         <form th:action="@{/memo/search}" method="get" class="filter-wrapper">
             <input name="keyword" placeholder="关键字">
             <input type="date" name="start">
@@ -58,20 +67,141 @@
             </ul>
         </div>
 
-        <h3>可行动任务</h3>
-        <ul>
-            <li th:each="memo : ${memos}" class="memo-item" th:data-memo-id="${memo.id}">
-                <div>
-                    <span class="title" th:text="${memo.title}"></span>
-                    <span class="goal-tags" th:if="${taskToGoals != null and taskToGoals[memo.id] != null}">
-                        <span th:each="g : ${taskToGoals[memo.id]}" class="goal-tag" th:text="${g.name}"></span>
-                    </span>
-                    <br/>
-                    <small th:text="${memo.description}"></small>
-                </div>
-                <span class="deadline" th:text="${memo.deadline}"></span>
-            </li>
-        </ul>
+        <!-- 今日视图：单列表 -->
+        <div th:if="${taskView=='today'}">
+            <h3>今日可行动任务</h3>
+            <ul>
+                <li th:each="memo : ${memos}" class="memo-item" th:data-memo-id="${memo.id}">
+                    <div>
+                        <span class="title" th:text="${memo.title}"></span>
+                        <span class="goal-tags" th:if="${taskToGoals != null and taskToGoals[memo.id] != null}">
+                            <span th:each="g : ${taskToGoals[memo.id]}" class="goal-tag" th:text="${g.name}"></span>
+                        </span>
+                        <br/>
+                        <small th:text="${memo.description}"></small>
+                        <div class="task-meta">
+                            <span th:if="${memo.preferredSlot != null}" class="meta-chip"
+                                  th:text="${memo.preferredSlot}"></span>
+                            <span th:if="${memo.energyRequirement != null}" class="meta-chip"
+                                  th:text="${memo.energyRequirement}"></span>
+                        </div>
+                    </div>
+                    <span class="deadline" th:text="${memo.deadline}"></span>
+                </li>
+            </ul>
+        </div>
+
+        <!-- 时间段视图：上午 / 下午 / 晚上 -->
+        <div th:if="${taskView=='slot'}" class="slot-view">
+            <div class="slot-column">
+                <h3>上午</h3>
+                <ul>
+                    <li th:each="memo : ${morningTasks}" class="memo-item" th:data-memo-id="${memo.id}">
+                        <div>
+                            <span class="title" th:text="${memo.title}"></span>
+                            <br/>
+                            <small th:text="${memo.description}"></small>
+                        </div>
+                        <span class="deadline" th:text="${memo.deadline}"></span>
+                    </li>
+                </ul>
+            </div>
+            <div class="slot-column">
+                <h3>下午</h3>
+                <ul>
+                    <li th:each="memo : ${afternoonTasks}" class="memo-item" th:data-memo-id="${memo.id}">
+                        <div>
+                            <span class="title" th:text="${memo.title}"></span>
+                            <br/>
+                            <small th:text="${memo.description}"></small>
+                        </div>
+                        <span class="deadline" th:text="${memo.deadline}"></span>
+                    </li>
+                </ul>
+            </div>
+            <div class="slot-column">
+                <h3>晚上</h3>
+                <ul>
+                    <li th:each="memo : ${eveningTasks}" class="memo-item" th:data-memo-id="${memo.id}">
+                        <div>
+                            <span class="title" th:text="${memo.title}"></span>
+                            <br/>
+                            <small th:text="${memo.description}"></small>
+                        </div>
+                        <span class="deadline" th:text="${memo.deadline}"></span>
+                    </li>
+                </ul>
+            </div>
+            <div class="slot-column">
+                <h3>未指定时间段</h3>
+                <ul>
+                    <li th:each="memo : ${otherSlotTasks}" class="memo-item" th:data-memo-id="${memo.id}">
+                        <div>
+                            <span class="title" th:text="${memo.title}"></span>
+                            <br/>
+                            <small th:text="${memo.description}"></small>
+                        </div>
+                        <span class="deadline" th:text="${memo.deadline}"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 精力视图：高 / 中 / 低 / 未指定 -->
+        <div th:if="${taskView=='energy'}" class="energy-view">
+            <div class="slot-column">
+                <h3>高精力</h3>
+                <ul>
+                    <li th:each="memo : ${highEnergyTasks}" class="memo-item" th:data-memo-id="${memo.id}">
+                        <div>
+                            <span class="title" th:text="${memo.title}"></span>
+                            <br/>
+                            <small th:text="${memo.description}"></small>
+                        </div>
+                        <span class="deadline" th:text="${memo.deadline}"></span>
+                    </li>
+                </ul>
+            </div>
+            <div class="slot-column">
+                <h3>中精力</h3>
+                <ul>
+                    <li th:each="memo : ${mediumEnergyTasks}" class="memo-item" th:data-memo-id="${memo.id}">
+                        <div>
+                            <span class="title" th:text="${memo.title}"></span>
+                            <br/>
+                            <small th:text="${memo.description}"></small>
+                        </div>
+                        <span class="deadline" th:text="${memo.deadline}"></span>
+                    </li>
+                </ul>
+            </div>
+            <div class="slot-column">
+                <h3>低精力</h3>
+                <ul>
+                    <li th:each="memo : ${lowEnergyTasks}" class="memo-item" th:data-memo-id="${memo.id}">
+                        <div>
+                            <span class="title" th:text="${memo.title}"></span>
+                            <br/>
+                            <small th:text="${memo.description}"></small>
+                        </div>
+                        <span class="deadline" th:text="${memo.deadline}"></span>
+                    </li>
+                </ul>
+            </div>
+            <div class="slot-column">
+                <h3>未指定精力</h3>
+                <ul>
+                    <li th:each="memo : ${otherEnergyTasks}" class="memo-item" th:data-memo-id="${memo.id}">
+                        <div>
+                            <span class="title" th:text="${memo.title}"></span>
+                            <br/>
+                            <small th:text="${memo.description}"></small>
+                        </div>
+                        <span class="deadline" th:text="${memo.deadline}"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
         <a href="/memo/add" class="add-btn">＋ 添加任务</a>
 
         <!-- 归档 / 搁置区：不在默认视图中打扰用户，只在此折叠浏览 -->

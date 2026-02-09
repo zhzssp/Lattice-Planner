@@ -6,11 +6,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
-import org.zhzssp.memorandum.entity.Goal;
-import org.zhzssp.memorandum.entity.Task;
-import org.zhzssp.memorandum.entity.TaskGranularity;
-import org.zhzssp.memorandum.entity.TaskStatus;
-import org.zhzssp.memorandum.entity.User;
+import org.zhzssp.memorandum.entity.*;
 import org.zhzssp.memorandum.repository.TaskRepository;
 import org.zhzssp.memorandum.repository.UserRepository;
 import org.zhzssp.memorandum.service.GoalService;
@@ -48,16 +44,58 @@ public class TaskController {
     @GetMapping("/dashboard")
     public String dashboard(@NotNull Model model,
                             Principal principal,
+                            @RequestParam(name = "taskView", required = false, defaultValue = "today") String taskView,
                             jakarta.servlet.http.HttpSession session) {
         User user = userRepository.findByUsername(principal.getName()).orElseThrow();
         List<Task> allTasks = taskRepository.findByUser(user);
 
-        // 默认视图只显示可行动项（PENDING）
-        List<Task> actionableTasks = allTasks.stream()
-                .filter(t -> t.getEffectiveStatus() == TaskStatus.PENDING)
-                .collect(Collectors.toList());
-        model.addAttribute("tasks", actionableTasks);
-        model.addAttribute("memos", actionableTasks); // 兼容模板中的 memos 引用
+        // 时间层：三种视图模式
+        model.addAttribute("taskView", taskView);
+
+        // 今日视图的基础任务集合（PENDING + deadline=今天或未设置）
+        List<Task> todayTasks = taskService.getTodayActionableTasks(user);
+
+        if ("slot".equals(taskView)) {
+            // 时间段视图：按上午/下午/晚上分组
+            List<Task> morningTasks = todayTasks.stream()
+                    .filter(t -> t.getPreferredSlot() == TimeSlot.MORNING)
+                    .collect(Collectors.toList());
+            List<Task> afternoonTasks = todayTasks.stream()
+                    .filter(t -> t.getPreferredSlot() == TimeSlot.AFTERNOON)
+                    .collect(Collectors.toList());
+            List<Task> eveningTasks = todayTasks.stream()
+                    .filter(t -> t.getPreferredSlot() == TimeSlot.EVENING)
+                    .collect(Collectors.toList());
+            List<Task> otherSlotTasks = todayTasks.stream()
+                    .filter(t -> t.getPreferredSlot() == null)
+                    .collect(Collectors.toList());
+            model.addAttribute("morningTasks", morningTasks);
+            model.addAttribute("afternoonTasks", afternoonTasks);
+            model.addAttribute("eveningTasks", eveningTasks);
+            model.addAttribute("otherSlotTasks", otherSlotTasks);
+        } else if ("energy".equals(taskView)) {
+            // 精力视图：按精力需求分组
+            List<Task> highEnergyTasks = todayTasks.stream()
+                    .filter(t -> t.getEnergyRequirement() == EnergyLevel.HIGH)
+                    .collect(Collectors.toList());
+            List<Task> mediumEnergyTasks = todayTasks.stream()
+                    .filter(t -> t.getEnergyRequirement() == EnergyLevel.MEDIUM)
+                    .collect(Collectors.toList());
+            List<Task> lowEnergyTasks = todayTasks.stream()
+                    .filter(t -> t.getEnergyRequirement() == EnergyLevel.LOW)
+                    .collect(Collectors.toList());
+            List<Task> otherEnergyTasks = todayTasks.stream()
+                    .filter(t -> t.getEnergyRequirement() == null)
+                    .collect(Collectors.toList());
+            model.addAttribute("highEnergyTasks", highEnergyTasks);
+            model.addAttribute("mediumEnergyTasks", mediumEnergyTasks);
+            model.addAttribute("lowEnergyTasks", lowEnergyTasks);
+            model.addAttribute("otherEnergyTasks", otherEnergyTasks);
+        } else {
+            // 今日视图：单列表展示
+            model.addAttribute("tasks", todayTasks);
+            model.addAttribute("memos", todayTasks); // 兼容模板中的 memos 引用
+        }
 
         String mode = FeatureSelectionController.getSelectedFeature(session);
         // 兼容旧 session：memos/dueDates 视为 tasks
@@ -77,7 +115,7 @@ public class TaskController {
 
         // 任务→目标弱关联（用于展示标签）
         Map<Long, List<Goal>> taskToGoals = new HashMap<>();
-        for (Task t : actionableTasks) {
+        for (Task t : todayTasks) {
             taskToGoals.put(t.getId(), goalService.findGoalsByTaskId(t.getId(), user));
         }
         model.addAttribute("taskToGoals", taskToGoals);
@@ -153,6 +191,9 @@ public class TaskController {
                          @RequestParam String deadline,
                          @RequestParam(required = false) String granularity,
                          @RequestParam(required = false) Integer estimatedMinutes,
+                         @RequestParam(required = false) String energyRequirement,
+                         @RequestParam(required = false) String mentalLoad,
+                         @RequestParam(required = false) String preferredSlot,
                          @RequestParam(required = false) List<Long> goalIds,
                          Principal principal) {
         User user = userRepository.findByUsername(principal.getName()).orElseThrow();
@@ -173,6 +214,24 @@ public class TaskController {
             }
         }
         task.setEstimatedMinutes(estimatedMinutes);
+        if (energyRequirement != null && !energyRequirement.isEmpty()) {
+            try {
+                task.setEnergyRequirement(EnergyLevel.valueOf(energyRequirement));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        if (mentalLoad != null && !mentalLoad.isEmpty()) {
+            try {
+                task.setMentalLoad(MentalLoad.valueOf(mentalLoad));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        if (preferredSlot != null && !preferredSlot.isEmpty()) {
+            try {
+                task.setPreferredSlot(TimeSlot.valueOf(preferredSlot));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
         task.setStatus(TaskStatus.PENDING);
         task.setUser(user);
         taskRepository.save(task);

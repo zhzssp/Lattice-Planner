@@ -33,6 +33,21 @@ public class Task {
     @Column(name = "granularity", nullable = true)
     private TaskGranularity granularity;
 
+    /** 精力需求（HIGH/MEDIUM/LOW），用于弱时间管理推荐 */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "energy_requirement", nullable = true)
+    private EnergyLevel energyRequirement;
+
+    /** 心理负担（HEAVY/LIGHT） */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "mental_load", nullable = true)
+    private MentalLoad mentalLoad;
+
+    /** 偏好时间段（上午/下午/晚上） */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "preferred_slot", nullable = true)
+    private TimeSlot preferredSlot;
+
     /** 预估分钟数（ATOMIC/STANDARD 时可选） */
     @Column(name = "estimated_minutes", nullable = true)
     private Integer estimatedMinutes;

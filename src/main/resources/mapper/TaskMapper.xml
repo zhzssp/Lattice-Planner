@@ -9,6 +9,9 @@
         <result property="deadline" column="deadline"/>
         <result property="status" column="status"/>
         <result property="granularity" column="granularity"/>
+        <result property="energyRequirement" column="energy_requirement"/>
+        <result property="mentalLoad" column="mental_load"/>
+        <result property="preferredSlot" column="preferred_slot"/>
         <result property="estimatedMinutes" column="estimated_minutes"/>
         <result property="createdAt" column="created_at"/>
         <result property="shelvedAt" column="shelved_at"/>
