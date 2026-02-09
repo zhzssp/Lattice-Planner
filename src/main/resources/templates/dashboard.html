@@ -14,6 +14,10 @@
 
 <body>
 <div class="container">
+    <div class="top-bar">
+        <span class="current-mode" th:text="${mode=='tasks' ? '当前：任务视图' : '当前：笔记视图'}"></span>
+        <a href="/change-mode" class="switch-mode-btn">切换视图模式</a>
+    </div>
     <h2>Dashboard</h2>
 
     <!-- 任务模式：仅显示任务相关 -->

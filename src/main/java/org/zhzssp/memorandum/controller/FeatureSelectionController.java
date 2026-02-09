@@ -32,4 +32,14 @@ public class FeatureSelectionController {
         Object obj = session.getAttribute(SESSION_KEY);
         return obj instanceof String ? (String) obj : "tasks";
     }
+
+    /**
+     * 供 Dashboard 顶部的「切换视图模式」按钮使用：
+     * 清除当前会话中的视图选择，下次进入重新选择任务/笔记视图。
+     */
+    @GetMapping("/change-mode")
+    public String changeMode(HttpSession session) {
+        session.removeAttribute(SESSION_KEY);
+        return "redirect:/select-features";
+    }
 }
