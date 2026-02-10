@@ -280,6 +280,51 @@ li:hover {
     transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease;
 }
 
+/* 规划完成得分曲线区域（Insight 插件） */
+.score-section {
+    margin-bottom: 24px;
+    padding: 15px;
+    background: #f8faff;
+    border-radius: 10px;
+    border: 1px solid #e1e7f0;
+}
+
+.score-section h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1em;
+    color: #5a6c7d;
+}
+
+.score-range {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.score-range input[type="date"] {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #d3dbe8;
+    font-size: 0.9em;
+}
+
+.score-range button {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: none;
+    background: #4a90e2;
+    color: #fff;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+.score-range button:hover {
+    background: #357abd;
+}
+
 .goal-archive-btn {
     margin-left: auto;
     background: #e3f2fd;

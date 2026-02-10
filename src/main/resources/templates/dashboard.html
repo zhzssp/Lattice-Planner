@@ -7,9 +7,11 @@
     <title>Your Dashboard</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
     <link rel="stylesheet" th:href="@{/css/filter.css}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script th:src="@{/js/dashboard.js}"></script>
     <script th:src="@{/js/dashboard-notes.js}"></script>
     <script th:src="@{/js/dashboard-goals.js}"></script>
+    <script th:src="@{/js/insight-score.js}"></script>
 </head>
 
 <body>
@@ -80,6 +82,17 @@
             <div class="stat-item">
                 <span>完成率：</span><strong th:text="${completionRate + '%'}"></strong>
             </div>
+        </div>
+
+        <!-- 规划完成得分曲线（Insight 插件） -->
+        <div class="score-section">
+            <h3>规划完成得分曲线</h3>
+            <div class="score-range">
+                <input type="date" id="scoreStart">
+                <input type="date" id="scoreEnd">
+                <button type="button" id="scoreRefreshBtn">刷新</button>
+            </div>
+            <canvas id="scoreChart" height="120"></canvas>
         </div>
 
         <!-- 时间层视图切换 -->
