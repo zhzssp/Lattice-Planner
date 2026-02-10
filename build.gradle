@@ -27,6 +27,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
     implementation 'org.jetbrains:annotations:24.0.1'
+    // Google Gen AI 官方 Java SDK（用于调用 Gemini API）
+    implementation 'com.google.genai:google-genai:1.38.0'
 	implementation 'com.mysql:mysql-connector-j'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'

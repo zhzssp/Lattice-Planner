@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const startInput = document.getElementById('scoreStart');
     const endInput = document.getElementById('scoreEnd');
     const refreshBtn = document.getElementById('scoreRefreshBtn');
+    const summaryBtn = document.getElementById('scoreSummaryBtn');
+    const summaryBox = document.getElementById('scoreSummary');
 
     let scoreChart = null;
 
@@ -85,9 +87,46 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
+    function loadSummary() {
+        const startVal = startInput.value;
+        const endVal = endInput.value;
+        if (!startVal || !endVal) return;
+
+        const csrfToken = getCsrfToken();
+
+        if (summaryBox) {
+            summaryBox.textContent = 'AI 正在分析这一段时间的规划完成情况...';
+        }
+
+        fetch(`/insight/score/summary?start=${startVal}&end=${endVal}`, {
+            method: 'GET',
+            headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}
+        })
+            .then(resp => resp.ok ? resp.json() : Promise.reject(new Error(resp.statusText)))
+            .then(data => {
+                if (summaryBox) {
+                    summaryBox.textContent = data && data.summary
+                        ? data.summary
+                        : '没有获得有效的 AI 总结。';
+                }
+            })
+            .catch(err => {
+                console.error('加载 AI 总结失败', err);
+                if (summaryBox) {
+                    summaryBox.textContent = 'AI 总结暂时不可用，请稍后重试。';
+                }
+            });
+    }
+
     if (refreshBtn) {
         refreshBtn.addEventListener('click', function () {
             loadScores();
+        });
+    }
+
+    if (summaryBtn) {
+        summaryBtn.addEventListener('click', function () {
+            loadSummary();
         });
     }
 
