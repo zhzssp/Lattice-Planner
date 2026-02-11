@@ -44,31 +44,63 @@ let mainWindow = null;
 let intervalId1 = null; // 用于存储 setInterval 的 ID
 let intervalId2 = null; // 用于存储 setInterval 的 ID
 
+// 加载失败时显示的本地错误页（避免空白屏）
+function getLoadErrorHtml() {
+    return `
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Lattice-Planner</title></head>
+<body style="font-family:sans-serif;padding:2em;text-align:center;background:#f5f5f5;">
+  <h2>无法连接 Lattice-Planner 服务</h2>
+  <p>请确认后端已启动（默认地址：<code>${BASE_URL}</code>）</p>
+  <p>启动后端后，请关闭本窗口并从托盘再次打开，或重启客户端。</p>
+  <button onclick="window.latticePlanner&&window.latticePlanner.reload()" style="padding:8px 16px;cursor:pointer;">重试</button>
+</body></html>`;
+}
+
+// 供渲染进程“重试”按钮重新加载后端 URL
+ipcMain.on('reload-app', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL(BASE_URL).catch(err => {
+            console.error('Reload failed:', err);
+            mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(getLoadErrorHtml()));
+        });
+    }
+});
+
 // 创建窗口
 function createWindow() {
     const win = new BrowserWindow({
         width: 1000,
         height: 800,
         webPreferences: {
-            nodeIntegration: true,
-            // __dirname表示当前文件所在目录
+            // 加载远程 URL 时必须关闭 nodeIntegration，否则新版 Electron 易出现空白屏
+            nodeIntegration: false,
+            contextIsolation: true,
             preload: path.join(__dirname, 'preload.js'),
-            // 启用会话持久化
             partition: 'persist:main'
         }
     });
 
-    // 加载 Lattice-Planner Web 应用（与 BASE_URL 一致）
-    win.loadURL(BASE_URL);
-    // 绑定主窗口
     mainWindow = win;
-    // 打开开发者工具，查看控制台输出 -- 失效?
-    win.webContents.openDevTools();
+
+    // 加载失败时显示错误页，避免一片空白
+    win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+        if (validatedURL && validatedURL !== 'about:blank') {
+            console.error('Load failed:', validatedURL, errorCode, errorDescription);
+            win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(getLoadErrorHtml()));
+        }
+    });
+
+    // 加载 Lattice-Planner Web 应用（与 BASE_URL 一致）
+    win.loadURL(BASE_URL).catch(err => {
+        console.error('loadURL error:', err);
+        win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(getLoadErrorHtml()));
+    });
 
     // 当窗口关闭时，将窗口隐藏到系统托盘 --> 只能在系统托盘关闭
     mainWindow.on('close', (event) => {
-        event.preventDefault();  // 阻止窗口关闭
-        mainWindow.hide();       // 隐藏窗口
+        event.preventDefault();
+        mainWindow.hide();
     });
 }
 
