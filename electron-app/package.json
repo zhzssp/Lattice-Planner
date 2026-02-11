@@ -1,14 +1,14 @@
 {
-  "name": "Memorandum",
+  "name": "Lattice-Planner",
   "version": "1.0.0",
-  "description": "This is a memorandum app based on Spring and Thymeleaf.",
+  "description": "Lattice-Planner 桌面客户端（Electron），支持任务 DDL 提醒与系统托盘",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "pack": "electron-packager . --overwrite --platform=win32 --arch=x64 --out=release/ --icon=icon.ico --prune=true --ignore=node_modules/electron-builder --ignore=node_modules/electron-packager",
     "dist": "electron-builder"
   },
-  "keywords": [],
+  "keywords": ["Lattice-Planner", "electron", "desktop"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",

@@ -1,11 +1,12 @@
-// ------------------------- 整个客户端的主入口，操控客户端的整体运行逻辑，同时与后端进行交互 -------------------------
+// ------------------------- Lattice-Planner 客户端主入口：与后端服务交互，支持 DDL 提醒与系统托盘 -------------------------
 const { app, BrowserWindow, ipcMain, Tray, nativeImage, Menu, Notification } = require('electron');
 const path = require('path');
 const axios = require('axios');
 
-// 配置axios默认设置
+// 后端地址：优先使用环境变量 ELECTRON_APP_BASE_URL，否则默认本地 8080（与 Spring Boot 一致）
+const BASE_URL = process.env.ELECTRON_APP_BASE_URL || 'http://localhost:8080';
 axios.defaults.withCredentials = true;
-axios.defaults.baseURL = 'http://192.168.93.126:8080';
+axios.defaults.baseURL = BASE_URL;
 
 // 创建一个全局的cookie存储
 let sessionCookies = '';
@@ -19,7 +20,6 @@ async function getCookiesFromWindow() {
 
             const relevantCookies = cookies
                 .filter(cookie =>
-                    (cookie.domain.includes('192.168.93.126') || cookie.domain === '') &&
                     (cookie.name === 'JSESSIONID' || cookie.name.includes('SESSION'))
                 );
 
@@ -58,10 +58,8 @@ function createWindow() {
         }
     });
 
-    // 加载 HTML 文件 -- 使用ngrok提供临时域名
-    // win.loadURL('https://shella-subpolygonal-linsey.ngrok-free.dev');
-    // Spring Boot 后端在 8080 端口运行
-    win.loadURL('http://192.168.93.126:8080');
+    // 加载 Lattice-Planner Web 应用（与 BASE_URL 一致）
+    win.loadURL(BASE_URL);
     // 绑定主窗口
     mainWindow = win;
     // 打开开发者工具，查看控制台输出 -- 失效?
@@ -85,7 +83,7 @@ function createTray() {
     // 创建右键菜单
     const contextMenu = Menu.buildFromTemplate([
         {
-            label: '打开备忘录',
+            label: '打开 Lattice-Planner',
             click: () => {
                 if (mainWindow) {
                     mainWindow.show(); // 显示窗口
@@ -118,9 +116,9 @@ function createTray() {
     });
 }
 
-// 发送桌面通知
-function sendDeadlineNotification(ddl_title, deadline) {
-    console.log(`Checking notification for task: ${ddl_title}, deadline: ${deadline}`);
+// 发送桌面通知（工作规划任务截止提醒）
+function sendDeadlineNotification(taskTitle, deadline) {
+    console.log(`Checking notification for task: ${taskTitle}, deadline: ${deadline}`);
 
     const now = new Date();
     const deadlineDate = new Date(deadline); // 接收 LocalDateTime 字符串或时间戳
@@ -129,42 +127,35 @@ function sendDeadlineNotification(ddl_title, deadline) {
     const oneDayMs = 24 * 60 * 60 * 1000;
     const threeDaysMs = 3 * oneDayMs;
 
-    console.log(`Task: ${ddl_title}, ms until due: ${msUntilDue}`);
+    console.log(`Task: ${taskTitle}, ms until due: ${msUntilDue}`);
     let notification = null;
 
     if (msUntilDue <= 0) {
-        console.log(`Sending overdue notification for task: ${ddl_title}`);
+        console.log(`Sending overdue notification for task: ${taskTitle}`);
         notification = new Notification({
-            title: 'DDL提醒: ' + ddl_title,
-            body: '你的DDL已经过期啦!'
+            title: '任务截止提醒: ' + taskTitle,
+            body: '该任务已过截止时间，请尽快处理。'
         });
-    }
-
-    else if (msUntilDue <= oneDayMs && msUntilDue > 0) {
-        console.log(`Sending 1-day notification for task: ${ddl_title}`);
+    } else if (msUntilDue <= oneDayMs && msUntilDue > 0) {
+        console.log(`Sending 1-day notification for task: ${taskTitle}`);
         notification = new Notification({
-            title: 'DDL提醒: ' + ddl_title,
-            body: '你的DDL一天内到期啦!'
+            title: '任务截止提醒: ' + taskTitle,
+            body: '该任务将在一天内截止，请留意。'
         });
-    }
-
-    else if (msUntilDue <= threeDaysMs && msUntilDue > oneDayMs) {
-        console.log(`Sending 3-day notification for task: ${ddl_title}`);
+    } else if (msUntilDue <= threeDaysMs && msUntilDue > oneDayMs) {
+        console.log(`Sending 3-day notification for task: ${taskTitle}`);
         notification = new Notification({
-            title: 'DDL提醒: ' + ddl_title,
-            body: '你的DDL三天内到期啦!'
+            title: '任务截止提醒: ' + taskTitle,
+            body: '该任务将在三天内截止，请提前安排。'
         });
-    }
-
-    else {
-        console.log(`No notification needed for task: ${ddl_title}`);
+    } else {
+        console.log(`No notification needed for task: ${taskTitle}`);
     }
 
     if (notification) {
-        mainWindow.webContents.send('notification', ddl_title);
+        mainWindow.webContents.send('notification', taskTitle);
         notification.show();
     }
-    return;
 }
 
 // 检查DDL是否到期
@@ -184,11 +175,10 @@ function checkTasksDue() {
     performTaskCheck();
 }
 
-// 执行任务检查的具体逻辑
+// 执行任务检查：仅对「未完成且设置了截止时间」的任务发送 DDL 提醒（与工作规划后端 Task 一致）
 let notifiedTasks = new Set(); // 避免重复通知
 async function performTaskCheck() {
     console.log('Checking tasks due...');
-    // console.log('Notification permission status:', Notification.permission);
 
     try {
         const cookies = await getCookiesFromWindow();
@@ -201,24 +191,23 @@ async function performTaskCheck() {
             } : {}
         });
 
-        // 获取HTTP响应的数据段
-        const tasks = response.data;
-        console.log(`Found ${tasks.length} tasks:`, tasks);
+        const tasks = response.data || [];
+        // 仅处理：有截止时间 且 状态为 PENDING（未完成/未搁置/未归档）
+        const pendingWithDeadline = tasks.filter(t => {
+            if (!t || t.deadline == null) return false;
+            const status = (t.status || 'PENDING').toUpperCase();
+            return status === 'PENDING';
+        });
+        console.log(`Found ${tasks.length} tasks, ${pendingWithDeadline.length} pending with deadline`);
 
-        if (tasks && tasks.length > 0) {
-            tasks.forEach(task => {
-                // 此时是纯json对象，直接访问属性
-                task_id = task.id;
-                if(!notifiedTasks.has(task_id)) {
-                    console.log('Processing task, id = ', task_id);
-                    const deadline = new Date(task.deadline);
-                    notifiedTasks.add(task_id);
-                    sendDeadlineNotification(task.title, deadline);
-                }
-            });
-        } else {
-            console.warn('No tasks found');
-        }
+        pendingWithDeadline.forEach(task => {
+            const taskId = task.id;
+            if (!notifiedTasks.has(taskId)) {
+                console.log('Processing task, id = ', taskId);
+                notifiedTasks.add(taskId);
+                sendDeadlineNotification(task.title || '(无标题)', task.deadline);
+            }
+        });
     } catch (error) {
         console.error('Error fetching tasks:', error);
         console.error('Error details:', error.response?.data || error.message);
@@ -269,7 +258,7 @@ if (!gotTheLock) {
 app.whenReady().then(() => {
     // Windows 需要设置 AppUserModelID 才能显示系统通知
     try {
-        app.setAppUserModelId('Memorandum');
+        app.setAppUserModelId('Lattice-Planner');
     } catch (e) {
         console.warn('Failed to set AppUserModelID:', e);
     }
