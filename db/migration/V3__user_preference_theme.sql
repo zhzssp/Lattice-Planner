@@ -1,0 +1,1 @@
+ALTER TABLE user_preference ADD COLUMN theme VARCHAR(10) NULL;

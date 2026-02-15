@@ -200,8 +200,78 @@ li:hover {
 }
 
 /* 偏好设置页面 */
+.preference-intro {
+    font-size: 0.95em;
+    color: #5a6c7d;
+    margin-bottom: 20px;
+}
+
+.preference-section {
+    margin-bottom: 24px;
+}
+
+.preference-section-common {
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e8ecf0;
+}
+
+.preference-desc {
+    font-size: 0.9em;
+    color: #7f8c8d;
+    margin: -8px 0 12px 0;
+}
+
+/* 按思维模式选择：仅显示该模式下的选项 */
+.preference-mode-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #e1e7f0;
+}
+
+.mode-tab {
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
+    color: #5a6c7d;
+    font-size: 15px;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    border-radius: 6px 6px 0 0;
+}
+
+.mode-tab:hover {
+    color: #4a90e2;
+    background: #f4f7fb;
+}
+
+.mode-tab.active {
+    color: #4a90e2;
+    font-weight: 600;
+    border-bottom-color: #4a90e2;
+    background: #f8faff;
+}
+
+.preference-mode-panel {
+    margin-top: 8px;
+}
+
+.preference-row {
+    margin-bottom: 16px;
+}
+
 .preference-item {
     margin-bottom: 20px;
+}
+
+.preference-item select {
+    width: 100%;
+    max-width: 280px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #d3dbe8;
+    font-size: 15px;
 }
 
 .preference-item label {
@@ -268,6 +338,64 @@ li:hover {
     font-size: 0.8em;
     color: #7f8c8d;
     margin-left: 8px;
+}
+
+/* 目标与任务关系树：节点与边的树状图（右上角按键切换，默认隐藏） */
+.goal-tree-toggle-btn {
+    cursor: pointer;
+}
+
+.goal-task-tree-section {
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: #f8faff;
+    border-radius: 10px;
+    border: 1px solid #e1e7f0;
+}
+
+.goal-task-tree-section h3 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-size: 1em;
+    color: #5a6c7d;
+}
+
+.goal-tree-desc {
+    font-size: 0.9em;
+    color: #7f8c8d;
+    margin: 0 0 12px 0;
+}
+
+.goal-tree-viz-container {
+    margin-top: 8px;
+    min-height: 120px;
+}
+
+.goal-tree-svg {
+    display: block;
+    max-width: 100%;
+    font-size: 12px;
+}
+
+.goal-tree-link {
+    stroke: #a0aec0;
+    stroke-width: 1.5;
+}
+
+.goal-tree-node circle {
+    cursor: default;
+}
+
+.goal-tree-label {
+    fill: #2c3e50;
+    font-size: 12px;
+    pointer-events: none;
+}
+
+.goal-tree-empty {
+    font-size: 0.95em;
+    color: #7f8c8d;
+    margin: 0;
 }
 
 .goal-archive-btn,
@@ -678,4 +806,261 @@ li:hover {
 
 #cancelDeleteGoalBtn:hover {
     background: #cacaca;
+}
+
+/* ========== 暗色主题（眼睛舒适的深灰，非纯黑） ========== */
+.theme-dark {
+    background: linear-gradient(160deg, #1a1d24 0%, #161b22 100%);
+    color: #e6edf3;
+}
+
+.theme-dark .container {
+    background: #21262d;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.35);
+    border: 1px solid #30363d;
+}
+
+.theme-dark h2,
+.theme-dark h3 {
+    color: #e6edf3;
+}
+
+.theme-dark .current-mode {
+    color: #8b949e;
+}
+
+.theme-dark .switch-mode-btn {
+    background: #30363d;
+    border-color: #484f58;
+    color: #58a6ff;
+}
+
+.theme-dark .switch-mode-btn:hover {
+    background: #388bfd;
+    color: #fff;
+    border-color: #388bfd;
+}
+
+.theme-dark ul li {
+    background: #252d3a;
+    border-color: #30363d;
+}
+
+.theme-dark ul li:hover {
+    background: #2d3548;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.theme-dark .title {
+    color: #e6edf3;
+}
+
+.theme-dark .deadline,
+.theme-dark small {
+    color: #8b949e;
+}
+
+.theme-dark .task-view-switch a {
+    background: #252d3a;
+    border-color: #30363d;
+    color: #8b949e;
+}
+
+.theme-dark .task-view-switch a.active,
+.theme-dark .task-view-switch a:hover {
+    background: #388bfd;
+    color: #fff;
+    border-color: #388bfd;
+}
+
+.theme-dark .add-btn {
+    background: #238636;
+    color: #fff;
+    border-color: #238636;
+}
+
+.theme-dark .add-btn:hover {
+    background: #2ea043;
+    border-color: #2ea043;
+}
+
+.theme-dark .statistics-section,
+.theme-dark .goals-section,
+.theme-dark .score-section {
+    background: #252d3a;
+    border-color: #30363d;
+}
+
+.theme-dark .statistics-section h3,
+.theme-dark .goals-section h3,
+.theme-dark .score-section h3 {
+    color: #e6edf3;
+}
+
+.theme-dark .stat-item {
+    color: #c9d1d9;
+}
+
+.theme-dark .stat-item strong {
+    color: #58a6ff;
+}
+
+.theme-dark .goal-tag {
+    background: #1f2937;
+    color: #79c0ff;
+}
+
+.theme-dark .slot-column h3 {
+    color: #8b949e;
+}
+
+.theme-dark .meta-chip {
+    background: #30363d;
+    color: #8b949e;
+}
+
+.theme-dark .preference-intro,
+.theme-dark .preference-desc {
+    color: #8b949e;
+}
+
+.theme-dark .preference-section-common {
+    border-bottom-color: #30363d;
+}
+
+.theme-dark .preference-mode-tabs {
+    border-bottom-color: #30363d;
+}
+
+.theme-dark .mode-tab {
+    color: #8b949e;
+}
+
+.theme-dark .mode-tab:hover {
+    color: #58a6ff;
+    background: #252d3a;
+}
+
+.theme-dark .mode-tab.active {
+    color: #58a6ff;
+    background: #252d3a;
+    border-bottom-color: #58a6ff;
+}
+
+.theme-dark .preference-item label {
+    color: #c9d1d9;
+}
+
+.theme-dark .preference-item input[type="number"],
+.theme-dark .preference-item select {
+    background: #161b22;
+    border-color: #30363d;
+    color: #e6edf3;
+}
+
+.theme-dark .filter-wrapper input {
+    background: #161b22;
+    border-color: #30363d;
+    color: #e6edf3;
+}
+
+.theme-dark .filter-wrapper button {
+    background: #238636;
+    color: #fff;
+    border-color: #238636;
+}
+
+.theme-dark .filter-wrapper button:hover {
+    background: #2ea043;
+}
+
+.theme-dark .fuzzy-hint {
+    background: #252d3a;
+    border-color: #30363d;
+}
+
+.theme-dark .archived-section {
+    background: #252d3a;
+    border-color: #30363d;
+}
+
+.theme-dark .context-menu {
+    background: #21262d;
+    border-color: #30363d;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.theme-dark .context-menu-item:hover {
+    background: #30363d;
+}
+
+.theme-dark .modal-content {
+    background: #21262d;
+    border: 1px solid #30363d;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.theme-dark .modal-content h3 {
+    color: #e6edf3;
+}
+
+.theme-dark .modal-content input,
+.theme-dark .modal-content textarea,
+.theme-dark .modal-content select {
+    background: #161b22;
+    border-color: #30363d;
+    color: #e6edf3;
+}
+
+.theme-dark .note-type-btn {
+    background: #252d3a;
+    border-color: #30363d;
+    color: #8b949e;
+}
+
+.theme-dark .note-type-btn.active {
+    background: #388bfd;
+    color: #fff;
+    border-color: #388bfd;
+}
+
+.theme-dark .goal-delete-message,
+.theme-dark .goal-delete-subtext {
+    color: #c9d1d9;
+}
+
+.theme-dark .status-tag {
+    color: #8b949e;
+}
+
+.theme-dark .goal-task-tree-section {
+    background: #252d3a;
+    border-color: #30363d;
+}
+
+.theme-dark .goal-task-tree-section h3 {
+    color: #e6edf3;
+}
+
+.theme-dark .goal-tree-desc,
+.theme-dark .goal-tree-empty {
+    color: #8b949e;
+}
+
+.theme-dark .goal-tree-link {
+    stroke: #484f58;
+}
+
+.theme-dark .goal-tree-label {
+    fill: #e6edf3;
+}
+
+.theme-dark .goal-tree-node-goal circle {
+    fill: #58a6ff;
+    stroke: #21262d;
+}
+
+.theme-dark .goal-tree-node-task circle {
+    fill: #3fb950;
+    stroke: #21262d;
 }

@@ -8,21 +8,35 @@
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
     <link rel="stylesheet" th:href="@{/css/filter.css}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script th:src="@{/js/goal-tree-viz.js}"></script>
     <script th:src="@{/js/dashboard.js}"></script>
     <script th:src="@{/js/dashboard-notes.js}"></script>
     <script th:src="@{/js/dashboard-goals.js}"></script>
     <script th:src="@{/js/insight-score.js}"></script>
 </head>
 
-<body>
+<body th:classappend="${theme == 'dark'} ? 'theme-dark' : ''">
 <div class="container">
     <div class="top-bar">
         <span class="current-mode" th:text="${mindsetMode=='execute' ? '当前：执行模式' : (mindsetMode=='learn' ? '当前：学习模式' : '当前：规划模式')}"></span>
         <div>
-            <a href="/preference/settings" class="switch-mode-btn" style="margin-right: 8px;">偏好设置</a>
+            <button type="button" id="toggleGoalTreeBtn" class="switch-mode-btn goal-tree-toggle-btn" style="margin-right: 8px;" title="显示/隐藏目标与任务关系树">目标与任务树</button>
+            <a th:href="@{/preference/settings(mode=${mindsetMode})}" class="switch-mode-btn" style="margin-right: 8px;">偏好设置</a>
             <a href="/change-mode" class="switch-mode-btn">切换思维模式</a>
         </div>
     </div>
+
+    <!-- 目标与任务关系树：节点与边的树状图（默认隐藏，所有模式均可查看） -->
+    <section id="goalTaskTreeSection" class="goal-task-tree-section" style="display: none;" aria-hidden="true">
+        <h3>目标与任务关系</h3>
+        <p class="goal-tree-desc">仅展示有关联关系的目标及其下属任务，节点与连线表示从属关系。</p>
+        <div id="goalTreeVizContainer" class="goal-tree-viz-container">
+            <p id="goalTreeEmptyMsg" class="goal-tree-empty" style="display: none;">暂无关联的目标与任务。</p>
+            <svg id="goalTreeSvg" class="goal-tree-svg" aria-hidden="true"></svg>
+        </div>
+    </section>
+
     <h2>Dashboard</h2>
 
     <!-- 执行模式：低信息密度，只看今日+当前任务 -->
@@ -84,8 +98,8 @@
             </div>
         </div>
 
-        <!-- 规划完成得分曲线（Insight 插件） -->
-        <div class="score-section">
+        <!-- 规划完成得分曲线（Insight 插件，可由偏好关闭） -->
+        <div class="score-section" th:if="${showScoreSection != null and showScoreSection}">
             <h3>规划完成得分曲线</h3>
             <div class="score-range">
                 <input type="date" id="scoreStart">

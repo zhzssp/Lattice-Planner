@@ -6,12 +6,14 @@ import org.zhzssp.memorandum.entity.Link;
 import org.zhzssp.memorandum.entity.Task;
 import org.zhzssp.memorandum.entity.TaskStatus;
 import org.zhzssp.memorandum.entity.User;
+import org.zhzssp.memorandum.feature.goal.dto.GoalWithTasks;
 import org.zhzssp.memorandum.feature.goal.entity.Goal;
 import org.zhzssp.memorandum.feature.goal.repository.GoalRepository;
 import org.zhzssp.memorandum.repository.LinkRepository;
 import org.zhzssp.memorandum.repository.TaskRepository;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,6 +35,30 @@ public class GoalService {
 
     public List<Goal> findActiveGoalsByUser(User user) {
         return goalRepository.findByUserAndArchivedAtIsNull(user);
+    }
+
+    /**
+     * 获取「仅含有关联关系」的目标与任务树：每个目标下列出与其关联的任务。
+     * 无关联的目标或任务不会出现在结果中。
+     */
+    public List<GoalWithTasks> findGoalTaskTree(User user) {
+        List<Goal> activeGoals = goalRepository.findByUserAndArchivedAtIsNull(user);
+        List<GoalWithTasks> result = new ArrayList<>();
+        for (Goal goal : activeGoals) {
+            List<Link> links = linkRepository.findByTargetTypeAndTargetId(Link.LinkTargetType.GOAL, goal.getId());
+            List<Long> taskIds = links.stream()
+                    .filter(l -> l.getSourceType() == Link.LinkSourceType.TASK)
+                    .map(Link::getSourceId)
+                    .distinct()
+                    .toList();
+            if (taskIds.isEmpty()) continue;
+            List<Task> tasks = taskRepository.findAllById(taskIds).stream()
+                    .filter(t -> t.getUser() != null && t.getUser().getId().equals(user.getId()))
+                    .toList();
+            if (tasks.isEmpty()) continue;
+            result.add(new GoalWithTasks(goal, tasks));
+        }
+        return result;
     }
 
     public List<Goal> findGoalsByUser(User user) {

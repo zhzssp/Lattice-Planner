@@ -118,4 +118,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert('删除失败: ' + error.message);
             });
     }
+
+    // 目标与任务树：右上角按键控制显示/隐藏（默认隐藏），首次显示时拉取数据并绘制节点与边
+    const toggleGoalTreeBtn = document.getElementById('toggleGoalTreeBtn');
+    const goalTaskTreeSection = document.getElementById('goalTaskTreeSection');
+    if (toggleGoalTreeBtn && goalTaskTreeSection) {
+        toggleGoalTreeBtn.addEventListener('click', function () {
+            const hidden = goalTaskTreeSection.style.display === 'none';
+            goalTaskTreeSection.style.display = hidden ? 'block' : 'none';
+            goalTaskTreeSection.setAttribute('aria-hidden', hidden ? 'false' : 'true');
+            if (hidden && typeof window.initGoalTreeViz === 'function') {
+                window.initGoalTreeViz();
+            }
+        });
+    }
 });

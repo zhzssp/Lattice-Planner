@@ -11,6 +11,7 @@ import org.zhzssp.memorandum.repository.NoteRepository;
 import org.zhzssp.memorandum.repository.TaskRepository;
 import org.zhzssp.memorandum.repository.UserRepository;
 import org.zhzssp.memorandum.core.service.TaskService;
+import org.zhzssp.memorandum.feature.goal.dto.GoalWithTasks;
 import org.zhzssp.memorandum.feature.goal.entity.Goal;
 import org.zhzssp.memorandum.feature.goal.service.GoalService;
 import org.zhzssp.memorandum.service.UserPreferenceService;
@@ -55,7 +56,7 @@ public class TaskController {
     @GetMapping("/dashboard")
     public String dashboard(@NotNull Model model,
                             Principal principal,
-                            @RequestParam(name = "taskView", required = false, defaultValue = "today") String taskView,
+                            @RequestParam(name = "taskView", required = false) String taskView,
                             jakarta.servlet.http.HttpSession session) {
         User user = userRepository.findByUsername(principal.getName()).orElseThrow();
         List<Task> allTasks = taskRepository.findByUser(user);
@@ -75,8 +76,18 @@ public class TaskController {
         // 获取用户偏好
         UserPreference preference = userPreferenceService.getOrCreatePreference(user);
         model.addAttribute("preference", preference);
+        model.addAttribute("theme", preference.getTheme() != null ? preference.getTheme() : "light");
+        model.addAttribute("goalTaskTree", goalService.findGoalTaskTree(user));
 
-        // 时间层：三种视图模式（仅在 execute/plan 模式下显示）
+        // 规划模式下使用用户偏好的默认视图；非规划模式固定为今日
+        if ("plan".equals(mindsetMode)) {
+            if (taskView == null || taskView.isEmpty() || !List.of("today", "slot", "energy").contains(taskView)) {
+                taskView = (preference.getDefaultTaskView() != null && List.of("slot", "energy").contains(preference.getDefaultTaskView()))
+                        ? preference.getDefaultTaskView() : "today";
+            }
+        } else {
+            taskView = "today";
+        }
         model.addAttribute("taskView", taskView);
 
         // 今日视图的基础任务集合（PENDING + deadline=今天或未设置）
@@ -158,8 +169,9 @@ public class TaskController {
                 model.addAttribute("memos", filteredTasks);
             }
 
-            // 显示目标管理、统计等
-            model.addAttribute("showGoals", true);
+            // 显示目标管理、统计等（可由偏好关闭）
+            model.addAttribute("showGoals", preference.getShowGoals() != Boolean.FALSE);
+            model.addAttribute("showScoreSection", preference.getShowScoreSection() != Boolean.FALSE);
             model.addAttribute("showStatistics", preference.getShowStatistics());
 
             // 计算统计信息（如果用户偏好允许）
@@ -190,18 +202,28 @@ public class TaskController {
             model.addAttribute("goals", goalService.findActiveGoalsByUser(user));
         }
 
-        // 模糊任务 N 天存在提示（仅在规划模式显示）
-        if ("plan".equals(mindsetMode)) {
-            List<Task> fuzzyNeedSplit = taskService.findFuzzyTasksNeedingSplit(user, 5);
-            model.addAttribute("fuzzyNeedSplit", fuzzyNeedSplit);
+        // 模糊任务 N 天存在提示（仅在规划模式且偏好允许时显示）
+        if ("plan".equals(mindsetMode) && preference.getShowFuzzyHint() != Boolean.FALSE) {
+            int fuzzyDays = preference.getFuzzyTaskDaysThreshold() != null && preference.getFuzzyTaskDaysThreshold() >= 0
+                    ? preference.getFuzzyTaskDaysThreshold() : 5;
+            if (fuzzyDays > 0) {
+                List<Task> fuzzyNeedSplit = taskService.findFuzzyTasksNeedingSplit(user, fuzzyDays);
+                model.addAttribute("fuzzyNeedSplit", fuzzyNeedSplit);
+            } else {
+                model.addAttribute("fuzzyNeedSplit", List.of());
+            }
+        } else if ("plan".equals(mindsetMode)) {
+            model.addAttribute("fuzzyNeedSplit", List.of());
         }
 
-        // 已完成 / 归档 / 搁置任务，仅在规划模式折叠展示
-        if ("plan".equals(mindsetMode)) {
+        // 已完成 / 归档 / 搁置任务，仅在规划模式且偏好允许时折叠展示
+        if ("plan".equals(mindsetMode) && preference.getShowArchivedSection() != Boolean.FALSE) {
             List<Task> archivedOrShelved = allTasks.stream()
                     .filter(t -> t.getEffectiveStatus() != TaskStatus.PENDING)
                     .collect(Collectors.toList());
             model.addAttribute("archivedOrShelved", archivedOrShelved);
+        } else if ("plan".equals(mindsetMode)) {
+            model.addAttribute("archivedOrShelved", List.of());
         }
 
         return "dashboard";
@@ -248,6 +270,9 @@ public class TaskController {
 
         model.addAttribute("dueSoonTasks", List.of());
         model.addAttribute("dueSoonMemos", List.of());
+        UserPreference pref = userPreferenceService.getOrCreatePreference(user);
+        model.addAttribute("theme", pref.getTheme() != null ? pref.getTheme() : "light");
+        model.addAttribute("goalTaskTree", goalService.findGoalTaskTree(user));
         return "dashboard";
     }
 

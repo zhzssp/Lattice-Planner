@@ -1,21 +1,42 @@
 package org.zhzssp.memorandum.controller;
 
 import jakarta.servlet.http.HttpSession;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.zhzssp.memorandum.entity.User;
+import org.zhzssp.memorandum.entity.UserPreference;
+import org.zhzssp.memorandum.repository.UserRepository;
+import org.zhzssp.memorandum.service.UserPreferenceService;
+
+import java.security.Principal;
 
 @Controller
 public class FeatureSelectionController {
 
     private static final String SESSION_KEY = "mindsetMode"; // 思维模式：execute/learn/plan
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private UserPreferenceService userPreferenceService;
+
     @GetMapping("/select-features")
-    public String selectFeaturesPage(jakarta.servlet.http.HttpSession session) {
+    public String selectFeaturesPage(jakarta.servlet.http.HttpSession session, Principal principal, Model model) {
         // 若已经选择过思维模式则直接跳转至 dashboard，防止回退再访问
         if (session.getAttribute(SESSION_KEY) != null) {
             return "redirect:/dashboard";
+        }
+        if (principal != null) {
+            User user = userRepository.findByUsername(principal.getName()).orElse(null);
+            if (user != null) {
+                UserPreference pref = userPreferenceService.getOrCreatePreference(user);
+                model.addAttribute("defaultMindsetMode", pref.getDefaultMindsetMode());
+            }
         }
         return "selectFeatures";
     }
