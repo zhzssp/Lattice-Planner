@@ -1,4 +1,6 @@
-# 架构说明：插件化与概念隔离
+# Lattice-Planner 架构说明：插件化与概念隔离
+
+本文档描述 **Lattice-Planner** 个人规划与任务管理系统的服务端架构。桌面客户端（Electron）通过 HTTP 访问本服务端，架构上为独立进程，见《软件设计说明书》第 9 章。
 
 ## 包结构
 
@@ -114,9 +116,10 @@ public class StatisticsEventListener {
 ## 当前实现
 
 - ✅ 核心层：TaskService 事件发布
-- ✅ 插件层：Goal 功能插件
+- ✅ 插件层：Goal 功能插件、Insight 插件（规划得分与 AI 总结）
 - ✅ 事件系统：TaskCompletedEvent, TaskCreatedEvent, TaskArchivedEvent
 - ✅ 事件监听：GoalEventListener
+- ✅ 桌面端：Electron 客户端（Lattice-Planner 客户端），系统托盘、单实例、DDL 提醒（/due-dates + 桌面通知）
 
 ## 未来扩展
 
@@ -128,7 +131,7 @@ public class StatisticsEventListener {
 
 ### 模块概览
 
-在 Memorandum 的整体架构中，`feature/insight` 模块承担「分析与反馈层」的角色，负责从底层实体数据（任务、目标、笔记等）中提取信息，形成：
+在 Lattice-Planner 服务端的整体架构中，`feature/insight` 模块承担「分析与反馈层」的角色，负责从底层实体数据（任务、目标、笔记等）中提取信息，形成：
 
 - 按日的规划得分（统计视图）
 - 面向用户的自然语言总结（AI 总结）
@@ -289,4 +292,8 @@ API Key 解析顺序为：
   - 如需要长期趋势分析或导出功能，可增加得分结果的持久化表与相关导出接口
 - 模型提供方多样化：
   - 在 `AiSummaryService` 周围增加一层「LLM Provider」抽象，支持除 Gemini 以外的其他模型无感切换
+
+---
+
+**说明**：更完整的系统设计（含运行环境、部署、桌面端、接口与数据设计）见项目 `docs/copyright/软件设计说明书.md`。
 
