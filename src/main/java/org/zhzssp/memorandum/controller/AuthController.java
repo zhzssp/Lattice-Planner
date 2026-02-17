@@ -43,16 +43,46 @@ public class AuthController {
         return "redirect:/login";
     }
 
+    /**
+     * 登录页：
+     * - 默认保持原有逻辑：若已登录且已选择模式，则直接跳转 dashboard；
+     * - 当带上 ?force=true 时，强制清理登录状态和会话，回到登录界面。
+     */
     @GetMapping("/login")
-    public String loginForm(jakarta.servlet.http.HttpSession session) {
-        // 已登录且已选择模式 -> 跳 dashboard
-        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+    public String loginForm(
+            @RequestParam(name = "force", required = false, defaultValue = "false") boolean force,
+            jakarta.servlet.http.HttpSession session) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        // 强制重新登录：清理认证与会话
+        if (force) {
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+                SecurityContextHolder.clearContext();
+            }
+            if (session != null) {
+                session.invalidate();
+            }
+            return "login";
+        }
+
+        // 原有逻辑：已登录且已选择模式 -> 跳 dashboard
         boolean loggedIn = auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName());
-        boolean modeChosen = session.getAttribute("selectedFeature") != null;
+        boolean modeChosen = session != null && session.getAttribute("selectedFeature") != null;
         if (loggedIn && modeChosen) {
             return "redirect:/dashboard";
         }
         return "login";
+    }
+
+    /**
+     * 访问根路径时统一跳转到登录页，并强制重新登录。
+     * 这样在浏览器地址栏输入 http://localhost:8080 时：
+     * - 不会出现 Whitelabel Error Page；
+     * - 且用户会被要求重新输入账号密码。
+     */
+    @GetMapping("/")
+    public String root() {
+        return "redirect:/login?force=true";
     }
 
     @GetMapping("/user-logged-in")
