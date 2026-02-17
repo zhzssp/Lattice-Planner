@@ -101,4 +101,5 @@ public class UserPreferenceController {
         preferenceService.savePreference(pref);
         return "redirect:/dashboard";
     }
+
 }

@@ -9,7 +9,10 @@
 </head>
 <body class="preference-settings-page" th:classappend="${theme == 'dark'} ? 'theme-dark' : ''" th:attr="data-selected-mode=${selectedMode}">
 <div class="container">
-    <h2>偏好设置</h2>
+    <div class="preference-header">
+        <h2>偏好设置</h2>
+        <button type="button" class="reset-btn" id="resetPreferenceBtn">恢复默认设置</button>
+    </div>
     <p class="preference-intro">先选择要设置的思维模式，再修改该模式下可用的选项，避免混淆。</p>
 
     <form th:action="@{/preference/update}" method="post" id="preferenceForm">
@@ -163,6 +166,38 @@
     });
 
     showForMode(selectedMode);
+
+    // 恢复默认设置：只重置当前页面表单的值，不提交到后端
+    var resetBtn = document.getElementById('resetPreferenceBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            var theme = document.getElementById('theme');
+            var defaultMindsetMode = document.getElementById('defaultMindsetMode');
+            var maxVisibleTasks = document.getElementById('maxVisibleTasks');
+            var showFutureTasks = document.querySelector('input[name="showFutureTasks"]');
+            var showStatistics = document.querySelector('input[name="showStatistics"]');
+            var showGoals = document.querySelector('input[name="showGoals"]');
+            var showScoreSection = document.querySelector('input[name="showScoreSection"]');
+            var showFuzzyHint = document.querySelector('input[name="showFuzzyHint"]');
+            var showArchivedSection = document.querySelector('input[name="showArchivedSection"]');
+            var defaultTaskView = document.getElementById('defaultTaskView');
+            var fuzzyTaskDaysThreshold = document.getElementById('fuzzyTaskDaysThreshold');
+
+            if (theme) theme.value = 'light';
+            if (defaultMindsetMode) defaultMindsetMode.value = '';
+            if (maxVisibleTasks) maxVisibleTasks.value = '';
+
+            if (showFutureTasks) showFutureTasks.checked = true;
+            if (showStatistics) showStatistics.checked = true;
+            if (showGoals) showGoals.checked = true;
+            if (showScoreSection) showScoreSection.checked = true;
+            if (showFuzzyHint) showFuzzyHint.checked = true;
+            if (showArchivedSection) showArchivedSection.checked = true;
+
+            if (defaultTaskView) defaultTaskView.value = '';
+            if (fuzzyTaskDaysThreshold) fuzzyTaskDaysThreshold.value = '5';
+        });
+    }
 })();
 </script>
 </body>

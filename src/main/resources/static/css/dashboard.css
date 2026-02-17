@@ -206,6 +206,14 @@ li:hover {
     margin-bottom: 20px;
 }
 
+/* 偏好设置页头部（标题 + 右上角按钮） */
+.preference-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
 .preference-section {
     margin-bottom: 24px;
 }
@@ -548,6 +556,29 @@ li:hover {
     transform: scale(1.05);
 }
 
+/* 恢复默认设置：轻量级的小按钮，右上角 */
+.reset-btn {
+    padding: 6px 14px;
+    font-size: 0.85em;
+    border-radius: 999px;
+    border: 1px solid #d0d7e2;
+    background: #f5f8ff;
+    color: #2c7be5;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: none;
+    margin-left: 12px;
+    white-space: nowrap;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.reset-btn:hover {
+    background: #e6f0ff;
+    border-color: #2c7be5;
+    color: #1b4f9b;
+    transform: translateY(-1px);
+}
+
 /* 右键菜单样式 */
 .context-menu {
     position: absolute;
@@ -882,6 +913,19 @@ li:hover {
 .theme-dark .add-btn:hover {
     background: #2ea043;
     border-color: #2ea043;
+}
+
+/* 暗色主题下的「恢复默认设置」按钮 */
+.theme-dark .reset-btn {
+    background: #161b22;
+    border-color: #30363d;
+    color: #58a6ff;
+}
+
+.theme-dark .reset-btn:hover {
+    background: #252d3a;
+    border-color: #58a6ff;
+    color: #79c0ff;
 }
 
 .theme-dark .statistics-section,
