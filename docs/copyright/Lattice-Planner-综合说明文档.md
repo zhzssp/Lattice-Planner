@@ -411,6 +411,22 @@ http://localhost:8080
 
 #### 5.6.1 核心类关系
 
+本类关系图展示了 Lattice-Planner 系统中核心实体类、服务类、控制器类以及仓储类之间的静态结构关系。该图采用 UML 类图形式，直观地描绘了系统的架构层次和依赖关系。
+
+图中包含以下关键元素：
+- **实体类**：User（用户）、Task（任务）、Note（笔记）、Goal（目标）、Link（关联链接），这些是数据模型的核心，负责存储业务数据。
+- **服务类**：TaskService（任务服务）、GoalService（目标服务）、InsightScoreService（洞察得分服务）、AiSummaryService（AI总结服务），这些类封装了业务逻辑，实现核心功能。
+- **控制器类**：TaskController、GoalController、InsightController，这些是 Web 层的入口，处理 HTTP 请求并调用相应服务。
+- **仓储类**：TaskRepository、UserRepository、NoteRepository、GoalRepository，这些类负责数据持久化，与数据库交互。
+
+关系说明：
+- 用户与任务、笔记、目标之间是一对多关系，表示一个用户可以拥有多个任务、笔记和目标。
+- 任务与目标、任务与笔记之间通过 Link 实体实现多对多关联，Link 作为弱关联表存储关联信息。
+- 服务类依赖仓储类进行数据操作，控制器类依赖服务类处理业务逻辑。
+- 插件层服务（如 GoalService、InsightScoreService）独立于核心层，但通过事件机制与核心交互。
+
+该图有助于理解系统的模块化设计，特别是核心层与插件层的解耦，以及数据流的方向。
+
 ```mermaid
 classDiagram
     class User {
@@ -518,6 +534,25 @@ classDiagram
 
 #### 5.6.2 典型交互流程（”AI 总结“功能的时序图）
 
+本时序图详细展示了用户在洞察页面请求 AI 总结功能时的完整交互流程。该功能是 Lattice-Planner 的核心洞察模块之一，用于根据历史数据生成智能总结，帮助用户反思规划质量。
+
+流程参与者包括：
+- **用户 (U)**：发起请求的终端用户。
+- **浏览器/桌面客户端 (C)**：前端界面，负责发送 HTTP 请求和渲染结果。
+- **InsightController (IC)**：洞察控制器，处理总结请求。
+- **InsightScoreService (IS)**：得分计算服务，负责计算每日得分数据。
+- **AiSummaryService (AS)**：AI总结服务，生成自然语言总结。
+- **TaskRepository (TR)**、**GoalRepository (GR)**、**NoteRepository (NR)**：数据仓储，提供历史任务、目标、笔记数据。
+
+关键交互步骤：
+1. 用户在前端点击"AI 总结"按钮，前端发送 GET 请求到控制器。
+2. 控制器调用得分服务计算指定日期区间的每日得分，服务依次查询任务、目标、笔记数据。
+3. 得分计算完成后，控制器调用 AI 总结服务生成文本总结。
+4. 总结服务优先使用 Gemini API，若失败则使用本地规则生成。
+5. 最终结果以 JSON 格式返回前端，前端渲染折线图和总结文本。
+
+该流程体现了系统的分层架构：前端请求 → 控制器路由 → 服务业务逻辑 → 仓储数据访问。同时展示了 AI 功能的双通路设计，确保在无外部 API 时仍能提供基本功能。
+
 下面给出当用户在洞察页面点击「AI 总结这一段时间」时，前端、控制器、服务与仓储之间的**典型交互时序**：
 
 ```mermaid
@@ -544,6 +579,202 @@ sequenceDiagram
     C-->>U: 展示折线图与总结结果
 ```
 
+#### 5.6.3 任务创建与关联目标的时序图
+
+本时序图展示了用户创建新任务并将其关联到目标的完整业务流程。该流程体现了 Lattice-Planner 的核心功能之一：任务管理与目标关联，体现了事件驱动架构的设计理念。
+
+参与者包括：
+- **用户 (U)**：在前端填写任务表单。
+- **浏览器/桌面客户端 (C)**：提交表单数据。
+- **TaskController (TC)**：任务控制器，处理任务创建请求。
+- **TaskService (TS)**：任务服务，封装任务业务逻辑。
+- **GoalService (GS)**：目标服务，处理任务-目标关联。
+- **TaskRepository (TR)**、**LinkRepository (LR)**、**GoalRepository (GR)**：数据仓储。
+- **ApplicationEventPublisher (EP)**：事件发布器。
+- **GoalEventListener (GEL)**：目标事件监听器。
+
+关键步骤：
+1. 用户提交任务表单，控制器调用任务服务保存任务。
+2. 任务服务保存任务到数据库，并发布 TaskCreatedEvent 事件。
+3. 事件监听器接收事件（当前为空实现，为未来扩展预留）。
+4. 控制器随后调用目标服务，将任务关联到选定的目标。
+5. 目标服务删除原有关联，校验目标归属，然后创建新的 Link 记录。
+6. 流程完成后，重定向到仪表板页面。
+
+该图突出了事件驱动机制在插件扩展中的作用：核心服务发布事件，插件通过监听实现解耦。同时展示了多对多关联的实现方式，通过 Link 表维护任务与目标的关系。
+
+下面给出用户在任务管理页面创建新任务并关联到目标时的**典型交互时序**：
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant C as 浏览器/桌面客户端
+    participant TC as TaskController
+    participant TS as TaskService
+    participant GS as GoalService
+    participant TR as TaskRepository
+    participant LR as LinkRepository
+    participant GR as GoalRepository
+    participant EP as ApplicationEventPublisher
+    participant GEL as GoalEventListener
+
+    U->>C: 在任务表单中填写任务信息并选择关联目标
+    C->>TC: POST /memo/add（提交任务表单）
+    TC->>TS: saveTask(task, user)
+    TS->>TR: save(task)
+    TR-->>TS: 返回保存的任务
+    TS->>EP: publishEvent(TaskCreatedEvent)
+    EP->>GEL: onTaskCreated(event)
+    GEL-->>EP: 处理事件（当前为空实现）
+    TS-->>TC: 返回保存的任务
+    TC->>GS: linkTaskToGoals(taskId, goalIds, user)
+    GS->>LR: 删除原有 TASK->GOAL 链接
+    GS->>GR: 校验目标归属用户
+    GR-->>GS: 返回目标列表
+    GS->>LR: 创建新的 TASK->GOAL 链接
+    LR-->>GS: 保存链接
+    GS-->>TC: 关联完成
+    TC-->>C: redirect:/dashboard
+    C-->>U: 重定向到仪表板页面
+```
+
+#### 5.6.4 任务完成的时序图
+
+本时序图描述了用户在仪表板页面完成任务的操作流程。该流程是任务生命周期管理的重要环节，体现了状态变更和事件通知机制。
+
+参与者：
+- **用户 (U)**：点击完成按钮。
+- **浏览器/桌面客户端 (C)**：发送 AJAX 请求。
+- **TaskController (TC)**：处理完成请求。
+- **TaskService (TS)**：执行任务完成逻辑。
+- **TaskRepository (TR)**：数据持久化。
+- **ApplicationEventPublisher (EP)**：事件发布。
+- **GoalEventListener (GEL)**：事件监听。
+
+流程步骤：
+1. 用户点击任务完成按钮，前端发送 POST 请求。
+2. 控制器验证任务归属，然后调用任务服务完成任务。
+3. 任务服务更新任务状态为 DONE，并保存到数据库。
+4. 同时发布 TaskCompletedEvent 事件，通知监听器。
+5. 监听器接收事件（当前为空实现，可扩展为更新目标进度等）。
+6. 返回成功响应，前端更新界面显示。
+
+该图展示了异步交互模式（AJAX），以及事件驱动在状态变更后的扩展性。任务完成不仅更新自身状态，还可能触发相关业务逻辑，如目标进度计算。
+
+下面给出用户在仪表板页面完成任务时的**典型交互时序**：
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant C as 浏览器/桌面客户端
+    participant TC as TaskController
+    participant TS as TaskService
+    participant TR as TaskRepository
+    participant EP as ApplicationEventPublisher
+    participant GEL as GoalEventListener
+
+    U->>C: 在仪表板点击任务的完成按钮
+    C->>TC: POST /memo/complete/{id}
+    TC->>TR: findById(id)
+    TR-->>TC: 返回任务
+    TC->>TS: completeTask(task, user)
+    TS->>TR: save(task)（状态设为DONE）
+    TR-->>TS: 返回保存的任务
+    TS->>EP: publishEvent(TaskCompletedEvent)
+    EP->>GEL: onTaskCompleted(event)
+    GEL-->>EP: 处理事件（当前为空实现）
+    TS-->>TC: 返回完成的任务
+    TC-->>C: 返回 "success"
+    C-->>U: 更新界面，任务标记为完成
+```
+
+#### 5.6.5 目标管理的时序图
+
+本时序图展示了用户创建新目标的业务流程。作为目标管理模块的核心操作，该流程体现了目标实体的生命周期起点。
+
+参与者：
+- **用户 (U)**：填写目标表单。
+- **浏览器/桌面客户端 (C)**：提交表单。
+- **GoalController (GC)**：目标控制器。
+- **GoalService (GS)**：目标服务。
+- **GoalRepository (GR)**：目标仓储。
+
+步骤：
+1. 用户提交目标创建表单。
+2. 控制器调用目标服务保存目标。
+3. 服务通过仓储保存到数据库。
+4. 返回保存的目标，重定向到仪表板。
+
+该图相对简单，体现了目标管理的 CRUD 操作基础。未来可扩展为更复杂的流程，如目标模板选择或自动分类。
+
+下面给出用户在目标管理页面创建新目标时的**典型交互时序**：
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant C as 浏览器/桌面客户端
+    participant GC as GoalController
+    participant GS as GoalService
+    participant GR as GoalRepository
+
+    U->>C: 在目标表单中填写目标信息
+    C->>GC: POST /goal/add（提交目标表单）
+    GC->>GS: save(goal)
+    GS->>GR: save(goal)
+    GR-->>GS: 返回保存的目标
+    GS-->>GC: 返回保存的目标
+    GC-->>C: redirect:/dashboard
+    C-->>U: 重定向到仪表板页面
+```
+
+#### 5.6.6 规划得分计算的时序图
+
+本时序图描述了系统在用户访问洞察页面时后台计算规划得分的流程。该流程是洞察模块的数据处理核心，涉及多数据源的聚合计算。
+
+参与者：
+- **用户 (U)**：访问洞察页面。
+- **浏览器/桌面客户端 (C)**：发送得分查询请求。
+- **InsightController (IC)**：洞察控制器。
+- **InsightScoreService (ISS)**：得分计算服务。
+- **TaskRepository (TR)**、**NoteRepository (NR)**、**LinkRepository (LR)**、**GoalRepository (GR)**：各数据仓储。
+
+流程：
+1. 用户访问洞察页面，前端请求得分数据。
+2. 控制器调用得分服务计算指定日期区间的每日得分。
+3. 得分服务依次查询任务、笔记、链接（关联）、目标数据。
+4. 基于查询结果计算得分指标。
+5. 返回得分列表，前端渲染曲线图。
+
+该图展示了数据密集型计算的典型模式：多表联查、聚合计算。得分计算不依赖实时更新，而是按需计算，确保性能和数据一致性。
+
+下面给出系统在用户访问洞察页面时计算规划得分时的**典型交互时序**：
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant C as 浏览器/桌面客户端
+    participant IC as InsightController
+    participant ISS as InsightScoreService
+    participant TR as TaskRepository
+    participant NR as NoteRepository
+    participant LR as LinkRepository
+    participant GR as GoalRepository
+
+    U->>C: 访问洞察页面
+    C->>IC: GET /insight/score?start=&end=
+    IC->>ISS: calculateDailyScores(start, end, user)
+    ISS->>TR: 查询用户任务数据
+    TR-->>ISS: 返回任务列表
+    ISS->>NR: 查询用户笔记数据
+    NR-->>ISS: 返回笔记列表
+    ISS->>LR: 查询链接数据（任务-目标关联）
+    LR-->>ISS: 返回链接列表
+    ISS->>GR: 查询用户目标数据
+    GR-->>ISS: 返回目标列表
+    ISS-->>IC: 返回 DailyScore 列表
+    IC-->>C: 返回 JSON（得分数据）
+    C-->>U: 渲染得分曲线图
+```
 通过上述 UML 类图与时序图，可以直观体现本软件中**核心类之间的结构关系与典型交互过程**。
 
 ---
@@ -574,15 +805,15 @@ sequenceDiagram
 
 最终的**总得分Total Score**为三者加权求和，范围为 0–100 分：
 
-`TotalScore_d = TaskScore_d + GoalScore_d + NoteScore_d`
+$TotalScore_d = TaskScore_d + GoalScore_d + NoteScore_d$
 
-其中下标 \(d\) 表示某一自然日。
+其中下标 $d$ 表示某一自然日。
 
 ### 6.2 任务维度得分计算
 
 #### 6.2.1 任务权重模型
 
-每一条任务在某一天的得分计算中都会先映射为一个**基础权重** \(w_t\)，主要由以下因素构成：
+每一条任务在某一天的得分计算中都会先映射为一个**基础权重** $w_t$，主要由以下因素构成：
 
 * 精力需求（Energy Level）
   * 高精力任务通常更难执行，给予更高的基础系数。
@@ -606,7 +837,7 @@ sequenceDiagram
    * 中：\(m = 1.1\)
    * 重：\(m = 1.3\)
 
-3. 基础权重：`w_t = e \times m`
+3. 基础权重：$w_t = e \times m$
 
 在实现中，`Task` 实体中保存精力与心理负担等枚举字段，`InsightScoreService` 在加载任务记录后通过 switch 或映射表计算对应权重。
 
@@ -704,8 +935,8 @@ $NoteScore_d = 10 \times (1 - e^{-c \cdot n_d^{note}})$
 
 其中常量 \(c\) 控制增长速度（例如 0.7）。
 
-* 当 \(n_d^{note} = 1\) 时，可获得约 5～6 分；
-* 当 \(n_d^{note} = 3\) 时，得分接近满分 9～10 分；
+* 当 $n_d^{note} = 1$ 时，可获得约 5～6 分；
+* 当 $n_d^{note} = 3$ 时，得分接近满分 9～10 分；
 * 继续增加笔记数量，得分提升极小，避免刷分。
 
 在实现上，`InsightScoreService` 中会对指定日期范围内的 `Note` 实体按日期分组计数，然后使用一个离散化后的分段函数来近似上述公式，例如：
@@ -731,7 +962,7 @@ $NoteScore_d = 10 \times (1 - e^{-c \cdot n_d^{note}})$
 6. 对每个日期 \(d\) 使用 9.2～9.4 节的算法求得 TaskScore、GoalScore 与 NoteScore，并相加得到 `totalScore`。
 7. 构造 `DailyScore` 对象列表，按日期排序返回。
 
-整个算法对「数据条目数量」是线性复杂度 \(O(N)\)，其中 \(N\) 为指定区间内的任务 + 笔记 + 目标/链接总数，适用于个人效率工具的典型数据规模。
+整个算法对「数据条目数量」是线性复杂度 $O(N)$，其中 $N$ 为指定区间内的任务 + 笔记 + 目标/链接总数，适用于个人效率工具的典型数据规模。
 
 ---
 
@@ -1016,34 +1247,42 @@ $NoteScore_d = 10 \times (1 - e^{-c \cdot n_d^{note}})$
 ### 9.1 系统入口与思维模式
 
 - 用户可通过浏览器访问服务端 URL（如 `http://localhost:8080`），或通过桌面客户端打开同一地址。  
-- 首次使用时，系统会引导选择思维模式：  
-  - **执行模式**：偏向执行待办任务。  
-  - **学习模式**：强调学习任务与积累。  
-  - **规划模式**：专注于规划与复盘，提供规划得分与 AI 总结。  
-- 登陆后可在导航或设置处随时切换模式。部分功能（如规划得分曲线、AI 总结）仅在规划模式下显示。  
+- 首次使用时，系统会**引导选择**思维模式：  
+  - **执行模式**：信息密度低，偏向简单管理待办任务，界面中只会显示今日未完成任务。  
+  - **学习模式**：信息密度适中，强调学习过程与积累，主要新增笔记管理功能。  
+  - **规划模式**：信息密度大，专注于长期计划的规划与复盘，提供筛选、视图、规划得分与 AI 总结等一系列复杂的功能。  
+  
+  <img title="" src="file:///C:/Users/zhzss/Pictures/Typedown/925cb358-e700-4129-bec9-2550a42ea360.png" alt="925cb358-e700-4129-bec9-2550a42ea360" style="zoom:50%;">
+* 登陆后可在导航或设置处随时**切换**模式，部分功能（如规划得分曲线、AI 总结）**仅**在规划模式下显示。
+  
+  <img src="file:///E:/Lattice-Planner/docs/copyright/pics/切换思维模式(1).png" title="" alt="切换思维模式(1)" style="zoom:50%;">
 
 ### 9.2 任务管理
 
 #### 9.2.1 创建任务
 
-用户可在「今日任务看板」或「任务」页面点击「新建任务」进入任务表单，填写以下信息：
+用户可在「今日任务看板」或「任务」页面点击「新建任务」进入任务表单，填写以下信息（部分内容要求**必填**）：
 
-- 标题（必填）与描述。  
+- 标题与描述。  
 - 截止日期（Deadline）：决定该任务归属哪一天的规划得分统计。  
 - 精力需求（Energy Level）：如高 / 中 / 低，影响任务权重。  
 - 心理负担（Mental Load）：如沉重 / 较轻等，影响任务权重。  
 - 期望时间段（Preferred Slot）：如上午 / 下午 / 晚上，用于视图展示。  
-- 关联目标（可选）：将任务绑定到既有目标。  
+- 关联目标（可选，仅规划模式支持）：将任务绑定到既有目标。**值得注意的是**，只有在创建了目标之后，才可以在添加任务的界面中看到可绑定的目标！  
+  
+  <img src="file:///E:/Lattice-Planner/docs/copyright/pics/创建任务.png" title="" alt="创建任务" style="zoom:50%;">
 
 #### 9.2.2 管理任务
 
 在看板或任务列表中，用户可以：
 
-- 标记任务为完成（Done）：计入对应截止日期当天的完成任务统计。  
-- 搁置任务（Shelve）：暂时从当前视图移除，不计为完成。  
-- 删除任务：彻底移除任务记录。  
-- 搜索 / 筛选任务：按关键词、日期范围等筛选。  
-- 切换视图：按时间段或精力分组查看任务。  
+- 标记任务为完成（Done）：计入对应截止日期当天的完成任务统计。（右键）  
+- 搁置任务（Shelve）：暂时从当前视图移除，不计为完成。（右键）
+- 删除任务：彻底移除任务记录。（右键）  
+- 搜索 / 筛选任务：按关键词、日期范围等筛选。（仅规划模式）  
+- 切换视图：按时间段或精力分组查看任务。（仅规划模式）  
+  
+  <img src="file:///E:/Lattice-Planner/docs/copyright/pics/右键.png" title="" alt="右键" style="zoom:50%;">
 
 ### 9.3 目标与笔记管理
 
@@ -1057,8 +1296,11 @@ $NoteScore_d = 10 \times (1 - e^{-c \cdot n_d^{note}})$
 
 此外，系统还提供**目标-任务树视图**（Goal-Task Tree）：
 
-- 在支持该视图的页面（如规划相关视图）中，以树状结构展示用户的根目标、子目标及其下关联的任务节点。  
-- 用户可以展开 / 收起各级节点，从上到下查看「目标 → 子目标 → 任务」的层级关系，帮助理解当前任务布局是否与长期目标匹配。  
+- 以树状结构展示用户的根目标、子目标及其下关联的任务节点。  
+- 用户可以展开 / 收起各级节点，从上到下查看「目标 → 子目标 → 任务」的层级关系，帮助理解当前任务布局是否与长期目标匹配。 
+- 可以通过右上角按键控制功能的开关。 
+  
+  <img src="file:///E:/Lattice-Planner/docs/copyright/pics/树视图.png" title="" alt="树视图" style="zoom:50%;">
 
 任务与目标的关联影响：
 
@@ -1067,7 +1309,7 @@ $NoteScore_d = 10 \times (1 - e^{-c \cdot n_d^{note}})$
 
 #### 9.3.2 笔记管理
 
-在「笔记」页面，用户可以：
+在「笔记」页面（**仅**学习模式支持），用户可以：
 
 - 添加笔记：记录想法、复盘与知识点。  
 - 查看笔记：按列表选择并查看具体内容。  
@@ -1075,6 +1317,8 @@ $NoteScore_d = 10 \times (1 - e^{-c \cdot n_d^{note}})$
 笔记与得分的关系：
 
 - 当天的笔记条数会带来一定的加分，采用递减增益函数，2～4 条左右即可接近满分，防止刷分。  
+  
+  <img title="" src="file:///C:/Users/zhzss/Pictures/Typedown/4ca3322a-06b4-4c36-8b3e-ea41b98d27fa.png" alt="4ca3322a-06b4-4c36-8b3e-ea41b98d27fa" style="zoom:33%;">
 
 ### 9.4 用户偏好与界面设置
 
@@ -1087,6 +1331,8 @@ $NoteScore_d = 10 \times (1 - e^{-c \cdot n_d^{note}})$
   - 是否显示统计信息（决定规划模式下是否展示得分与 AI 总结入口）。  
   - 默认任务视图（今日/时间段/精力）。  
   - 是否显示目标区块、归档区块、模糊任务提示等。  
+
+    <img title="" src="file:///E:/Lattice-Planner/docs/copyright/pics/偏好设置.png" alt="偏好设置" style="zoom:33%;">
 
 ### 9.5 规划得分与统计视图
 
@@ -1102,7 +1348,9 @@ $NoteScore_d = 10 \times (1 - e^{-c \cdot n_d^{note}})$
 2. **目标维度（0–20 分）**：根据目标进度、当天完成目标数及有推进目标覆盖面，鼓励长期围绕核心目标持续推进。  
 3. **笔记维度（0–10 分）**：根据当天笔记条数给予加分，鼓励适度复盘与记录。  
 
-任务按截止日期归属到对应日期的得分统计中，得分数据不落库，每次查看时实时计算。  
+任务按截止日期归属到对应日期的得分统计中，得分数据不落库，每次查看时实时计算。 
+
+    <img src="file:///E:/Lattice-Planner/docs/copyright/pics/规划视图.png" title="" alt="规划视图" style="zoom:50%;"> 
 
 ### 9.6 AI 总结
 
@@ -1117,7 +1365,9 @@ $NoteScore_d = 10 \times (1 - e^{-c \cdot n_d^{note}})$
 - 若环境中配置了有效的 Gemini API Key，则优先使用远程模型生成总结。  
 - 若未配置或调用失败/超时，则回退到本地规则生成总结。  
 
-用户体验上，无论是否有外部 AI，都会获得总结结果。  
+用户体验上，无论是否有配置外部模型 API，都会获得总结结果。  
+
+    <img src="file:///E:/Lattice-Planner/docs/copyright/pics/AI总结.png" title="" alt="AI总结" style="zoom:50%;">
 
 ### 9.7 桌面客户端与 DDL 提醒
 
