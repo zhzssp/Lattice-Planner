@@ -1,9 +1,7 @@
 package org.zhzssp.memorandum.feature.insight.service;
 
-import com.google.genai.Client;
-import com.google.genai.types.GenerateContentResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.zhzssp.memorandum.feature.agent.service.LlmGateway;
 import org.zhzssp.memorandum.feature.insight.service.InsightScoreService.DailyScore;
 
 import java.time.LocalDate;
@@ -16,106 +14,53 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
- * 使用 Gemini 免费接口，对一段时间内的得分曲线做自然语言总结。
+ * 使用统一 LLM 网关，对一段时间内的得分曲线做自然语言总结。
  *
- * 默认使用 Gemini Developer API 的免费模型：gemini-2.5-flash。
- *
- * <p>鉴权方式：
- * - 推荐在操作系统环境变量中配置 GEMINI_API_KEY 或 GOOGLE_API_KEY
- * - 或在 application.properties 中配置 gemini.api.key=YOUR_KEY
- *
- * 如果三者都为空，则本服务会降级为“仅返回本地规则生成的基础总结”，不会调用外部接口。
+ * 说明：
+ * - 通过 LlmGateway 调用当前项目配置的模型（当前为 DeepSeek）
+ * - 如果调用失败，会自动回退到本地规则总结
  */
 @Service
 public class AiSummaryService {
 
-    /** 使用的 Gemini 模型 ID（免费层可用）。你也可以改成 gemini-2.5-flash-lite 等。 */
-    private static final String GEMINI_MODEL_ID = "gemini-2.5-flash";
-
     /**
-     * 调用 Gemini 的超时时间（秒）。
-     * 如果在该时间内没有得到模型返回，就会中断调用，回退到本地规则总结。
+     * 调用 LLM 的超时时间（秒）。
+     * 如果在该时间内没有得到模型返回，就会回退到本地规则总结。
      */
     private static final long AI_TIMEOUT_SECONDS = 8L;
 
-    /**
-     * 从配置文件注入的 key。如果未配置，会回退到环境变量 GEMINI_API_KEY。
-     *
-     * 在 application.properties 中可以这样配置（示例）：
-     * gemini.api.key=YOUR_GEMINI_API_KEY
-     *
-     * 请不要把真实 key 提交到 Git 仓库。
-     */
-    @Value("${gemini.api.key:}")
-    private String configuredApiKey;
+    private final LlmGateway llmGateway;
+
+    public AiSummaryService(LlmGateway llmGateway) {
+        this.llmGateway = llmGateway;
+    }
 
     /**
      * 对指定时间范围内的 DailyScore 列表做总结。
-     * 如果无法正常调用 Gemini（key 缺失或网络错误等），会回退到本地规则总结。
+     * 如果无法正常调用 LLM（key 缺失或网络错误等），会回退到本地规则总结。
      */
     public String summarizeScores(LocalDate start, LocalDate end, List<DailyScore> scores) {
         String fallback = buildLocalSummary(start, end, scores);
-
-        String apiKey = resolveApiKey();
-        if (apiKey == null || apiKey.isBlank()) {
-            // 开发者尚未配置 key，直接返回本地规则总结，避免接口报错
-            return fallback + "\n\n（提示：当前未配置 Gemini API Key，本摘要由本地规则生成。）";
-        }
-
         String prompt = buildPrompt(start, end, scores, fallback);
 
         try {
-            // 使用异步 + 超时控制，避免模型响应过慢卡住请求。
-            CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
-                Client client = Client.builder()
-                        .apiKey(apiKey)
-                        .build();
-
-                GenerateContentResponse response =
-                        client.models.generateContent(GEMINI_MODEL_ID, prompt, null);
-
-                String aiText = response.text();
-                if (aiText == null || aiText.isBlank()) {
-                    throw new IllegalStateException("Gemini 返回了空文本");
-                }
-                return aiText.trim();
-            });
-
-            // orTimeout 会在超时时将 future 以 TimeoutException 完成
+            CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> llmGateway.generateText(prompt));
             return future.orTimeout(AI_TIMEOUT_SECONDS, TimeUnit.SECONDS).join();
         } catch (CompletionException ex) {
             Throwable cause = ex.getCause();
             if (cause instanceof TimeoutException) {
-                return fallback + "\n\n（提示：调用 Gemini 超过 "
+                return fallback + "\n\n（提示：调用模型超过 "
                         + AI_TIMEOUT_SECONDS
                         + " 秒未返回，已使用本地规则生成摘要。）";
             }
-            // 其他异常（网络 / 配额 / Key 等），统一回退
-            return fallback + "\n\n（提示：调用 Gemini 接口失败，本摘要由本地规则生成。错误信息已记录在服务端日志。）";
+            return fallback + "\n\n（提示：调用模型接口失败，本摘要由本地规则生成。错误信息已记录在服务端日志。）";
         } catch (Exception ex) {
-            // 兜底：理论上不会走到这里，但为了保险起见仍然做一次回退
-            return fallback + "\n\n（提示：调用 Gemini 接口失败，本摘要由本地规则生成。错误信息已记录在服务端日志。）";
+            return fallback + "\n\n（提示：调用模型接口失败，本摘要由本地规则生成。错误信息已记录在服务端日志。）";
         }
-    }
-
-    private String resolveApiKey() {
-        if (configuredApiKey != null && !configuredApiKey.isBlank()) {
-            return configuredApiKey.trim();
-        }
-        String env = System.getenv("GEMINI_API_KEY");
-        if (env != null && !env.isBlank()) {
-            return env.trim();
-        }
-        // 兼容官方 SDK 默认的 GOOGLE_API_KEY 环境变量名字
-        String googleApiKey = System.getenv("GOOGLE_API_KEY");
-        if (googleApiKey != null && !googleApiKey.isBlank()) {
-            return googleApiKey.trim();
-        }
-        return null;
     }
 
     /**
-     * 构造传给 Gemini 的 Prompt 文本。
+     * 构造传给模型的 Prompt 文本。
      * 会携带一份简单的“规则总结”作为参考，方便模型在此基础上做润色和补充。
      */
     private String buildPrompt(LocalDate start, LocalDate end, List<DailyScore> scores, String fallbackSummary) {
@@ -159,8 +104,7 @@ public class AiSummaryService {
     }
 
     /**
-     * 在无法调用 Gemini 时的本地兜底总结。
-     * 只做简单统计，用于给用户一个基础反馈，也作为 Prompt 的参考文本。
+     * 在无法调用模型时的本地兜底总结。
      */
     private String buildLocalSummary(LocalDate start, LocalDate end, List<DailyScore> scores) {
         if (scores == null || scores.isEmpty()) {
@@ -183,7 +127,6 @@ public class AiSummaryService {
         int first = scores.get(0).getTotalScore();
         int last = scores.get(scores.size() - 1).getTotalScore();
 
-        // 简单波动估计：使用加权绝对变化
         double volatility = 0.0;
         for (int i = 1; i < scores.size(); i++) {
             volatility += Math.abs(scores.get(i).getTotalScore() - scores.get(i - 1).getTotalScore());
@@ -221,7 +164,4 @@ public class AiSummaryService {
 
         return sb.toString();
     }
-
-    // 下面原来是手写的 REST DTO，使用官方 SDK 后不再需要，已删除。
 }
-

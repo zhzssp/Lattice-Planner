@@ -758,6 +758,114 @@ li:hover {
     background: #409444;
 }
 
+.agent-plan-modal-content {
+    width: min(980px, 94vw);
+    max-height: 88vh;
+    overflow-y: auto;
+}
+
+.agent-input-area label {
+    display: block;
+    margin: 8px 0 6px;
+    font-weight: 600;
+    color: #34495e;
+}
+
+.agent-input-area textarea {
+    min-height: 76px;
+}
+
+.agent-plan-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 8px 0 12px;
+}
+
+.agent-plan-toolbar button {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+#runAgentPlanBtn {
+    background: #4a90e2;
+    color: #fff;
+}
+
+#applyAgentPlanBtn {
+    background: #4caf50;
+    color: #fff;
+}
+
+#closeAgentPlanModal {
+    background: #eef2f7;
+    color: #34495e;
+}
+
+.agent-plan-status {
+    color: #5f6f89;
+    background: #f7f9fc;
+    border: 1px solid #e1e7f0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    white-space: pre-line;
+}
+
+.agent-plan-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.agent-preview-card {
+    border: 1px solid #e1e7f0;
+    border-radius: 12px;
+    padding: 14px;
+    background: #fbfdff;
+}
+
+.agent-preview-card h4 {
+    margin: 0 0 10px;
+    color: #2c3e50;
+}
+
+.agent-milestone-item,
+.agent-task-item {
+    border: 1px solid #dbe5f2;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #ffffff;
+}
+
+.agent-task-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 700;
+    color: #4a90e2;
+}
+
+.agent-task-header input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.agent-preview-card input,
+.agent-preview-card textarea {
+    box-sizing: border-box;
+    margin-bottom: 8px;
+}
+
+.agent-preview-card textarea {
+    min-height: 66px;
+}
+
 #closeGoalModal {
     background: #e0e0e0;
 }

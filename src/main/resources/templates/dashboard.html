@@ -147,7 +147,10 @@
         <!-- 目标管理（仅在规划模式显示） -->
         <div class="goals-section" id="goalsSection" th:if="${showGoals != null and showGoals}">
             <h3>我的目标</h3>
-            <button type="button" id="openGoalModal" class="add-btn">＋ 添加目标</button>
+            <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                <button type="button" id="openGoalModal" class="add-btn">＋ 添加目标</button>
+                <button type="button" id="openAgentPlanModal" class="add-btn">AI 生成目标任务树</button>
+            </div>
             <ul id="goalList">
                 <li th:each="g : ${goals}">
                     <span th:text="${g.name}"></span>
@@ -394,6 +397,26 @@
             <button type="button" id="deleteTasksBtn">删除目标和任务</button>
             <button type="button" id="cancelDeleteGoalBtn">取消</button>
         </div>
+    </div>
+</div>
+
+<!-- AI 规划 Modal（仅规划模式） -->
+<div th:if="${mindsetMode=='plan'}" id="agentPlanModal" class="modal" style="display:none;">
+    <div class="modal-content agent-plan-modal-content">
+        <h3>AI 生成目标任务树</h3>
+        <div class="agent-input-area">
+            <label for="agentGoalStatement">目标描述</label>
+            <textarea id="agentGoalStatement" placeholder="请输入目标描述，例如：我想在8周内完成一个可上线的任务管理系统MVP"></textarea>
+            <label for="agentConstraints">约束条件（可选，每行一条）</label>
+            <textarea id="agentConstraints" placeholder="例如：每周可投入12小时&#10;仅我一人开发&#10;后端必须使用 Spring Boot"></textarea>
+        </div>
+        <div class="agent-plan-toolbar">
+            <button type="button" id="runAgentPlanBtn">生成规划草案</button>
+            <button type="button" id="applyAgentPlanBtn">确认创建目标与任务</button>
+            <button type="button" id="closeAgentPlanModal">取消</button>
+        </div>
+        <div id="agentPlanStatus" class="agent-plan-status"></div>
+        <div id="agentPlanPreview" class="agent-plan-preview"></div>
     </div>
 </div>
 
