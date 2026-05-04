@@ -83,7 +83,16 @@
     </div>
 
     <!-- 规划模式：高信息密度，目标/项目/全局 -->
-    <div th:if="${mindsetMode=='plan'}">
+    <div th:if="${mindsetMode=='plan'}" class="plan-layout">
+        <aside class="plan-sidebar" aria-label="规划模式导航">
+            <h4>快速定位</h4>
+            <button type="button" class="plan-sidebar-link" data-scroll-target="scoreSectionAnchor">规划完成得分曲线</button>
+            <button type="button" class="plan-sidebar-link" data-scroll-target="goalsSection">我的目标</button>
+            <button type="button" class="plan-sidebar-link" data-scroll-target="tasksSectionAnchor">我的任务</button>
+            <button type="button" class="plan-sidebar-link" data-scroll-target="archivedSectionAnchor">归档 / 搁置任务</button>
+        </aside>
+
+        <div class="plan-main-content">
         <!-- 统计信息（如果用户偏好允许） -->
         <div class="statistics-section" th:if="${showStatistics != null and showStatistics}">
             <h3>统计</h3>
@@ -99,6 +108,7 @@
         </div>
 
         <!-- 规划完成得分曲线（Insight 插件，可由偏好关闭） -->
+        <div id="scoreSectionAnchor"></div>
         <div class="score-section" th:if="${showScoreSection != null and showScoreSection}">
             <h3>规划完成得分曲线</h3>
             <div class="score-range">
@@ -161,6 +171,7 @@
             </ul>
         </div>
 
+        <div id="tasksSectionAnchor"></div>
         <!-- 今日视图：单列表 -->
         <div th:if="${taskView=='today'}">
             <h3>今日可行动任务</h3>
@@ -298,6 +309,7 @@
         </div>
         <a href="/memo/add" class="add-btn">＋ 添加任务</a>
 
+        <div id="archivedSectionAnchor"></div>
         <!-- 归档 / 搁置区：不在默认视图中打扰用户，只在此折叠浏览 -->
         <div class="archived-section" th:if="${archivedOrShelved != null and !archivedOrShelved.isEmpty()}">
             <h3>归档 / 搁置任务</h3>
@@ -312,6 +324,7 @@
                     <span class="deadline" th:text="${t.deadline}"></span>
                 </li>
             </ul>
+        </div>
         </div>
     </div>
 

@@ -6,7 +6,7 @@ body {
 }
 
 .container {
-    max-width: 700px;
+    max-width: 980px;
     margin: 80px auto;
     background: white;
     border-radius: 16px;
@@ -48,6 +48,68 @@ h2 {
     text-align: center;
     color: #2c3e50;
     margin-bottom: 30px;
+}
+
+.plan-layout {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+.plan-sidebar {
+    position: sticky;
+    top: 18px;
+    background: #f8faff;
+    border: 1px solid #e1e7f0;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.plan-sidebar h4 {
+    margin: 0 0 10px;
+    color: #2c3e50;
+    font-size: 14px;
+}
+
+.plan-sidebar-link {
+    width: 100%;
+    text-align: left;
+    background: #ffffff;
+    color: #4a90e2;
+    border: 1px solid #d0d7e2;
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.plan-sidebar-link:hover {
+    background: #4a90e2;
+    color: #ffffff;
+    border-color: #4a90e2;
+}
+
+.plan-main-content {
+    min-width: 0;
+}
+
+#scoreSectionAnchor,
+#tasksSectionAnchor,
+#archivedSectionAnchor {
+    position: relative;
+    top: -6px;
+}
+
+@media (max-width: 980px) {
+    .plan-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .plan-sidebar {
+        position: static;
+    }
 }
 
 ul {

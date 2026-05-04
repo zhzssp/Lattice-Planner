@@ -1,5 +1,6 @@
 package org.zhzssp.memorandum.feature.insight.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.zhzssp.memorandum.feature.agent.service.LlmGateway;
 import org.zhzssp.memorandum.feature.insight.service.InsightScoreService.DailyScore;
@@ -23,16 +24,13 @@ import java.util.stream.Collectors;
 @Service
 public class AiSummaryService {
 
-    /**
-     * 调用 LLM 的超时时间（秒）。
-     * 如果在该时间内没有得到模型返回，就会回退到本地规则总结。
-     */
-    private static final long AI_TIMEOUT_SECONDS = 8L;
-
     private final LlmGateway llmGateway;
+    private final long summaryTimeoutSeconds;
 
-    public AiSummaryService(LlmGateway llmGateway) {
+    public AiSummaryService(LlmGateway llmGateway,
+                            @Value("${agent.llm.summary-timeout-seconds:30}") long summaryTimeoutSeconds) {
         this.llmGateway = llmGateway;
+        this.summaryTimeoutSeconds = summaryTimeoutSeconds;
     }
 
     /**
@@ -45,12 +43,12 @@ public class AiSummaryService {
 
         try {
             CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> llmGateway.generateText(prompt));
-            return future.orTimeout(AI_TIMEOUT_SECONDS, TimeUnit.SECONDS).join();
+            return future.orTimeout(summaryTimeoutSeconds, TimeUnit.SECONDS).join();
         } catch (CompletionException ex) {
             Throwable cause = ex.getCause();
             if (cause instanceof TimeoutException) {
                 return fallback + "\n\n（提示：调用模型超过 "
-                        + AI_TIMEOUT_SECONDS
+                        + summaryTimeoutSeconds
                         + " 秒未返回，已使用本地规则生成摘要。）";
             }
             return fallback + "\n\n（提示：调用模型接口失败，本摘要由本地规则生成。错误信息已记录在服务端日志。）";

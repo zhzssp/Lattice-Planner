@@ -2,6 +2,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const goalsSection = document.getElementById('goalsSection');
     if (!goalsSection) return;
 
+    // 规划模式侧边栏快速定位
+    const sidebarLinks = document.querySelectorAll('.plan-sidebar-link');
+    const smoothScrollTo = (targetId) => {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        const top = el.getBoundingClientRect().top + window.scrollY - 16;
+        window.scrollTo({ top, behavior: 'smooth' });
+    };
+    sidebarLinks.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.dataset.scrollTarget;
+            smoothScrollTo(targetId);
+        });
+    });
+
     const modal = document.getElementById('goalModal');
     const openBtn = document.getElementById('openGoalModal');
     const closeBtn = document.getElementById('closeGoalModal');
