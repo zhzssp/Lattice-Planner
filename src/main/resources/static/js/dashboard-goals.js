@@ -120,6 +120,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`请求失败: ${resp.status} ${text || ''}`);
             }
 
+            const contentType = resp.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const text = await resp.text();
+                throw new Error(`响应不是JSON（content-type=${contentType || 'unknown'}）: ${text?.slice(0, 200) || ''}`);
+            }
+
             const data = await resp.json();
 
             if (Array.isArray(data.clarifyQuestions) && data.clarifyQuestions.length > 0) {
@@ -173,6 +179,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!resp.ok) {
                 const text = await resp.text();
                 throw new Error(`创建失败: ${resp.status} ${text || ''}`);
+            }
+
+            const contentType = resp.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const text = await resp.text();
+                throw new Error(`响应不是JSON（content-type=${contentType || 'unknown'}）: ${text?.slice(0, 200) || ''}`);
             }
 
             const data = await resp.json();
