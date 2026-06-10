@@ -161,7 +161,7 @@
     function addBubble(role, text) {
         const li = document.createElement('li');
         li.className = 'lp-bubble lp-' + role;
-        li.textContent = text || '';
+            li.textContent = text || '';
         stream.appendChild(li); scrollEnd();
     }
 
@@ -169,9 +169,6 @@
         const li = document.createElement('li');
         li.className = 'lp-tool'; li.dataset.cid = cid;
 
-        const h = document.createElement('div');
-        h.className = 'lp-tool-h';
-        h.textContent = '⚙ ' + tool;
 
         const pa = document.createElement('pre');
         pa.className = 'lp-tool-args';
@@ -181,7 +178,6 @@
         pr.className = 'lp-tool-res';
         pr.textContent = '运行中…';
 
-        li.appendChild(h); li.appendChild(pa); li.appendChild(pr);
         stream.appendChild(li); scrollEnd();
     }
 

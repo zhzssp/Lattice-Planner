@@ -77,7 +77,6 @@ public class AgentOrchestrator {
                 ToolCallParser.ToolCall call = parser.parse(llmRaw);
 
                 if (call == null) {
-                    String finalAnswer = parser.stripThinking(llmRaw);
                     if (finalAnswer.isBlank()) {
                         finalAnswer = "（模型未返回内容，请重试或换一个表述）";
                     }
