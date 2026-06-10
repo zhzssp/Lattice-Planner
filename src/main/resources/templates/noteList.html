@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>我的笔记 · Lattice-Planner</title>
+    <link rel="stylesheet" th:href="@{/css/note.css}">
+    <meta name="_csrf" th:content="${_csrf != null ? _csrf.token : ''}"/>
+    <meta name="_csrf_header" th:content="${_csrf != null ? _csrf.headerName : ''}"/>
+</head>
+<body>
+<div class="note-page">
+    <header class="note-header">
+        <h2 th:text="${activeTag != null ? '#' + activeTag + ' · 我的笔记' : '我的笔记'}">我的笔记</h2>
+        <div>
+            <a href="/dashboard" class="btn btn-secondary">返回 Dashboard</a>
+            <a th:if="${activeTag != null}" href="/note" class="btn btn-secondary">清除标签筛选</a>
+            <a href="/note/new" class="btn">＋ 新建笔记</a>
+        </div>
+    </header>
+
+    <!-- Stage 3：知识库搜索框（hybrid 检索：FULLTEXT + 向量） -->
+    <section class="note-search">
+        <input type="search" id="kbSearchInput"
+               placeholder="搜索我的笔记 / 已摄取本地文档（关键字 + 语义）..."
+               autocomplete="off"/>
+        <button type="button" id="kbSearchBtn" class="btn">搜索</button>
+        <button type="button" id="kbSearchClear" class="btn btn-secondary" hidden>关闭</button>
+        <div class="search-hint">提示：直接回车即可搜索；命中将带 score / reason，可点击跳转。</div>
+        <div id="kbSearchResults" class="search-results" hidden></div>
+    </section>
+
+    <!-- Stage 3：标签云 -->
+    <section class="tag-cloud" th:if="${tagCloud != null and !tagCloud.isEmpty()}">
+        <span class="cloud-label">标签：</span>
+        <a th:each="t : ${tagCloud}"
+           th:href="@{|/note/tag/${t.tag}|}"
+           th:classappend="${activeTag != null and activeTag == t.tag} ? ' active'"
+           class="tag-chip">
+            <span th:text="${'#' + t.tag}"></span>
+            <small th:text="${t.count}"></small>
+        </a>
+    </section>
+
+    <ul class="note-list" th:if="${!notes.isEmpty()}">
+        <li th:each="n : ${notes}">
+            <a th:href="@{|/note/${n.id}|}" th:text="${n.title != null and !n.title.isBlank() ? n.title : '(无标题)'}"></a>
+            <div class="note-meta">
+                <span class="note-type"
+                      th:text="${n.type != null ? n.type : 'SCRATCH'}"></span>
+                <span class="note-tags"
+                      th:if="${n.tags != null and !n.tags.isBlank()}"
+                      th:text="${'#' + n.tags}"></span>
+            </div>
+        </li>
+    </ul>
+
+    <div class="empty" th:if="${notes.isEmpty()}">
+        <span th:if="${activeTag != null}" th:text="${'未找到带 #' + activeTag + ' 标签的笔记。'}"></span>
+        <span th:if="${activeTag == null}">还没有笔记。点击右上角"＋ 新建笔记"开始记录吧。</span>
+    </div>
+</div>
+
+<!-- Lattice-Agent 对话面板 -->
+<div th:replace="~{fragments/agent-panel :: panel}"></div>
+
+<script>
+(function() {
+    const input  = document.getElementById('kbSearchInput');
+    const btn    = document.getElementById('kbSearchBtn');
+    const clear  = document.getElementById('kbSearchClear');
+    const board  = document.getElementById('kbSearchResults');
+
+    function escapeHtml(s) {
+        return (s == null ? '' : String(s))
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    function renderHits(hits) {
+        if (!hits || hits.length === 0) {
+            board.innerHTML = '<div class="search-empty">无命中。可以尝试更具体的关键字，或问 Agent。</div>';
+            return;
+        }
+        const items = hits.map(h => {
+            const isNote = h.source === 'NOTE';
+            const link = isNote
+                ? '/note/' + h.noteId
+                : null;
+            const title = isNote
+                ? escapeHtml(h.title || ('Note #' + h.noteId))
+                : '<code>' + escapeHtml(h.sourcePath || '') + '</code>';
+            const head = link
+                ? '<a href="' + link + '" class="hit-title">' + title + '</a>'
+                : '<span class="hit-title local">' + title + '</span>';
+            const badge =
+                '<span class="hit-badge ' + (isNote ? 'note' : 'doc') + '">' +
+                (isNote ? '笔记' : '本地文档') + '</span>';
+            const score = '<span class="hit-score">score ' + escapeHtml(h.score) + '</span>';
+            const reason = '<span class="hit-reason">' + escapeHtml(h.reason || '') + '</span>';
+            const body = '<div class="hit-body">' + escapeHtml(h.content || '') + '</div>';
+            return '<li class="hit">' +
+                '<div class="hit-head">' + head + badge + score + reason + '</div>' +
+                body + '</li>';
+        }).join('');
+        board.innerHTML = '<ul class="hit-list">' + items + '</ul>';
+    }
+
+    async function doSearch() {
+        const q = (input.value || '').trim();
+        if (!q) {
+            board.hidden = true;
+            clear.hidden = true;
+            return;
+        }
+        board.hidden = false;
+        clear.hidden = false;
+        board.innerHTML = '<div class="search-loading">检索中...</div>';
+        try {
+            const r = await fetch('/note/search?q=' + encodeURIComponent(q) + '&topK=8',
+                { credentials: 'same-origin', headers: { 'Accept': 'application/json' }});
+            if (!r.ok) {
+                board.innerHTML = '<div class="search-empty">搜索失败：HTTP ' + r.status + '</div>';
+                return;
+            }
+            renderHits(await r.json());
+        } catch (e) {
+            board.innerHTML = '<div class="search-empty">搜索失败：' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    btn.addEventListener('click', doSearch);
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+    });
+    clear.addEventListener('click', () => {
+        input.value = '';
+        board.hidden = true;
+        clear.hidden = true;
+    });
+})();
+</script>
+</body>
+</html>

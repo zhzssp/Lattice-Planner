@@ -59,4 +59,51 @@ public class ToolCallParser {
     public String stripThinking(String raw) {
         return raw == null ? "" : THINK.matcher(raw).replaceAll("").trim();
     }
+
+    /**
+     * 给最终回答展示用的全面清洗：
+     *  1) 去除 &lt;think&gt;...&lt;/think&gt;
+     *  2) 去除围栏代码块里残留的 tool-call JSON（含 "tool" 字段的 JSON）
+     *  3) 去除独立段落形式的 tool-call JSON（行首 { ... } 且包含 "tool"）
+     *  其余内容（普通 markdown / 普通围栏代码块）保留，交给前端渲染。
+     */
+    public String cleanForDisplay(String raw) {
+        if (raw == null) return "";
+        String s = THINK.matcher(raw).replaceAll("");
+
+        // 删掉围栏块里疑似 tool-call 的 JSON 块（保留普通代码块）
+        Matcher fm = FENCE.matcher(s);
+        StringBuffer sb = new StringBuffer();
+        while (fm.find()) {
+            String inner = fm.group(1).trim();
+            if (looksLikeToolCallJson(inner)) {
+                fm.appendReplacement(sb, "");
+            } else {
+                fm.appendReplacement(sb, Matcher.quoteReplacement(fm.group(0)));
+            }
+        }
+        fm.appendTail(sb);
+        s = sb.toString();
+
+        // 删掉裸露的 tool-call JSON 段落
+        s = TOOL_JSON_BLOCK.matcher(s).replaceAll("");
+
+        return s.replaceAll("\\n{3,}", "\n\n").trim();
+    }
+
+    private static final Pattern TOOL_JSON_BLOCK = Pattern.compile(
+            "(?m)^\\s*\\{[\\s\\S]*?\"tool\"\\s*:\\s*\"[^\"]+\"[\\s\\S]*?\\}\\s*$");
+
+    private boolean looksLikeToolCallJson(String inner) {
+        if (inner == null || inner.isBlank()) return false;
+        int s = inner.indexOf('{');
+        int e = inner.lastIndexOf('}');
+        if (s < 0 || e <= s) return false;
+        try {
+            JsonNode n = om.readTree(inner.substring(s, e + 1));
+            return n.has("tool") && n.get("tool").isTextual();
+        } catch (Exception ex) {
+            return false;
+        }
+    }
 }

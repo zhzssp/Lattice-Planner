@@ -37,6 +37,14 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     // 热部署
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    // PKM：Markdown 渲染（V4 PKM 升级）
+    implementation 'org.commonmark:commonmark:0.22.0'
+    implementation 'org.commonmark:commonmark-ext-gfm-tables:0.22.0'
+    implementation 'org.commonmark:commonmark-ext-task-list-items:0.22.0'
+
+    // PKM-RAG Stage 3：用户级向量 LRU 缓存（避免每次 search 全表 deserialize）
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 }
 
 tasks.named('test') {

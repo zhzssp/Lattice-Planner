@@ -1,0 +1,204 @@
+package org.zhzssp.memorandum.feature.agent.tool.impl;
+
+import org.springframework.stereotype.Component;
+import org.zhzssp.memorandum.entity.Link;
+import org.zhzssp.memorandum.entity.User;
+import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
+import org.zhzssp.memorandum.feature.agent.tool.AgentTool;
+import org.zhzssp.memorandum.feature.agent.tool.LocalBridgeProxy;
+import org.zhzssp.memorandum.feature.agent.tool.ToolParam;
+import org.zhzssp.memorandum.feature.pkm.service.NoteIndexService;
+import org.zhzssp.memorandum.feature.pkm.service.RagSearchService;
+import org.zhzssp.memorandum.repository.LinkRepository;
+import org.zhzssp.memorandum.repository.NoteEmbeddingRepository;
+import org.zhzssp.memorandum.repository.NoteRepository;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * 个人知识库 Agent 工具集（PKM-RAG）。
+ *
+ * Stage 2：4 个工具
+ *  - kb.semantic_search   ：hybrid 检索个人笔记 + 已摄取本地文档（read）
+ *  - kb.lookup_by_title   ：按精确标题取整篇笔记（read）
+ *  - kb.list_backlinks    ：列出指向该标题的反向链接（read）
+ *  - kb.ingest_local_doc  ：摄取本地 md/txt/pdf 进知识库（write+local，需用户确认）
+ *
+ * Stage 3：补足管理面 2 个
+ *  - kb.list_ingested_docs：列出已摄取本地文档清单（read，含 chunks/最近摄取时间）
+ *  - kb.delete_local_doc  ：按 path 反摄取（write+local，需用户确认）
+ *
+ * 多用户隔离：所有工具入口走 AgentContext.requireUser()，再传入 RagSearchService /
+ *           NoteRepository.findFirstByUserAndTitle / 仓储 userId 过滤，越权读他人笔记天然不可达。
+ */
+@Component
+public class KnowledgeTools {
+
+    private final RagSearchService rag;
+    private final NoteIndexService indexService;
+    private final NoteRepository noteRepository;
+    private final NoteEmbeddingRepository embeddingRepository;
+    private final LinkRepository linkRepository;
+    private final LocalBridgeProxy localBridge;
+
+    public KnowledgeTools(RagSearchService rag,
+                          NoteIndexService indexService,
+                          NoteRepository noteRepository,
+                          NoteEmbeddingRepository embeddingRepository,
+                          LinkRepository linkRepository,
+                          LocalBridgeProxy localBridge) {
+        this.rag = rag;
+        this.indexService = indexService;
+        this.noteRepository = noteRepository;
+        this.embeddingRepository = embeddingRepository;
+        this.linkRepository = linkRepository;
+        this.localBridge = localBridge;
+    }
+
+    @AgentTool(name = "kb.semantic_search", tags = {"kb", "read"},
+            description = "在用户笔记 + 已摄取本地文档中做语义+关键字 hybrid 检索；" +
+                    "涉及'我之前/我的笔记/我学过/上次我们说过 X'等问题时必须先调用本工具，" +
+                    "命中条目可在最终回答中以 [[标题]] 形式引用。")
+    public List<Map<String, Object>> semanticSearch(
+            @ToolParam(value = "query", desc = "自然语言查询", required = true) String query,
+            @ToolParam(value = "topK", desc = "返回条数（1~20，默认 6）") Integer topK
+    ) {
+        User u = AgentContext.requireUser();
+        List<RagSearchService.Hit> hits = rag.search(u, query, topK);
+        List<Map<String, Object>> out = new java.util.ArrayList<>(hits.size());
+        for (RagSearchService.Hit h : hits) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("source", h.source());
+            row.put("score", round3(h.score()));
+            row.put("reason", h.reason());
+            if ("NOTE".equals(h.source())) {
+                row.put("noteId", h.noteId());
+                // 提供标题给 LLM，用于 [[标题]] 引用
+                noteRepository.findById(h.noteId())
+                        .filter(n -> n.getUser().getId().equals(u.getId()))
+                        .ifPresent(n -> row.put("title", n.getTitle()));
+            } else {
+                row.put("sourcePath", h.sourcePath());
+            }
+            row.put("chunkIdx", h.chunkIdx());
+            row.put("content", h.content());
+            out.add(row);
+        }
+        return out;
+    }
+
+    @AgentTool(name = "kb.lookup_by_title", tags = {"kb", "read"},
+            description = "按精确标题取一篇笔记的全文。仅当 semantic_search 返回结果中已包含该标题时调用。")
+    public Map<String, Object> lookupByTitle(
+            @ToolParam(value = "title", desc = "笔记标题（精确匹配）", required = true) String title
+    ) {
+        User u = AgentContext.requireUser();
+        return noteRepository.findFirstByUserAndTitle(u, title)
+                .<Map<String, Object>>map(n -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", n.getId());
+                    m.put("title", n.getTitle());
+                    m.put("tags", n.getTags() == null ? "" : n.getTags());
+                    m.put("type", n.getType() == null ? "SCRATCH" : n.getType().name());
+                    m.put("content", n.getContent() == null ? "" : n.getContent());
+                    return m;
+                })
+                .orElseGet(() -> Map.of("error", "NOT_FOUND", "title", title));
+    }
+
+    @AgentTool(name = "kb.list_backlinks", tags = {"kb", "read"},
+            description = "列出指向该标题笔记的反向链接（其他笔记里出现 [[本标题]] 的位置）。")
+    public List<Map<String, Object>> listBacklinks(
+            @ToolParam(value = "title", desc = "目标笔记标题（精确）", required = true) String title
+    ) {
+        User u = AgentContext.requireUser();
+        return noteRepository.findFirstByUserAndTitle(u, title)
+                .map(n -> linkRepository
+                        .findByTargetTypeAndTargetId(Link.LinkTargetType.NOTE, n.getId()).stream()
+                        .filter(l -> l.getSourceType() == Link.LinkSourceType.NOTE)
+                        .map(l -> noteRepository.findById(l.getSourceId()).orElse(null))
+                        .filter(Objects::nonNull)
+                        .filter(x -> x.getUser().getId().equals(u.getId()))
+                        .<Map<String, Object>>map(x -> {
+                            Map<String, Object> m = new LinkedHashMap<>();
+                            m.put("id", x.getId());
+                            m.put("title", x.getTitle());
+                            return m;
+                        })
+                        .toList())
+                .orElse(List.of());
+    }
+
+    @AgentTool(name = "kb.ingest_local_doc", tags = {"kb", "write", "local"}, requiresConfirm = true,
+            description = "把一份本地 md/txt/pdf 文档摄取进个人知识库。" +
+                    "扩展名/路径必须在 Electron 白名单内；同 path 重复摄取会先清旧 chunk 再重建。")
+    public Map<String, Object> ingestLocal(
+            @ToolParam(value = "path", desc = "绝对路径（受 Electron 白名单约束）", required = true) String path
+    ) throws Exception {
+        User u = AgentContext.requireUser();
+        if (path == null || path.isBlank()) {
+            return Map.of("error", "EMPTY_PATH");
+        }
+        String lower = path.toLowerCase(Locale.ROOT);
+        String content;
+        if (lower.endsWith(".pdf")) {
+            content = localBridge.call("read_pdf", Map.of("path", path)).path("content").asText("");
+        } else {
+            content = localBridge.call("read_file", Map.of("path", path)).path("content").asText("");
+        }
+        if (content == null || content.isBlank()) {
+            return Map.of("path", path, "chunks", 0, "warning", "EMPTY_OR_UNREADABLE");
+        }
+        int chunks = indexService.rebuildForLocalDoc(u.getId(), path, content);
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("path", path);
+        r.put("chunks", chunks);
+        if (chunks == 0) {
+            r.put("warning", "EMBEDDING_UNAVAILABLE_OR_EMPTY");
+        }
+        return r;
+    }
+
+    @AgentTool(name = "kb.list_ingested_docs", tags = {"kb", "read"},
+            description = "列出当前用户已摄取的本地文档清单（路径 + chunks 数 + 最近摄取时间）。" +
+                    "用户问'我摄取过哪些资料'/'我导入了什么文件'时调用。")
+    public List<Map<String, Object>> listIngestedDocs() {
+        User u = AgentContext.requireUser();
+        return embeddingRepository.listLocalDocs(u.getId()).stream()
+                .<Map<String, Object>>map(s -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("path", s.getPath());
+                    m.put("chunks", s.getChunks());
+                    m.put("latest", s.getLatest() == null ? null : s.getLatest().toString());
+                    return m;
+                })
+                .toList();
+    }
+
+    @AgentTool(name = "kb.delete_local_doc", tags = {"kb", "write", "local"}, requiresConfirm = true,
+            description = "按 path 反摄取本地文档：清空该路径在个人知识库中的所有 chunk。" +
+                    "用户明确表达'删掉/移除/反摄取 X'时调用；删除后该文档不再出现在 kb.semantic_search。")
+    public Map<String, Object> deleteLocalDoc(
+            @ToolParam(value = "path", desc = "要反摄取的绝对路径（与 ingest 时一致）", required = true) String path
+    ) {
+        User u = AgentContext.requireUser();
+        if (path == null || path.isBlank()) {
+            return Map.of("error", "EMPTY_PATH");
+        }
+        int deleted = indexService.deleteLocalDoc(u.getId(), path);
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("path", path);
+        r.put("deleted", deleted);
+        if (deleted == 0) r.put("warning", "NOT_INGESTED_OR_ALREADY_REMOVED");
+        return r;
+    }
+
+    /** 输出给 LLM 的分数保留 3 位，防止 JSON 噪音过大。 */
+    private static double round3(double d) {
+        return Math.round(d * 1000.0) / 1000.0;
+    }
+}

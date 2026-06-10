@@ -44,6 +44,20 @@ public class LlmGateway {
     @Value("${agent.llm.api-key:}")
     private String configuredApiKey;
 
+    /**
+     * Embedding 独立配置：DeepSeek 不提供 embedding，必须接入 OpenAI-Compatible
+     * 兼容端点（硅基流动 / 智谱 / 通义 / 本地 Ollama nomic-embed-text 等）。
+     * 留空时 base-url 回落到 chat 的 baseUrl，api-key 回落到 resolveApiKey()。
+     */
+    @Value("${agent.embedding.model:bge-m3}")
+    private String embeddingModel;
+
+    @Value("${agent.embedding.base-url:}")
+    private String embeddingBaseUrl;
+
+    @Value("${agent.embedding.api-key:}")
+    private String embeddingApiKey;
+
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -137,6 +151,61 @@ public class LlmGateway {
             if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
             throw new IllegalStateException("Failed to call DeepSeek Chat API.", ex);
         }
+    }
+
+    /**
+     * 调用 OpenAI-Compatible /v1/embeddings 接口。
+     * 返回与输入顺序对齐的向量数组；不缓存，由调用方（NoteIndexService / RagSearchService）控制频率。
+     *
+     * 失败时抛 IllegalStateException 给上层，RagSearchService 会捕获并降级到纯关键字。
+     */
+    public java.util.List<float[]> generateEmbedding(java.util.List<String> inputs) {
+        if (inputs == null || inputs.isEmpty()) return java.util.List.of();
+
+        String key = (embeddingApiKey != null && !embeddingApiKey.isBlank())
+                ? embeddingApiKey.trim() : resolveApiKey();
+        if (key == null || key.isBlank()) {
+            throw new IllegalStateException(
+                    "Embedding API key 未配置：请设置 agent.embedding.api-key（或 agent.llm.api-key 作为回落）");
+        }
+        String base = (embeddingBaseUrl != null && !embeddingBaseUrl.isBlank())
+                ? normalizeBaseUrl(embeddingBaseUrl) : normalizeBaseUrl(baseUrl);
+
+        try {
+            String body = objectMapper.writeValueAsString(Map.of(
+                    "model", embeddingModel,
+                    "input", inputs
+            ));
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(base + "/v1/embeddings"))
+                    .timeout(Duration.ofSeconds(60))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + key)
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build();
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
+                throw new IllegalStateException(
+                        "Embedding API 请求失败：HTTP " + resp.statusCode() + " - " + resp.body());
+            }
+            JsonNode arr = objectMapper.readTree(resp.body()).path("data");
+            java.util.List<float[]> out = new java.util.ArrayList<>(inputs.size());
+            for (JsonNode n : arr) {
+                JsonNode emb = n.path("embedding");
+                float[] v = new float[emb.size()];
+                for (int i = 0; i < emb.size(); i++) v[i] = (float) emb.get(i).asDouble();
+                out.add(v);
+            }
+            return out;
+        } catch (IOException | InterruptedException ex) {
+            if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new IllegalStateException("调用 Embedding API 失败", ex);
+        }
+    }
+
+    /** 当前 embedding 模型名（写入 note_embedding.model 字段，便于后续切换模型时识别旧向量）。 */
+    public String embeddingModelName() {
+        return embeddingModel;
     }
 
     private String normalizeBaseUrl(String raw) {

@@ -49,7 +49,7 @@ public class InsightTools {
         LocalDate s = LocalDate.parse(from);
         LocalDate e = LocalDate.parse(to);
         List<DailyScore> raw = insightScoreService.calculateScores(user, s, e);
-        return aiSummaryService.summarizeScores(s, e, raw);
+        return aiSummaryService.summarizeScores(s, e, raw, user);
     }
 
     public record ScoreView(

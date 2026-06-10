@@ -1,5 +1,5 @@
 {
-  "_comment": "Lattice-Agent 本地工具白名单。allowDirs 与 denyDirs 同时存在，路径必须在 allowDirs 之内且不在 denyDirs 之内才会被允许访问。请按本机实际情况修改。",
+  "_comment": "Lattice-Agent 本地工具白名单。allowDirs 与 denyDirs 同时存在，路径必须在 allowDirs 之内且不在 denyDirs 之内才会被允许访问。请按本机实际情况修改。Stage 2 PKM-RAG 摄取 PDF 后单文件可能较大，maxFileBytes 提到 4MB；批量摄取由 Agent 多次单文件调用，前端无需统一上限。",
   "allowDirs": [
     "D:/notes",
     "D:/learning",
@@ -11,5 +11,6 @@
     "C:/Program Files (x86)"
   ],
   "allowExt": ["md", "txt", "json", "yml", "yaml", "csv", "log", "pdf"],
-  "maxFileBytes": 2097152
+  "maxFileBytes": 4194304,
+  "ingestBatchMaxFiles": 50
 }

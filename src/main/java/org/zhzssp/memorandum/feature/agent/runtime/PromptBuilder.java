@@ -15,8 +15,9 @@ import java.util.Set;
 /**
  * 系统 Prompt + 历史拼接器。按 mode 选择工具子集：
  *  chat    -> 全部
- *  plan    -> 任务/目标/规划/读+写
- *  reflect -> 任务/目标/insight/笔记/读
+ *  plan    -> 任务/目标/规划/读+写（+ kb 读，便于规划时引用历史笔记）
+ *  reflect -> 任务/目标/insight/笔记/读（+ kb 读，复盘时检索过往）
+ *  learn   -> kb/note/read（"我以前学过 X 吗"等纯检索问答）
  */
 @Component
 public class PromptBuilder {
@@ -33,8 +34,9 @@ public class PromptBuilder {
                                            List<ConversationMemory.Msg> history,
                                            String longTermMemo) throws JsonProcessingException {
         Set<String> tagFilter = switch (mode == null ? "chat" : mode) {
-            case "plan" -> Set.of("task", "goal", "planner", "read", "write");
-            case "reflect" -> Set.of("task", "goal", "insight", "note", "read");
+            case "plan" -> Set.of("task", "goal", "planner", "kb", "read", "write");
+            case "reflect" -> Set.of("task", "goal", "insight", "note", "kb", "read");
+            case "learn" -> Set.of("kb", "note", "read");
             default -> null;
         };
         String toolsJson = om.writerWithDefaultPrettyPrinter()
@@ -58,6 +60,15 @@ public class PromptBuilder {
                 - 一次只能调用一个工具；看到工具结果后再决定下一步。
                 - 标 "需用户确认" 的工具会触发弹窗，请只在用户明确意图后再调用。
                 - 不可编造任务/目标/笔记的 id，所有 id 必须来自工具返回的真实数据。
+
+                【知识检索原则】（涉及"我"自身经验/笔记时严格执行）
+                - 涉及"我"、"我的笔记/项目/经验"、"我之前学过 X"、"上次我们说过 Y" 等表述时，
+                  必须先调用 kb.semantic_search 检索个人知识库（笔记 + 已摄取本地文档）。
+                - kb.semantic_search 命中条目最高 score < 0.4 时视为弱相关：最终回答需明示
+                  "未找到强相关笔记，以下基于通用知识"，再给一般性回答。
+                - 命中并真正引用某篇笔记时，使用 [[标题]] 写法（不带路径），用户可点击跳转。
+                - 不要把 kb 工具与 note.create 混用：semantic_search/lookup_by_title 是"读"，
+                  仅在用户显式要求"记一笔"时才 note.create。
 
                 【用户长期记忆（来自历史 Agent 会话归档）】
                 %s

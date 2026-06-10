@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title th:text="${isNew ? '新建笔记' : '编辑笔记'} + ' · Lattice-Planner'"></title>
+    <link rel="stylesheet" th:href="@{/css/note.css}">
+</head>
+<body>
+<div class="note-page note-edit">
+    <header class="note-header">
+        <h2 th:text="${isNew} ? '新建笔记' : '编辑笔记'"></h2>
+        <div>
+            <a href="/note" class="btn btn-secondary">返回列表</a>
+        </div>
+    </header>
+
+    <form action="/note/save" method="post" id="noteForm">
+        <input type="hidden" name="id" th:if="${!isNew}" th:value="${note.id}"/>
+
+        <div class="row">
+            <input type="text" name="title" th:value="${note.title}"
+                   placeholder="标题" required maxlength="200"/>
+            <input type="text" name="tags" th:value="${note.tags}"
+                   placeholder="标签：spring,ai,rag" maxlength="255"/>
+            <select name="type">
+                <option value="SCRATCH"
+                        th:selected="${note.type == null or note.type.name() == 'SCRATCH'}">临时想法</option>
+                <option value="LEARNING"
+                        th:selected="${note.type != null and note.type.name() == 'LEARNING'}">学习笔记</option>
+                <option value="PROJECT"
+                        th:selected="${note.type != null and note.type.name() == 'PROJECT'}">项目笔记</option>
+                <option value="RETROSPECTIVE"
+                        th:selected="${note.type != null and note.type.name() == 'RETROSPECTIVE'}">复盘笔记</option>
+            </select>
+        </div>
+
+        <div class="split">
+            <textarea name="content" id="md"
+                      placeholder="支持 Markdown，[[Title]] 可创建双向链接，#tag 可标记标签"
+                      th:text="${note.content}"></textarea>
+            <div id="preview"></div>
+        </div>
+
+        <div class="actions">
+            <button type="submit" class="btn">保存</button>
+        </div>
+    </form>
+</div>
+
+<script>
+(function () {
+    const md = document.getElementById('md');
+    const pv = document.getElementById('preview');
+    const csrfToken  = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+    const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+
+    let timer = null;
+    async function refresh() {
+        try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrfHeader && csrfToken) headers[csrfHeader] = csrfToken;
+            const r = await fetch('/note/preview', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ content: md.value || '' })
+            });
+            if (!r.ok) {
+                pv.innerHTML = '<em style="color:#9ca3af">预览暂不可用（' + r.status + '）</em>';
+                return;
+            }
+            pv.innerHTML = await r.text();
+        } catch (e) {
+            pv.innerHTML = '<em style="color:#9ca3af">预览失败：' + (e && e.message ? e.message : e) + '</em>';
+        }
+    }
+    md.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(refresh, 200);
+    });
+    refresh();
+})();
+</script>
+
+<!-- Lattice-Agent 对话面板 -->
+<div th:replace="~{fragments/agent-panel :: panel}"></div>
+</body>
+</html>
