@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<body>
+<!--
+  Lattice-Agent 对话面板 fragment。
+  在登录后页面 </body> 之前以 <div th:replace="~{fragments/agent-panel :: panel}"></div> 引入。
+-->
+<div th:fragment="panel">
+    <link rel="stylesheet" th:href="@{/agent/chat-panel.css}">
+    <button id="lp-agent-fab" type="button" title="打开 Lattice-Agent">AI</button>
+    <aside id="lp-agent-panel" aria-hidden="true">
+        <header>
+            <span class="lp-agent-title">Lattice-Agent</span>
+            <select id="lp-agent-mode" title="模式">
+                <option value="chat">Chat</option>
+                <option value="plan">自动规划</option>
+                <option value="reflect">复盘</option>
+            </select>
+            <button id="lp-agent-close" type="button" title="关闭">×</button>
+        </header>
+        <ol id="lp-agent-stream"></ol>
+        <footer>
+            <textarea id="lp-agent-input" placeholder="向 Agent 提问，按 Ctrl+Enter 发送…"></textarea>
+            <div class="lp-agent-actions">
+                <span id="lp-agent-status" class="lp-agent-status">未连接</span>
+                <button id="lp-agent-send" type="button">发送</button>
+            </div>
+        </footer>
+    </aside>
+    <script th:src="@{/agent/chat-panel.js}"></script>
+</div>
+</body>
+</html>

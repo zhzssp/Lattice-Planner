@@ -2,11 +2,97 @@
 const { app, BrowserWindow, ipcMain, Tray, nativeImage, Menu, Notification } = require('electron');
 const path = require('path');
 const axios = require('axios');
+const fs = require('fs');
+const fsp = require('fs/promises');
 
 // 后端地址：优先使用环境变量 ELECTRON_APP_BASE_URL，否则默认本地 8080（与 Spring Boot 一致）
 const BASE_URL = process.env.ELECTRON_APP_BASE_URL || 'http://localhost:8080';
 axios.defaults.withCredentials = true;
 axios.defaults.baseURL = BASE_URL;
+
+// ============================================================
+// Lattice-Agent 本地工具桥：基于 permission-config.json 双白名单
+// 后端 JVM 全程不直接 IO 本地磁盘，所有 fs 操作都在此处完成
+// ============================================================
+const PERM_CONFIG_PATH = path.join(__dirname, 'permission-config.json');
+
+function loadPermConfig() {
+    const defaults = {
+        allowDirs: [],
+        denyDirs:  ['C:/Windows', 'C:/Program Files', 'C:/Program Files (x86)'],
+        allowExt:  ['md', 'txt', 'json', 'yml', 'yaml', 'csv', 'log', 'pdf'],
+        maxFileBytes: 2 * 1024 * 1024
+    };
+    try {
+        if (!fs.existsSync(PERM_CONFIG_PATH)) {
+            // 若不存在则生成模板并提示用户编辑
+            fs.writeFileSync(PERM_CONFIG_PATH, JSON.stringify(defaults, null, 2), 'utf-8');
+            console.warn('[Lattice-Agent] permission-config.json 已生成默认模板，请按需编辑 allowDirs');
+            return defaults;
+        }
+        const raw = fs.readFileSync(PERM_CONFIG_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return Object.assign({}, defaults, parsed);
+    } catch (e) {
+        console.error('[Lattice-Agent] 加载 permission-config.json 失败，使用默认配置：', e);
+        return defaults;
+    }
+}
+
+let PERM = loadPermConfig();
+
+function normalize(p) {
+    return path.resolve(p).replace(/\\/g, '/').toLowerCase();
+}
+
+function isAllowedPath(p) {
+    if (!p || typeof p !== 'string') return false;
+    const norm = normalize(p);
+    if ((PERM.denyDirs || []).some(d => norm.startsWith(normalize(d)))) return false;
+    return (PERM.allowDirs || []).some(d => norm.startsWith(normalize(d)));
+}
+
+function checkExt(p) {
+    const ext = path.extname(p).slice(1).toLowerCase();
+    if (!PERM.allowExt.includes(ext)) {
+        const err = new Error('EXT_NOT_ALLOWED:' + ext);
+        err.code = 'EXT_NOT_ALLOWED';
+        throw err;
+    }
+}
+
+ipcMain.handle('local:list_dir', async (_e, payload) => {
+    const p = payload && payload.path;
+    if (!isAllowedPath(p)) throw new Error('PATH_NOT_ALLOWED');
+    const items = await fsp.readdir(p, { withFileTypes: true });
+    return items.map(it => ({ name: it.name, isDir: it.isDirectory() }));
+});
+
+ipcMain.handle('local:read_file', async (_e, payload) => {
+    const p = payload && payload.path;
+    if (!isAllowedPath(p)) throw new Error('PATH_NOT_ALLOWED');
+    checkExt(p);
+    const stat = await fsp.stat(p);
+    if (stat.size > (PERM.maxFileBytes || 2 * 1024 * 1024)) {
+        throw new Error('FILE_TOO_LARGE');
+    }
+    return { content: await fsp.readFile(p, 'utf-8') };
+});
+
+ipcMain.handle('local:read_pdf', async (_e, payload) => {
+    const p = payload && payload.path;
+    if (!isAllowedPath(p)) throw new Error('PATH_NOT_ALLOWED');
+    if (path.extname(p).toLowerCase() !== '.pdf') throw new Error('NOT_PDF');
+    let pdfParse;
+    try {
+        pdfParse = require('pdf-parse');
+    } catch (e) {
+        throw new Error('PDF_PARSER_NOT_INSTALLED. Run: npm i pdf-parse');
+    }
+    const buf = await fsp.readFile(p);
+    const r = await pdfParse(buf);
+    return { content: r.text };
+});
 
 // 创建一个全局的cookie存储
 let sessionCookies = '';

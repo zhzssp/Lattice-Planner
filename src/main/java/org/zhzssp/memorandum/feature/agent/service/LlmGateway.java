@@ -27,6 +27,13 @@ public class LlmGateway {
     @Value("${agent.llm.model:" + DEFAULT_MODEL + "}")
     private String model;
 
+    /**
+     * 多轮对话专用模型；默认强制使用 deepseek-chat，避免 deepseek-reasoner
+     * 输出 reasoning_content / &lt;think&gt; 段干扰工具调用 JSON 解析。
+     */
+    @Value("${agent.chat.model:deepseek-chat}")
+    private String chatModelOverride;
+
     @Value("${agent.llm.base-url:" + DEFAULT_BASE_URL + "}")
     private String baseUrl;
 
@@ -90,6 +97,45 @@ public class LlmGateway {
                 Thread.currentThread().interrupt();
             }
             throw new IllegalStateException("Failed to call DeepSeek API.", ex);
+        }
+    }
+
+    /**
+     * 多轮对话调用：直接传完整 messages 列表（含 system / user / assistant）。
+     * 使用 chatModelOverride（默认 deepseek-chat）避免 reasoner 推理段干扰。
+     * 与 generateText 的差异：① 不强制非空 ② 调用方自行拼 messages ③ 模型独立可配。
+     */
+    public String generateChat(java.util.List<java.util.Map<String, String>> messages) {
+        String apiKey = resolveApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("Agent LLM API key is missing. Please set agent.llm.api-key or DEEPSEEK_API_KEY.");
+        }
+        try {
+            String endpoint = normalizeBaseUrl(baseUrl) + "/v1/chat/completions";
+            String chatModel = (chatModelOverride == null || chatModelOverride.isBlank())
+                    ? DEFAULT_MODEL : chatModelOverride;
+            String requestBody = objectMapper.writeValueAsString(Map.of(
+                    "model", chatModel,
+                    "temperature", 0.2,
+                    "messages", messages
+            ));
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .timeout(Duration.ofSeconds(90))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IllegalStateException("DeepSeek Chat API failed: HTTP " + response.statusCode() + " - " + response.body());
+            }
+            JsonNode contentNode = objectMapper.readTree(response.body())
+                    .path("choices").path(0).path("message").path("content");
+            return contentNode.isMissingNode() || contentNode.isNull() ? "" : contentNode.asText("").trim();
+        } catch (IOException | InterruptedException ex) {
+            if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new IllegalStateException("Failed to call DeepSeek Chat API.", ex);
         }
     }
 

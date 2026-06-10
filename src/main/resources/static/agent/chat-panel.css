@@ -1,0 +1,191 @@
+/* Lattice-Agent 抽屉式对话面板 */
+
+#lp-agent-fab {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 9998;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .2);
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+#lp-agent-fab:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .25);
+}
+
+#lp-agent-panel {
+    position: fixed;
+    top: 0;
+    right: -440px;
+    width: 420px;
+    max-width: 90vw;
+    height: 100%;
+    background: #fff;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, .14);
+    display: flex;
+    flex-direction: column;
+    transition: right .25s ease;
+    z-index: 9999;
+    font-size: 13px;
+    color: #1f2937;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+#lp-agent-panel.open { right: 0; }
+
+#lp-agent-panel header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #e5e7eb;
+    font-weight: 600;
+    background: #f9fafb;
+}
+.lp-agent-title { color: #111827; }
+#lp-agent-mode {
+    margin-left: auto;
+    padding: 3px 6px;
+    font-size: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+}
+#lp-agent-close {
+    background: transparent;
+    border: none;
+    color: #6b7280;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+#lp-agent-close:hover { color: #111827; }
+
+#lp-agent-stream {
+    flex: 1;
+    list-style: none;
+    margin: 0;
+    padding: 14px;
+    overflow-y: auto;
+    background: #fafbfc;
+}
+#lp-agent-stream li {
+    margin-bottom: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 13px;
+}
+.lp-bubble.lp-user {
+    background: #dbeafe;
+    color: #1e3a8a;
+    margin-left: 32px;
+}
+.lp-bubble.lp-assistant {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    margin-right: 32px;
+}
+.lp-bubble.lp-system {
+    background: #fef9c3;
+    color: #92400e;
+    font-size: 12px;
+    text-align: center;
+}
+
+.lp-tool {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    margin-right: 16px;
+}
+.lp-tool-h {
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #0f172a;
+    font-size: 12px;
+}
+.lp-tool pre {
+    margin: 4px 0;
+    padding: 6px 8px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 4px;
+    font-size: 11px;
+    max-height: 180px;
+    overflow: auto;
+    font-family: Consolas, Menlo, monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.lp-confirm {
+    background: #fef3c7;
+    border: 1px solid #fbbf24;
+}
+.lp-confirm-text { margin-bottom: 6px; }
+.lp-confirm button {
+    margin: 4px 6px 0 0;
+    padding: 4px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 12px;
+}
+.lp-confirm button[data-ok="1"] { background: #10b981; color: #fff; border-color: #10b981; }
+.lp-confirm button[data-ok="0"] { background: #fff; color: #b91c1c; border-color: #fca5a5; }
+.lp-confirm button:disabled { opacity: .5; cursor: default; }
+
+#lp-agent-panel footer {
+    padding: 10px 12px;
+    border-top: 1px solid #e5e7eb;
+    background: #fff;
+}
+#lp-agent-input {
+    width: 100%;
+    box-sizing: border-box;
+    height: 70px;
+    resize: vertical;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+}
+#lp-agent-input:focus { outline: 2px solid #93c5fd; outline-offset: 0; }
+.lp-agent-actions {
+    display: flex;
+    align-items: center;
+    margin-top: 8px;
+    gap: 8px;
+}
+.lp-agent-status {
+    font-size: 11px;
+    color: #6b7280;
+    flex: 1;
+}
+.lp-agent-status.online { color: #047857; }
+.lp-agent-status.error { color: #b91c1c; }
+#lp-agent-send {
+    padding: 6px 18px;
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+#lp-agent-send:hover { background: #2563eb; }
+#lp-agent-send:disabled { opacity: .5; cursor: wait; }
