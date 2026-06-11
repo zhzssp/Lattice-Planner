@@ -332,6 +332,59 @@ async function performTaskCheck() {
     }
 }
 
+// ============================================================
+// 主动式 Agent：晨报 / 晚报桌面推送
+// 复用 DDL 提醒的同一套 Notification + 60s 轮询 + 带 Cookie axios。
+// 服务端 /report/pending 已按时间窗 + 每日一次做闸门，客户端这里再按
+// "type+日期" 去重，避免同一窗口内 60s 轮询重复弹窗（及服务端重启的边界）。
+// ============================================================
+let shownReportKeys = new Set();
+
+async function checkDailyReport() {
+    try {
+        const cookies = await getCookiesFromWindow();
+        const response = await axios.get('/report/pending', {
+            withCredentials: true,
+            headers: cookies ? { 'Cookie': cookies } : {}
+        });
+
+        const report = response.data;
+        if (!report || !report.type || report.type === 'none') {
+            return;
+        }
+
+        // 以 类型 + 当天日期 作为去重键
+        const dayKey = new Date().toISOString().slice(0, 10);
+        const reportKey = `${report.type}:${dayKey}`;
+        if (shownReportKeys.has(reportKey)) {
+            return;
+        }
+        shownReportKeys.add(reportKey);
+
+        console.log(`Showing daily report: ${reportKey}`);
+        const notification = new Notification({
+            title: report.title || '今日提醒',
+            body: report.body || ''
+        });
+        // 点击通知 -> 唤起主窗口，方便用户查看完整报告
+        notification.on('click', () => {
+            if (mainWindow) {
+                if (mainWindow.isMinimized()) mainWindow.restore();
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        });
+        notification.show();
+
+        // 把完整报告转发给渲染进程（应用内可展示 detail 全文）
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('daily-report', report);
+        }
+    } catch (error) {
+        console.error('Error fetching daily report:', error.response?.data || error.message);
+    }
+}
+
 async function getLoginState() {
     try {
         // 更新全局cookie存储
@@ -389,9 +442,10 @@ app.whenReady().then(() => {
             console.log('Login state:', isLoggedIn);
             mainWindow.webContents.send('login-status', isLoggedIn);
 
-            // 若用户登录成功，则允许检查DDL任务
+            // 若用户登录成功，则允许检查DDL任务 + 主动式晨报/晚报推送
             if (isLoggedIn) {
                 checkTasksDue();
+                checkDailyReport();
             }
         }).catch(error => {
             console.error('Error checking login state:', error);
@@ -403,8 +457,11 @@ app.whenReady().then(() => {
 
     // 每30秒检查一次登录状态和DDL
     intervalId1 = setInterval(checkLoginAndDDL, 60000);
-    // 每天清理一次已通知任务集合
-    intervalId2 = setInterval(() => notifiedTasks.clear(), 24 * 60 * 60 * 1000);
+    // 每天清理一次已通知任务集合 + 已推送晨报/晚报去重键（跨天允许重新推送）
+    intervalId2 = setInterval(() => {
+        notifiedTasks.clear();
+        shownReportKeys.clear();
+    }, 24 * 60 * 60 * 1000);
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

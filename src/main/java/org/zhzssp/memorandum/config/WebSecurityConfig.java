@@ -29,6 +29,7 @@ public class WebSecurityConfig {
                         .ignoringRequestMatchers(
                                 "/user-logged-in",
                                 "/due-dates",
+                                "/report/**",
                                 "/ws/agent/**",
                                 "/api/agent/**"
                         )
