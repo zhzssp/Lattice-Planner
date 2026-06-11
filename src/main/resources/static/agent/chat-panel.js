@@ -378,6 +378,18 @@
             if (inQuote) { out.push('</blockquote>'); inQuote = false; }
         }
 
+        // GFM 表格分隔行：|---|:--:|--:| 这类（至少一个 -，可带对齐冒号）
+        function isTableSep(l) {
+            return /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/.test(l) && l.indexOf('-') !== -1;
+        }
+        // 拆分一行单元格：去掉首尾 |，按未转义的 | 切分，再还原 \| 为字面竖线
+        function splitRow(l) {
+            let t = l.trim();
+            if (t.startsWith('|')) t = t.slice(1);
+            if (t.endsWith('|')) t = t.slice(0, -1);
+            return t.split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
+        }
+
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
 
@@ -385,6 +397,43 @@
             if (/^\u0000CB\d+\u0000$/.test(line)) {
                 closeList(); closeQuote();
                 out.push(line);
+                continue;
+            }
+
+            // 表格：当前行含 |，且下一行是分隔行 -> 解析为 <table>
+            if (line.indexOf('|') !== -1 && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+                closeList(); closeQuote();
+                const header = splitRow(line);
+                const aligns = splitRow(lines[i + 1]).map(c => {
+                    const l = c.startsWith(':'), r = c.endsWith(':');
+                    if (l && r) return 'center';
+                    if (r) return 'right';
+                    if (l) return 'left';
+                    return '';
+                });
+                i += 1; // 跳过分隔行
+                const rows = [];
+                // 连续的数据行：含 | 且非空、非代码占位符
+                while (i + 1 < lines.length
+                       && lines[i + 1].indexOf('|') !== -1
+                       && lines[i + 1].trim() !== ''
+                       && !/^\u0000CB\d+\u0000$/.test(lines[i + 1])) {
+                    i += 1;
+                    rows.push(splitRow(lines[i]));
+                }
+                const alignAttr = (idx) => aligns[idx] ? ' style="text-align:' + aligns[idx] + '"' : '';
+                let tb = '<div class="lp-md-table-wrap"><table class="lp-md-table"><thead><tr>';
+                header.forEach((h, idx) => { tb += '<th' + alignAttr(idx) + '>' + h + '</th>'; });
+                tb += '</tr></thead><tbody>';
+                rows.forEach(r => {
+                    tb += '<tr>';
+                    for (let c = 0; c < header.length; c++) {
+                        tb += '<td' + alignAttr(c) + '>' + (r[c] != null ? r[c] : '') + '</td>';
+                    }
+                    tb += '</tr>';
+                });
+                tb += '</tbody></table></div>';
+                out.push(tb);
                 continue;
             }
 
@@ -436,8 +485,11 @@
         // 合并连续段落，去掉过多 <br>
         let html = out.join('\n')
             .replace(/(?:<br>\s*\n?){2,}/g, '<br>')
-            .replace(/<br>\s*(<\/(?:li|ul|ol|blockquote|h[1-6])>)/g, '$1')
-            .replace(/(<(?:ul|ol|blockquote|h[1-6])[^>]*>)\s*<br>/g, '$1');
+            .replace(/<br>\s*(<\/(?:li|ul|ol|blockquote|h[1-6]|table)>)/g, '$1')
+            .replace(/(<(?:ul|ol|blockquote|h[1-6])[^>]*>)\s*<br>/g, '$1')
+            // 表格容器前后的多余 <br> 一并清掉，避免表格上下出现空行
+            .replace(/<br>\s*(<div class="lp-md-table-wrap">)/g, '$1')
+            .replace(/(<\/table><\/div>)\s*<br>/g, '$1');
 
         // 7) 把代码占位符还原
         html = html.replace(/\u0000CB(\d+)\u0000/g, (_, idx) => codeBlocks[Number(idx)] || '');

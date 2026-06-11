@@ -318,3 +318,39 @@ h4.lp-md-h, h5.lp-md-h, h6.lp-md-h { font-size: 13px; }
     white-space: pre;
 }
 .lp-md-pre code { background: transparent; color: inherit; padding: 0; font-size: 12px; }
+
+/* ===== Markdown 表格 =====
+   外层 .lp-md-table-wrap 负责横向滚动，避免多列表格在窄面板里溢出撑破布局；
+   选择器带 #lp-agent-stream li.lp-assistant 前缀以压过宿主页 dashboard.css 的全局
+   table/th/td 规则，并显式声明 display 还原表格盒模型（防被全局 flex/block 污染）。 */
+.lp-md-table-wrap {
+    margin: 8px 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+#lp-agent-stream li.lp-assistant table.lp-md-table {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    line-height: 1.45;
+}
+#lp-agent-stream li.lp-assistant table.lp-md-table thead { display: table-header-group; }
+#lp-agent-stream li.lp-assistant table.lp-md-table tbody { display: table-row-group; }
+#lp-agent-stream li.lp-assistant table.lp-md-table tr { display: table-row; }
+#lp-agent-stream li.lp-assistant table.lp-md-table th,
+#lp-agent-stream li.lp-assistant table.lp-md-table td {
+    display: table-cell;
+    border: 1px solid #d1d5db;
+    padding: 5px 8px;
+    text-align: left;
+    vertical-align: top;
+    word-break: break-word;
+    white-space: normal;
+}
+#lp-agent-stream li.lp-assistant table.lp-md-table th {
+    background: #f1f5f9;
+    font-weight: 600;
+    color: #0f172a;
+}
+#lp-agent-stream li.lp-assistant table.lp-md-table tbody tr:nth-child(even) { background: #f9fafb; }
