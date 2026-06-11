@@ -16,6 +16,7 @@ import org.zhzssp.memorandum.feature.agent.policy.ToolConfirmCoordinator;
 import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
 import org.zhzssp.memorandum.feature.agent.runtime.AgentOrchestrator;
 import org.zhzssp.memorandum.feature.agent.runtime.LongTermMemoryService;
+import org.zhzssp.memorandum.feature.agent.runtime.SessionArchiveScheduler;
 import org.zhzssp.memorandum.feature.agent.tool.LocalBridgeProxy;
 import org.zhzssp.memorandum.repository.UserRepository;
 
@@ -44,6 +45,7 @@ public class AgentChatWebSocketHandler extends TextWebSocketHandler {
     private final LocalBridgeProxy localBridgeProxy;
     private final ToolConfirmCoordinator confirmCoordinator;
     private final LongTermMemoryService longTermMemoryService;
+    private final SessionArchiveScheduler sessionArchiveScheduler;
 
     /** sessionId -> WebSocketSession */
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
@@ -53,13 +55,15 @@ public class AgentChatWebSocketHandler extends TextWebSocketHandler {
                                      @Lazy AgentOrchestrator orchestrator,
                                      LocalBridgeProxy localBridgeProxy,
                                      ToolConfirmCoordinator confirmCoordinator,
-                                     LongTermMemoryService longTermMemoryService) {
+                                     LongTermMemoryService longTermMemoryService,
+                                     SessionArchiveScheduler sessionArchiveScheduler) {
         this.om = om;
         this.userRepository = userRepository;
         this.orchestrator = orchestrator;
         this.localBridgeProxy = localBridgeProxy;
         this.confirmCoordinator = confirmCoordinator;
         this.longTermMemoryService = longTermMemoryService;
+        this.sessionArchiveScheduler = sessionArchiveScheduler;
     }
 
     private String sidOf(WebSocketSession s) {
@@ -109,6 +113,8 @@ public class AgentChatWebSocketHandler extends TextWebSocketHandler {
                 }
                 String text = root.path("text").asText("");
                 String mode = root.path("mode").asText("chat");
+                // 登记 sid -> userId，供 SessionArchiveScheduler 空闲归档时解析用户
+                sessionArchiveScheduler.register(sid, user.getId());
                 Thread t = new Thread(() -> {
                     AgentContext.set(user, sid);
                     try {

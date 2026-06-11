@@ -47,7 +47,13 @@ public class LongTermMemoryService {
 
     public void archive(User user, List<ConversationMemory.Msg> history) {
         if (user == null || history == null || history.isEmpty()) return;
-        String dialog = history.stream()
+        // 过滤工具调用 trace（assistant 的 {"tool":...} JSON 与 user 的 [tool_result ...]），
+        // 只把真实的人机对话喂给 LLM 凝练，避免工具噪声污染用户画像。
+        List<ConversationMemory.Msg> dialogue = history.stream()
+                .filter(m -> !isToolNoise(m))
+                .toList();
+        if (dialogue.isEmpty()) return;
+        String dialog = dialogue.stream()
                 .map(m -> m.role() + ": " + m.content())
                 .collect(Collectors.joining("\n"));
         try {
@@ -61,6 +67,19 @@ public class LongTermMemoryService {
         } catch (Exception ex) {
             log.warn("[Agent] long-term memo archive failed: {}", ex.getMessage());
         }
+    }
+
+    /**
+     * 判定一条记忆是否为工具调用 trace（应在归档凝练时剔除）：
+     *  - assistant 侧：AgentOrchestrator.appendToolTrace 写入的 {"tool":...,"arguments":...} JSON；
+     *  - user 侧：以 "[tool_result " 开头的工具结果回灌。
+     */
+    private boolean isToolNoise(ConversationMemory.Msg m) {
+        if (m == null || m.content() == null) return true;
+        String c = m.content().trim();
+        if (c.isEmpty()) return true;
+        if (c.startsWith("[tool_result ")) return true;
+        return "assistant".equals(m.role()) && c.startsWith("{\"tool\"");
     }
 
     private String safe(String s) {

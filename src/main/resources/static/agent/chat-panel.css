@@ -25,9 +25,12 @@
 #lp-agent-panel {
     position: fixed;
     top: 0;
-    right: -440px;
-    width: 420px;
-    max-width: 90vw;
+    right: -460px;
+    /* 宽度由 --lp-agent-width 驱动，可被拖拽手柄实时修改并记忆到 localStorage */
+    --lp-agent-width: 440px;
+    width: var(--lp-agent-width);
+    min-width: 320px;
+    max-width: 96vw;
     height: 100%;
     background: #fff;
     box-shadow: -4px 0 20px rgba(0, 0, 0, .14);
@@ -40,6 +43,23 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
 }
 #lp-agent-panel.open { right: 0; }
+
+/* 左侧拖拽手柄：按住向左拖动放大面板宽度 */
+#lp-agent-resizer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 10000;
+    background: transparent;
+}
+#lp-agent-resizer:hover,
+#lp-agent-resizer.dragging { background: rgba(59, 130, 246, .35); }
+/* 拖拽中禁用过渡，避免宽度跟手时抖动；同时禁止全局选中文本 */
+#lp-agent-panel.resizing { transition: none; }
+body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
 
 #lp-agent-panel header {
     display: flex;
@@ -80,6 +100,10 @@
     background: #fafbfc;
 }
 #lp-agent-stream li {
+    /* 关键：显式 display:block，覆盖宿主页 dashboard.css 的全局
+       `li{display:flex;justify-content:space-between}` —— 该全局规则会把
+       assistant 气泡内的块级子节点排成横向 flex item，导致中文逐字竖排、布局错乱。 */
+    display: block;
     margin-bottom: 10px;
     padding: 9px 12px;
     border-radius: 10px;
@@ -88,6 +112,9 @@
     word-break: break-word;
     font-size: 13px;
 }
+/* assistant 气泡是已渲染的 Markdown HTML：换行交给 <br>/块元素处理，
+   不能用 pre-wrap（否则 renderMarkdown 拼接用的 \n 会变成多余可见换行）。 */
+#lp-agent-stream li.lp-assistant { white-space: normal; }
 .lp-bubble.lp-user {
     background: #dbeafe;
     color: #1e3a8a;
@@ -248,11 +275,21 @@ h1.lp-md-h { font-size: 16px; }
 h2.lp-md-h { font-size: 15px; }
 h3.lp-md-h { font-size: 14px; }
 h4.lp-md-h, h5.lp-md-h, h6.lp-md-h { font-size: 13px; }
-.lp-md-list {
-    margin: 4px 0 4px 18px;
-    padding: 0;
+/* 用高优先级选择器恢复列表样式：宿主 dashboard.css 的全局
+   `ul{list-style:none;padding:0}` 与 `li{display:flex}` 会清掉圆点/缩进并破坏排版。 */
+#lp-agent-stream li.lp-assistant ul.lp-md-list,
+#lp-agent-stream li.lp-assistant ol.lp-md-list {
+    margin: 4px 0 4px 4px;
+    padding-left: 20px;
 }
-.lp-md-list li { margin: 2px 0; }
+#lp-agent-stream li.lp-assistant ul.lp-md-list { list-style: disc; }
+#lp-agent-stream li.lp-assistant ol.lp-md-list { list-style: decimal; }
+#lp-agent-stream li.lp-assistant .lp-md-list li {
+    display: list-item;
+    margin: 2px 0;
+    padding: 0;
+    white-space: normal;
+}
 .lp-md-quote {
     margin: 6px 0;
     padding: 4px 10px;

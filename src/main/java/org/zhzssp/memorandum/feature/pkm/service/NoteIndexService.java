@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.zhzssp.memorandum.entity.Link;
 import org.zhzssp.memorandum.entity.Note;
 import org.zhzssp.memorandum.entity.NoteEmbedding;
+import org.zhzssp.memorandum.entity.NoteType;
 import org.zhzssp.memorandum.entity.User;
 import org.zhzssp.memorandum.repository.LinkRepository;
 import org.zhzssp.memorandum.repository.NoteEmbeddingRepository;
@@ -66,6 +67,13 @@ public class NoteIndexService {
     @Transactional
     public void rebuildForNote(Note note) {
         if (note == null || note.getId() == null || note.getUser() == null) return;
+        // AGENT_MEMO 是 Agent 长期记忆条目，仅供注入对话 Prompt，绝不能进入个人知识库向量检索，
+        // 否则 kb.semantic_search 会混入记忆碎片污染「我的笔记」召回。此处从源头跳过向量化，
+        // 同时省去一次 embedding 调用成本。仍允许其参与 NOTE→NOTE 双链（正文一般无 [[]]，等价 no-op）。
+        if (note.getType() == NoteType.AGENT_MEMO) {
+            rebuildNoteLinks(note);
+            return;
+        }
         rebuildNoteLinks(note);
         rebuildEmbeddings(note);
         // Stage 3：写后失效用户向量缓存，确保下一次 RAG 查询读到最新向量

@@ -26,6 +26,61 @@
     closeBtn.onclick = () => panel.classList.remove('open');
     fab.onclick = () => panel.classList.add('open');
 
+    /* ------- 面板宽度：拖拽调整 + 记忆 ------- */
+    (function initResize() {
+        const resizer = document.getElementById('lp-agent-resizer');
+        if (!resizer) return;
+        const KEY = 'lp-agent-width';
+        const MIN = 320;
+        const maxWidth = () => Math.floor(window.innerWidth * 0.96);
+
+        function applyWidth(px) {
+            const w = Math.max(MIN, Math.min(px, maxWidth()));
+            panel.style.setProperty('--lp-agent-width', w + 'px');
+            return w;
+        }
+        // 恢复上次记忆的宽度
+        const saved = parseInt(localStorage.getItem(KEY), 10);
+        if (!isNaN(saved)) applyWidth(saved);
+
+        let dragging = false;
+        function onMove(e) {
+            if (!dragging) return;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            // 面板右贴边：宽度 = 视口右边到指针的距离
+            applyWidth(window.innerWidth - clientX);
+            e.preventDefault();
+        }
+        function onUp() {
+            if (!dragging) return;
+            dragging = false;
+            resizer.classList.remove('dragging');
+            panel.classList.remove('resizing');
+            document.body.classList.remove('lp-agent-resizing');
+            const cur = parseInt(getComputedStyle(panel).width, 10);
+            if (!isNaN(cur)) localStorage.setItem(KEY, String(cur));
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            window.removeEventListener('touchmove', onMove);
+            window.removeEventListener('touchend', onUp);
+        }
+        function onDown(e) {
+            dragging = true;
+            resizer.classList.add('dragging');
+            panel.classList.add('resizing');
+            document.body.classList.add('lp-agent-resizing');
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('touchend', onUp);
+            e.preventDefault();
+        }
+        resizer.addEventListener('mousedown', onDown);
+        resizer.addEventListener('touchstart', onDown, { passive: false });
+        // 视口变窄时夹紧，避免超出
+        window.addEventListener('resize', () => applyWidth(parseInt(getComputedStyle(panel).width, 10) || MIN));
+    })();
+
     /* ------- WebSocket ------- */
     let ws = null;
     let wsRetry = 0;
