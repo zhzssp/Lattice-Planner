@@ -19,6 +19,13 @@ public class Note {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    /**
+     * 标签：逗号分隔，如 "spring,ai,rag"。
+     * V4 PKM 升级新增字段，旧记录为 NULL 不影响兼容。
+     */
+    @Column(name = "tags", length = 255)
+    private String tags;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = true)
     private NoteType type;

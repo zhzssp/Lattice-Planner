@@ -2,11 +2,97 @@
 const { app, BrowserWindow, ipcMain, Tray, nativeImage, Menu, Notification } = require('electron');
 const path = require('path');
 const axios = require('axios');
+const fs = require('fs');
+const fsp = require('fs/promises');
 
 // 后端地址：优先使用环境变量 ELECTRON_APP_BASE_URL，否则默认本地 8080（与 Spring Boot 一致）
 const BASE_URL = process.env.ELECTRON_APP_BASE_URL || 'http://localhost:8080';
 axios.defaults.withCredentials = true;
 axios.defaults.baseURL = BASE_URL;
+
+// ============================================================
+// Lattice-Agent 本地工具桥：基于 permission-config.json 双白名单
+// 后端 JVM 全程不直接 IO 本地磁盘，所有 fs 操作都在此处完成
+// ============================================================
+const PERM_CONFIG_PATH = path.join(__dirname, 'permission-config.json');
+
+function loadPermConfig() {
+    const defaults = {
+        allowDirs: [],
+        denyDirs:  ['C:/Windows', 'C:/Program Files', 'C:/Program Files (x86)'],
+        allowExt:  ['md', 'txt', 'json', 'yml', 'yaml', 'csv', 'log', 'pdf'],
+        maxFileBytes: 2 * 1024 * 1024
+    };
+    try {
+        if (!fs.existsSync(PERM_CONFIG_PATH)) {
+            // 若不存在则生成模板并提示用户编辑
+            fs.writeFileSync(PERM_CONFIG_PATH, JSON.stringify(defaults, null, 2), 'utf-8');
+            console.warn('[Lattice-Agent] permission-config.json 已生成默认模板，请按需编辑 allowDirs');
+            return defaults;
+        }
+        const raw = fs.readFileSync(PERM_CONFIG_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        return Object.assign({}, defaults, parsed);
+    } catch (e) {
+        console.error('[Lattice-Agent] 加载 permission-config.json 失败，使用默认配置：', e);
+        return defaults;
+    }
+}
+
+let PERM = loadPermConfig();
+
+function normalize(p) {
+    return path.resolve(p).replace(/\\/g, '/').toLowerCase();
+}
+
+function isAllowedPath(p) {
+    if (!p || typeof p !== 'string') return false;
+    const norm = normalize(p);
+    if ((PERM.denyDirs || []).some(d => norm.startsWith(normalize(d)))) return false;
+    return (PERM.allowDirs || []).some(d => norm.startsWith(normalize(d)));
+}
+
+function checkExt(p) {
+    const ext = path.extname(p).slice(1).toLowerCase();
+    if (!PERM.allowExt.includes(ext)) {
+        const err = new Error('EXT_NOT_ALLOWED:' + ext);
+        err.code = 'EXT_NOT_ALLOWED';
+        throw err;
+    }
+}
+
+ipcMain.handle('local:list_dir', async (_e, payload) => {
+    const p = payload && payload.path;
+    if (!isAllowedPath(p)) throw new Error('PATH_NOT_ALLOWED');
+    const items = await fsp.readdir(p, { withFileTypes: true });
+    return items.map(it => ({ name: it.name, isDir: it.isDirectory() }));
+});
+
+ipcMain.handle('local:read_file', async (_e, payload) => {
+    const p = payload && payload.path;
+    if (!isAllowedPath(p)) throw new Error('PATH_NOT_ALLOWED');
+    checkExt(p);
+    const stat = await fsp.stat(p);
+    if (stat.size > (PERM.maxFileBytes || 2 * 1024 * 1024)) {
+        throw new Error('FILE_TOO_LARGE');
+    }
+    return { content: await fsp.readFile(p, 'utf-8') };
+});
+
+ipcMain.handle('local:read_pdf', async (_e, payload) => {
+    const p = payload && payload.path;
+    if (!isAllowedPath(p)) throw new Error('PATH_NOT_ALLOWED');
+    if (path.extname(p).toLowerCase() !== '.pdf') throw new Error('NOT_PDF');
+    let pdfParse;
+    try {
+        pdfParse = require('pdf-parse');
+    } catch (e) {
+        throw new Error('PDF_PARSER_NOT_INSTALLED. Run: npm i pdf-parse');
+    }
+    const buf = await fsp.readFile(p);
+    const r = await pdfParse(buf);
+    return { content: r.text };
+});
 
 // 创建一个全局的cookie存储
 let sessionCookies = '';
@@ -246,6 +332,59 @@ async function performTaskCheck() {
     }
 }
 
+// ============================================================
+// 主动式 Agent：晨报 / 晚报桌面推送
+// 复用 DDL 提醒的同一套 Notification + 60s 轮询 + 带 Cookie axios。
+// 服务端 /report/pending 已按时间窗 + 每日一次做闸门，客户端这里再按
+// "type+日期" 去重，避免同一窗口内 60s 轮询重复弹窗（及服务端重启的边界）。
+// ============================================================
+let shownReportKeys = new Set();
+
+async function checkDailyReport() {
+    try {
+        const cookies = await getCookiesFromWindow();
+        const response = await axios.get('/report/pending', {
+            withCredentials: true,
+            headers: cookies ? { 'Cookie': cookies } : {}
+        });
+
+        const report = response.data;
+        if (!report || !report.type || report.type === 'none') {
+            return;
+        }
+
+        // 以 类型 + 当天日期 作为去重键
+        const dayKey = new Date().toISOString().slice(0, 10);
+        const reportKey = `${report.type}:${dayKey}`;
+        if (shownReportKeys.has(reportKey)) {
+            return;
+        }
+        shownReportKeys.add(reportKey);
+
+        console.log(`Showing daily report: ${reportKey}`);
+        const notification = new Notification({
+            title: report.title || '今日提醒',
+            body: report.body || ''
+        });
+        // 点击通知 -> 唤起主窗口，方便用户查看完整报告
+        notification.on('click', () => {
+            if (mainWindow) {
+                if (mainWindow.isMinimized()) mainWindow.restore();
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        });
+        notification.show();
+
+        // 把完整报告转发给渲染进程（应用内可展示 detail 全文）
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('daily-report', report);
+        }
+    } catch (error) {
+        console.error('Error fetching daily report:', error.response?.data || error.message);
+    }
+}
+
 async function getLoginState() {
     try {
         // 更新全局cookie存储
@@ -303,9 +442,10 @@ app.whenReady().then(() => {
             console.log('Login state:', isLoggedIn);
             mainWindow.webContents.send('login-status', isLoggedIn);
 
-            // 若用户登录成功，则允许检查DDL任务
+            // 若用户登录成功，则允许检查DDL任务 + 主动式晨报/晚报推送
             if (isLoggedIn) {
                 checkTasksDue();
+                checkDailyReport();
             }
         }).catch(error => {
             console.error('Error checking login state:', error);
@@ -317,8 +457,11 @@ app.whenReady().then(() => {
 
     // 每30秒检查一次登录状态和DDL
     intervalId1 = setInterval(checkLoginAndDDL, 60000);
-    // 每天清理一次已通知任务集合
-    intervalId2 = setInterval(() => notifiedTasks.clear(), 24 * 60 * 60 * 1000);
+    // 每天清理一次已通知任务集合 + 已推送晨报/晚报去重键（跨天允许重新推送）
+    intervalId2 = setInterval(() => {
+        notifiedTasks.clear();
+        shownReportKeys.clear();
+    }, 24 * 60 * 60 * 1000);
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

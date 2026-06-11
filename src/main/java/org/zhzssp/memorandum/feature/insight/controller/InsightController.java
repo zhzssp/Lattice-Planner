@@ -78,7 +78,7 @@ public class InsightController {
         }
 
         List<DailyScore> scores = insightScoreService.calculateScores(user, start, end);
-        String summary = aiSummaryService.summarizeScores(start, end, scores);
+        String summary = aiSummaryService.summarizeScores(start, end, scores, user);
         return new ScoreSummaryResponse(summary);
     }
 }

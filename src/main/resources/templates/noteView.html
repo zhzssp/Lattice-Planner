@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${(note.title != null ? note.title : '笔记') + ' · Lattice-Planner'}"></title>
+    <link rel="stylesheet" th:href="@{/css/note.css}">
+</head>
+<body>
+<div class="note-page note-view">
+    <header class="note-header">
+        <h2 th:text="${note.title != null and !note.title.isBlank() ? note.title : '(无标题)'}"></h2>
+        <div>
+            <a href="/note" class="btn btn-secondary">返回列表</a>
+            <a th:href="@{|/note/${note.id}/edit|}" class="btn">编辑</a>
+        </div>
+    </header>
+
+    <div class="note-meta-bar">
+        <div class="note-tags-display" th:if="${note.tags != null and !note.tags.isBlank()}">
+            <span class="tag" th:each="t : ${#strings.arraySplit(note.tags, ',')}"
+                  th:if="${!#strings.isEmpty(t)}"
+                  th:text="${'#' + #strings.trim(t)}"></span>
+        </div>
+        <small>
+            <span th:text="${note.type != null ? note.type : 'SCRATCH'}"></span>
+            ·
+            <span th:if="${note.updatedAt != null}"
+                  th:text="${'更新于 ' + #temporals.format(note.updatedAt, 'yyyy-MM-dd HH:mm')}"></span>
+        </small>
+    </div>
+
+    <article th:utext="${html}"></article>
+
+    <aside class="backlinks" th:if="${!backlinks.isEmpty()}">
+        <h4>反向链接（<span th:text="${backlinks.size()}"></span>）</h4>
+        <ul>
+            <li th:each="b : ${backlinks}">
+                <a th:href="@{|/note/${b.id}|}"
+                   th:text="${b.title != null and !b.title.isBlank() ? b.title : '(无标题)'}"></a>
+            </li>
+        </ul>
+    </aside>
+</div>
+
+<!-- Lattice-Agent 对话面板 -->
+<div th:replace="~{fragments/agent-panel :: panel}"></div>
+</body>
+</html>
