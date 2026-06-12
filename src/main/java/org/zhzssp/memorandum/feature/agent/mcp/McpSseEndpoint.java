@@ -86,7 +86,7 @@ public class McpSseEndpoint {
     }
 
     /** 处理 JSON-RPC 请求（POST /mcp/message?sid=xxx）。 */
-    public Map<String, Object> handleMessage(String sid, Map<String, Object> request) throws Exception {
+    public Map<String, Object> handleMessage(String sid, Map<String, Object> request) {
         McpSessionCtx ctx = sessions.get(sid);
         if (ctx == null) {
             return errorResponse(extractId(request), -32001, "无效的会话 ID");
@@ -97,15 +97,19 @@ public class McpSseEndpoint {
         @SuppressWarnings("unchecked")
         Map<String, Object> params = (Map<String, Object>) request.getOrDefault("params", Map.of());
 
-        return switch (method) {
-            case "initialize" -> handleInitialize(ctx, id);
-            case "ping" -> Map.of("jsonrpc", "2.0", "id", id, "result", Map.of());
-            case "tools/list" -> handleToolsList(ctx, id);
-            case "tools/call" -> handleToolsCall(ctx, id, params);
-            case "resources/list" -> handleResourcesList(ctx, id);
-            case "resources/read" -> handleResourcesRead(ctx, id, params);
-            default -> errorResponse(id, -32601, "未知方法：" + method);
-        };
+        try {
+            return switch (method) {
+                case "initialize" -> handleInitialize(ctx, id);
+                case "ping" -> Map.of("jsonrpc", "2.0", "id", id, "result", Map.of());
+                case "tools/list" -> handleToolsList(ctx, id);
+                case "tools/call" -> handleToolsCall(ctx, id, params);
+                case "resources/list" -> handleResourcesList(ctx, id);
+                case "resources/read" -> handleResourcesRead(ctx, id, params);
+                default -> errorResponse(id, -32601, "未知方法：" + method);
+            };
+        } catch (Exception e) {
+            return errorResponse(id, -32603, "内部错误：" + e.getMessage());
+        }
     }
 
     /* ---- JSON-RPC Handlers ---- */
@@ -173,12 +177,8 @@ public class McpSseEndpoint {
 
     private Map<String, Object> handleResourcesRead(McpSessionCtx ctx, Object id, Map<String, Object> params) throws Exception {
         String uri = (String) params.get("uri");
-        try {
-            Map<String, Object> result = ctx.withContext(() -> resourceAdapter.readResource(uri));
-            return Map.of("jsonrpc", "2.0", "id", id, "result", result);
-        } catch (Exception e) {
-            return errorResponse(id, -32000, "读取资源失败：" + e.getMessage());
-        }
+        Map<String, Object> result = ctx.withContextThrowing(() -> resourceAdapter.readResource(uri));
+        return Map.of("jsonrpc", "2.0", "id", id, "result", result);
     }
 
     /* ---- helpers ---- */

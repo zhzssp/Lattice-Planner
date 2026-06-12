@@ -47,4 +47,20 @@ public class McpSessionCtx {
             AgentContext.clear();
         }
     }
+
+    /** 支持 checked exception 的 Supplier。 */
+    @FunctionalInterface
+    public interface ThrowingSupplier<T> {
+        T get() throws Exception;
+    }
+
+    /** 在 MCP 工具调用前包裹（支持 checked exception），注入 AgentContext，调用后清理。 */
+    public <T> T withContextThrowing(ThrowingSupplier<T> action) throws Exception {
+        AgentContext.set(user, sessionId);
+        try {
+            return action.get();
+        } finally {
+            AgentContext.clear();
+        }
+    }
 }

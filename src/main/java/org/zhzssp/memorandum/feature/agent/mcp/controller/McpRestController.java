@@ -1,6 +1,5 @@
 package org.zhzssp.memorandum.feature.agent.mcp.controller;
 
-import jdk.jshell.spi.ExecutionControlProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -44,7 +43,7 @@ public class McpRestController {
 
     /** SSE 连接端点：GET /sse?token=lattice_xxx */
     @GetMapping(value = "/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<SseEmitter> connect(@RequestParam("token") String token) throws Exception {
+    public ResponseEntity<SseEmitter> connect(@RequestParam("token") String token) {
         if (!mcpEnabled || !sseEndpoint.isEnabled()) {
             return ResponseEntity.notFound().build();
         }
@@ -57,7 +56,7 @@ public class McpRestController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, Object>> message(
             @RequestParam("sid") String sid,
-            @RequestBody Map<String, Object> request) throws Exception {
+            @RequestBody Map<String, Object> request) {
         if (!mcpEnabled || !sseEndpoint.isEnabled()) {
             return ResponseEntity.notFound().build();
         }
