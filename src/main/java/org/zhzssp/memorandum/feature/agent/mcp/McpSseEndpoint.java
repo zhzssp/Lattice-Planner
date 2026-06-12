@@ -7,6 +7,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.zhzssp.memorandum.entity.User;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -172,7 +173,13 @@ public class McpSseEndpoint {
     private Map<String, Object> handleResourcesRead(McpSessionCtx ctx, Object id, Map<String, Object> params) {
         String uri = (String) params.get("uri");
         try {
-            Map<String, Object> result = ctx.withContext(() -> resourceAdapter.readResource(uri));
+            Map<String, Object> result = ctx.withContext(() -> {
+                try {
+                    return resourceAdapter.readResource(uri);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
             return Map.of("jsonrpc", "2.0", "id", id, "result", result);
         } catch (Exception e) {
             return errorResponse(id, -32000, "读取资源失败：" + e.getMessage());

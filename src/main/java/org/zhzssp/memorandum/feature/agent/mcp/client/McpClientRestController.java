@@ -1,4 +1,4 @@
-jiangpackage org.zhzssp.memorandum.feature.agent.mcp.client;
+package org.zhzssp.memorandum.feature.agent.mcp.client;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
