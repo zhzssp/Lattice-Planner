@@ -34,7 +34,8 @@ public class WebSecurityConfig {
                                 "/api/agent/**",
                                 "/sse",
                                 "/mcp/**",
-                                "/api/mcp/**"
+                                "/api/mcp/**",
+                                "/api/mcp/client/**"
                         )
                 )
                 .authorizeHttpRequests(auth -> auth
@@ -43,7 +44,7 @@ public class WebSecurityConfig {
                                 "/agent/**", "/user-logged-in").permitAll()
                         // MCP SSE 端点：Token 认证，不走 Spring Security session
                         .requestMatchers("/sse", "/mcp/**").permitAll()
-                        // MCP Token 管理 API & 设置页需登录
+                        // MCP Token 管理 API & Client API & 设置页需登录
                         .requestMatchers("/api/mcp/**", "/mcp/**").authenticated()
                         // /ws/agent/** 需要登录 -> 由 JSESSIONID 携带 Principal
                         .anyRequest().authenticated()

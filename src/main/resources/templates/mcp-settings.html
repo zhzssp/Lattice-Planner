@@ -33,6 +33,21 @@
         .mcp-config-example { background: #f5f5f5; padding: 1rem; border-radius: 6px; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; overflow-x: auto; }
         .mcp-empty { color: #999; text-align: center; padding: 2rem 0; }
         .mcp-dismiss-btn { padding: 0.4rem 1rem; background: #6c5ce7; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin-top: 0.5rem; }
+        .mcp-client-section { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .mcp-client-section h3 { margin: 0 0 1rem; font-size: 1.1rem; }
+        .mcp-server-card { border: 1px solid #eee; border-radius: 6px; padding: 1rem; margin-bottom: 0.75rem; }
+        .mcp-server-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        .mcp-server-name { font-weight: 600; font-size: 1rem; }
+        .mcp-server-url { color: #888; font-size: 0.85rem; word-break: break-all; }
+        .mcp-status { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+        .mcp-status-connected { background: #2ecc71; }
+        .mcp-status-disconnected { background: #e74c3c; }
+        .mcp-status-disabled { background: #999; }
+        .mcp-tool-list { list-style: none; padding: 0; margin: 0.5rem 0 0; }
+        .mcp-tool-item { color: #666; font-size: 0.9rem; padding: 2px 0; }
+        .mcp-tool-item code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; font-size: 0.85em; }
+        .mcp-reconnect-btn { padding: 0.3rem 0.8rem; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+        .mcp-reconnect-btn:hover { background: #e0e0e0; }
     </style>
 </head>
 <body>
@@ -83,6 +98,19 @@
         </ul>
         <p th:if="${tokens.isEmpty()}" class="mcp-empty">暂无 MCP Token，请先生成一个。</p>
     </div>
+
+    <!-- MCP Client 远程连接 -->
+    <div class="mcp-client-section">
+        <h3>🌐 MCP 远程连接（Client）</h3>
+        <p style="color:#666; font-size:0.9rem; margin:0 0 1rem;">
+            连接外部 MCP Server（联网搜索、文件系统等），让 Agent 即插即用地获得外部能力。
+            配置方式：在 <code>application.properties</code> 中添加 <code>mcp.client.servers.{name}.url</code>。
+        </p>
+        <div id="clientServers"></div>
+        <p id="clientDisabled" style="display:none; color:#999; text-align:center; padding:1rem 0;">
+            MCP Client 未启用。在 <code>application.properties</code> 中设置 <code>mcp.client.enabled=true</code> 开启。
+        </p>
+    </div>
 </div>
 
 <script>
@@ -130,6 +158,77 @@
         })
         .catch(function(err) { alert('吊销失败：' + err.message); });
     };
+
+    // MCP Client 远程连接加载
+    function loadClientServers() {
+        fetch('/api/mcp/client/servers')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var container = document.getElementById('clientServers');
+            var disabled = document.getElementById('clientDisabled');
+            if (!data.enabled) {
+                disabled.style.display = 'block';
+                return;
+            }
+            var servers = data.servers || [];
+            if (servers.length === 0) {
+                container.innerHTML = '<p style="color:#999; text-align:center; padding:1rem 0;">暂未配置任何远程 MCP Server。请在 application.properties 中添加配置。</p>';
+                return;
+            }
+            var html = '';
+            servers.forEach(function(s) {
+                var statusClass = s.connected ? 'mcp-status-connected' : 'mcp-status-disconnected';
+                var statusText = s.connected ? '已连接' : '未连接';
+                var tools = s.tools || [];
+                html += '<div class="mcp-server-card">';
+                html += '<div class="mcp-server-header">';
+                html += '<span><span class="mcp-status ' + statusClass + '"></span><span class="mcp-server-name">' + s.name + '</span> <span style="color:#888;font-size:0.85rem">(' + statusText + ' · ' + s.toolCount + ' 个工具)</span></span>';
+                if (!s.connected) {
+                    html += '<button class="mcp-reconnect-btn" onclick="reconnectServer(\'' + s.name + '\', this)">重连</button>';
+                }
+                html += '</div>';
+                html += '<div class="mcp-server-url">' + s.url + '</div>';
+                if (tools.length > 0) {
+                    html += '<ul class="mcp-tool-list">';
+                    tools.forEach(function(t) {
+                        html += '<li class="mcp-tool-item"><code>' + t.name + '</code> ' + t.description + '</li>';
+                    });
+                    html += '</ul>';
+                }
+                html += '</div>';
+            });
+            container.innerHTML = html;
+        })
+        .catch(function(err) { console.error('加载 MCP Client 状态失败', err); });
+    }
+
+    window.reconnectServer = function(name, btn) {
+        btn.disabled = true;
+        btn.textContent = '重连中...';
+        var hdrs = { 'Content-Type': 'application/json' };
+        if (csrfToken && csrfHeader) hdrs[csrfHeader] = csrfToken;
+        fetch('/api/mcp/client/servers/' + name + '/reconnect', {
+            method: 'POST',
+            headers: hdrs
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                loadClientServers();
+            } else {
+                alert('重连失败：' + data.message);
+                btn.disabled = false;
+                btn.textContent = '重连';
+            }
+        })
+        .catch(function(err) {
+            alert('重连失败：' + err.message);
+            btn.disabled = false;
+            btn.textContent = '重连';
+        });
+    };
+
+    loadClientServers();
 })();
 </script>
 

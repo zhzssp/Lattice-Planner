@@ -11,6 +11,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+import org.zhzssp.memorandum.feature.agent.mcp.client.McpRemoteTool;
+
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
@@ -35,6 +37,12 @@ public class ToolRegistry {
     private final ApplicationContext ctx;
     private final ObjectMapper om;
     private final Map<String, ToolDefinition> tools = new ConcurrentHashMap<>();
+
+    // MCP 远程工具注册表（fullName → McpRemoteTool）
+    private final Map<String, McpRemoteTool> mcpTools = new ConcurrentHashMap<>();
+
+    // MCP 工具代理（延迟注入，避免循环依赖）
+    private volatile Object mcpProxy;
 
     public ToolRegistry(ApplicationContext ctx, ObjectMapper om) {
         this.ctx = ctx;
@@ -67,15 +75,59 @@ public class ToolRegistry {
                         List.of(ann.tags()), bean, m, params));
             }
         }
-        log.info("[Agent] Registered {} tools: {}", tools.size(), tools.keySet());
+        log.info("[Agent] Registered {} local tools: {}", tools.size(), tools.keySet());
     }
 
     public Collection<ToolDefinition> all() {
         return tools.values();
     }
 
+    /** 获取全部工具定义（含 MCP 远程工具的 ToolDefinition 视图）。 */
+    public Collection<ToolDefinition> allWithMcp() {
+        Collection<ToolDefinition> result = new ArrayList<>(tools.values());
+        for (McpRemoteTool rt : mcpTools.values()) {
+            result.add(rtToToolDef(rt));
+        }
+        return result;
+    }
+
     public ToolDefinition get(String name) {
-        return tools.get(name);
+        ToolDefinition local = tools.get(name);
+        if (local != null) return local;
+        McpRemoteTool mcp = mcpTools.get(name);
+        return mcp != null ? rtToToolDef(mcp) : null;
+    }
+
+    /** 注册 MCP 远程工具。 */
+    public void registerMcpTool(McpRemoteTool rt) {
+        mcpTools.put(rt.fullName(), rt);
+        log.info("[Agent] 注册 MCP 远程工具：{} (from {})", rt.fullName(), rt.serverName());
+    }
+
+    /** 移除指定 Server 的所有 MCP 远程工具。 */
+    public void unregisterMcpTools(String serverName) {
+        mcpTools.entrySet().removeIf(e -> {
+            if (e.getValue().serverName().equals(serverName)) {
+                log.info("[Agent] 移除 MCP 远程工具：{} (from {})", e.getKey(), serverName);
+                return true;
+            }
+            return false;
+        });
+    }
+
+    /** 设置 MCP 工具代理（由 McpToolProxy 调用，避免循环依赖）。 */
+    public void setMcpProxy(Object proxy) {
+        this.mcpProxy = proxy;
+    }
+
+    /** 获取 MCP 工具名列表。 */
+    public Set<String> mcpToolNames() {
+        return mcpTools.keySet();
+    }
+
+    /** 获取已注册的 MCP 远程工具。 */
+    public Collection<McpRemoteTool> mcpToolsAll() {
+        return mcpTools.values();
     }
 
     /**
@@ -108,15 +160,39 @@ public class ToolRegistry {
             entry.put("parameters", parameters);
             list.add(entry);
         }
+        // MCP 远程工具
+        if (tagFilter == null || tagFilter.isEmpty() || tagFilter.contains("mcp")) {
+            for (McpRemoteTool rt : mcpTools.values()) {
+                Map<String, Object> entry = new java.util.LinkedHashMap<>();
+                entry.put("name", rt.fullName());
+                entry.put("description", "[MCP/" + rt.serverName() + "] " + rt.description());
+                entry.put("parameters", rt.inputSchema() != null ? rt.inputSchema() : Map.of("type", "object", "properties", Map.of()));
+                list.add(entry);
+            }
+        }
         return list;
     }
 
     /**
      * 根据 LLM 给出的 arguments(JsonNode) 反射调用工具方法。
+     * 支持本地 @AgentTool 和 MCP 远程工具。
      */
     public Object invoke(String name, JsonNode args) throws Exception {
+        // 优先匹配本地工具
         ToolDefinition t = tools.get(name);
-        if (t == null) throw new IllegalArgumentException("未知工具：" + name);
+        if (t != null) {
+            return invokeLocal(t, args);
+        }
+        // MCP 远程工具
+        McpRemoteTool mcp = mcpTools.get(name);
+        if (mcp != null) {
+            return invokeMcp(name, args);
+        }
+        throw new IllegalArgumentException("未知工具：" + name);
+    }
+
+    /** 本地工具反射调用。 */
+    private Object invokeLocal(ToolDefinition t, JsonNode args) throws Exception {
         Object[] real = new Object[t.params().size()];
         for (int i = 0; i < t.params().size(); i++) {
             ToolDefinition.ParamDef p = t.params().get(i);
@@ -137,6 +213,29 @@ public class ToolRegistry {
             if (cause instanceof Exception ex) throw ex;
             throw new RuntimeException(cause);
         }
+    }
+
+    /** MCP 远程工具代理调用。 */
+    private Object invokeMcp(String name, JsonNode args) throws Exception {
+        if (mcpProxy == null) {
+            return Map.of("error", "MCP_PROXY_NOT_READY", "message", "MCP 工具代理尚未初始化");
+        }
+        // 反射调用 McpToolProxy.invoke(String, JsonNode)
+        java.lang.reflect.Method invokeMethod = mcpProxy.getClass().getMethod("invoke", String.class, JsonNode.class);
+        return invokeMethod.invoke(mcpProxy, name, args);
+    }
+
+    /** 将 McpRemoteTool 转换为 ToolDefinition 视图。 */
+    private ToolDefinition rtToToolDef(McpRemoteTool rt) {
+        return new ToolDefinition(
+                rt.fullName(),
+                "[MCP/" + rt.serverName() + "] " + rt.description(),
+                false,  // MCP 工具不需要确认
+                rt.tags(),
+                null,   // 无 bean
+                null,   // 无 method
+                List.of()  // 无本地参数定义（使用 inputSchema）
+        );
     }
 
     private Object defaultValueFor(Class<?> c) {

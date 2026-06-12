@@ -36,9 +36,9 @@ public class PromptBuilder {
         // 注意："subagent" 加入各非 chat 模式过滤集，使主 Agent 可委派子代理；
         // chat 模式 tagFilter=null（导出全部工具）已天然包含 subagent.* 工具。
         Set<String> tagFilter = switch (mode == null ? "chat" : mode) {
-            case "plan" -> Set.of("task", "goal", "planner", "kb", "read", "write", "subagent");
-            case "reflect" -> Set.of("task", "goal", "insight", "note", "kb", "read", "subagent");
-            case "learn" -> Set.of("kb", "note", "read", "subagent");
+            case "plan" -> Set.of("task", "goal", "planner", "kb", "read", "write", "subagent", "mcp");
+            case "reflect" -> Set.of("task", "goal", "insight", "note", "kb", "read", "subagent", "mcp");
+            case "learn" -> Set.of("kb", "note", "read", "subagent", "mcp");
             default -> null;
         };
         String toolsJson = om.writerWithDefaultPrettyPrinter()
