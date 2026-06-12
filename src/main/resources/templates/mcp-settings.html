@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title>MCP 连接管理</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .mcp-container { max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+        .mcp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .mcp-header h2 { margin: 0; }
+        .mcp-back { color: #6c5ce7; text-decoration: none; }
+        .mcp-intro { color: #666; margin-bottom: 1.5rem; line-height: 1.6; font-size: 0.95rem; }
+        .mcp-intro code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        .mcp-section { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .mcp-section h3 { margin: 0 0 1rem; font-size: 1.1rem; }
+        .mcp-form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+        .mcp-form input { flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
+        .mcp-form button { padding: 0.5rem 1.25rem; background: #6c5ce7; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95rem; white-space: nowrap; }
+        .mcp-form button:hover { background: #5b4bd5; }
+        .mcp-token-list { list-style: none; padding: 0; margin: 0; }
+        .mcp-token-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid #f0f0f0; }
+        .mcp-token-item:last-child { border-bottom: none; }
+        .mcp-token-label { font-weight: 500; }
+        .mcp-token-meta { color: #999; font-size: 0.85rem; }
+        .mcp-token-revoke { color: #e74c3c; cursor: pointer; background: none; border: none; font-size: 0.9rem; }
+        .mcp-token-revoke:hover { text-decoration: underline; }
+        .mcp-new-token { background: #f0f9f0; border: 1px solid #c3e6c3; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+        .mcp-new-token p { margin: 0.25rem 0; font-size: 0.95rem; }
+        .mcp-new-token code { display: block; background: #fff; padding: 0.75rem; border-radius: 4px; word-break: break-all; margin: 0.5rem 0; font-family: monospace; }
+        .mcp-new-token .mcp-warning { color: #e67e22; font-weight: 500; }
+        .mcp-config-example { background: #f5f5f5; padding: 1rem; border-radius: 6px; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; overflow-x: auto; }
+        .mcp-empty { color: #999; text-align: center; padding: 2rem 0; }
+        .mcp-dismiss-btn { padding: 0.4rem 1rem; background: #6c5ce7; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+<div class="mcp-container">
+    <div class="mcp-header">
+        <h2>MCP 连接管理</h2>
+        <a href="/dashboard" class="mcp-back">← 返回</a>
+    </div>
+
+    <div class="mcp-intro">
+        <p>通过 <strong>Model Context Protocol (MCP)</strong>，你可以让外部 AI 工具（如 Claude Desktop、Cursor、Cline）
+            直接操作你的 Lattice-Planner 数据——目标、任务、笔记、知识库检索等。</p>
+        <p>使用方式：生成一个 Token，然后在外部工具的配置文件中填入连接地址。</p>
+    </div>
+
+    <!-- 新生成的 token 提示区 -->
+    <div id="newTokenArea" style="display:none" class="mcp-new-token">
+        <p>✅ Token 生成成功！<strong class="mcp-warning">请立即复制，此 Token 只会展示一次。</strong></p>
+        <p>标签：<span id="newTokenLabel"></span></p>
+        <code id="newTokenValue"></code>
+        <p>在外部工具中配置：</p>
+        <div class="mcp-config-example" id="configExample"></div>
+        <button class="mcp-dismiss-btn" onclick="document.getElementById('newTokenArea').style.display='none'">我已复制，关闭提示</button>
+    </div>
+
+    <!-- 生成新 Token -->
+    <div class="mcp-section">
+        <h3>生成新 Token</h3>
+        <form class="mcp-form" id="generateForm">
+            <input type="text" id="labelInput" placeholder="Token 标签（如 Claude Desktop）" maxlength="100">
+            <button type="submit">生成</button>
+        </form>
+    </div>
+
+    <!-- 已有 Token 列表 -->
+    <div class="mcp-section">
+        <h3>已有 Token</h3>
+        <ul class="mcp-token-list">
+            <li th:each="t : ${tokens}" class="mcp-token-item">
+                <div>
+                    <span class="mcp-token-label" th:text="${t.label} ?: '未命名'"></span>
+                    <span class="mcp-token-meta">创建于 <span th:text="${#temporals.format(t.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
+                        · 最后使用 <span th:text="${t.lastUsedAt != null ? #temporals.format(t.lastUsedAt, 'yyyy-MM-dd HH:mm') : '从未'}"></span>
+                    </span>
+                </div>
+                <button class="mcp-token-revoke" th:data-id="${t.id}" onclick="revokeToken(this)">吊销</button>
+            </li>
+        </ul>
+        <p th:if="${tokens.isEmpty()}" class="mcp-empty">暂无 MCP Token，请先生成一个。</p>
+    </div>
+</div>
+
+<script>
+(function() {
+    var csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+    var csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
+
+    document.getElementById('generateForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var label = document.getElementById('labelInput').value.trim() || 'MCP Client';
+        var hdrs = { 'Content-Type': 'application/json' };
+        if (csrfToken && csrfHeader) hdrs[csrfHeader] = csrfToken;
+        fetch('/api/mcp/tokens', {
+            method: 'POST',
+            headers: hdrs,
+            body: JSON.stringify({ label: label })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var token = data.token;
+            document.getElementById('newTokenLabel').textContent = label;
+            document.getElementById('newTokenValue').textContent = token;
+            var origin = window.location.origin;
+            document.getElementById('configExample').textContent =
+                '{\n  "mcpServers": {\n    "lattice": {\n      "url": "' + origin + '/sse?token=' + token + '"\n    }\n  }\n}';
+            document.getElementById('newTokenArea').style.display = 'block';
+            document.getElementById('labelInput').value = '';
+        })
+        .catch(function(err) { alert('生成失败：' + err.message); });
+    });
+
+    window.revokeToken = function(btn) {
+        if (!confirm('确定吊销此 Token？吊销后使用该 Token 的客户端将无法连接。')) return;
+        var id = btn.getAttribute('data-id');
+        var headers = csrfToken ? { [csrfHeader]: csrfToken } : {};
+        fetch('/api/mcp/tokens/' + id, {
+            method: 'DELETE',
+            headers: headers
+        })
+        .then(function(r) {
+            if (r.ok) {
+                var item = btn.closest('.mcp-token-item');
+                if (item) item.remove();
+            } else { alert('吊销失败'); }
+        })
+        .catch(function(err) { alert('吊销失败：' + err.message); });
+    };
+})();
+</script>
+
+<!-- Lattice-Agent 对话面板 -->
+<div th:replace="~{fragments/agent-panel :: panel}"></div>
+</body>
+</html>

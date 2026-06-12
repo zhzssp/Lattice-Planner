@@ -31,13 +31,20 @@ public class WebSecurityConfig {
                                 "/due-dates",
                                 "/report/**",
                                 "/ws/agent/**",
-                                "/api/agent/**"
+                                "/api/agent/**",
+                                "/sse",
+                                "/mcp/**",
+                                "/api/mcp/**"
                         )
                 )
                 .authorizeHttpRequests(auth -> auth
                         // 允许访问根路径与登录、注册及静态资源
                         .requestMatchers("/", "/register", "/login", "/css/**", "/js/**",
                                 "/agent/**", "/user-logged-in").permitAll()
+                        // MCP SSE 端点：Token 认证，不走 Spring Security session
+                        .requestMatchers("/sse", "/mcp/**").permitAll()
+                        // MCP Token 管理 API & 设置页需登录
+                        .requestMatchers("/api/mcp/**", "/mcp/**").authenticated()
                         // /ws/agent/** 需要登录 -> 由 JSESSIONID 携带 Principal
                         .anyRequest().authenticated()
                 )
