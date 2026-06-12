@@ -172,6 +172,32 @@ public class AgentChatWebSocketHandler extends TextWebSocketHandler {
         send(sid, m);
     }
 
+    /** 子代理开始：前端据此渲染一张"🤖 子代理[角色]"折叠卡片（运行中）。 */
+    public void sendSubAgentStart(String sid, String subId, String role, String roleLabel, String instruction) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("msgType", "subagentStart");
+        m.put("subId", subId);
+        m.put("role", role);
+        m.put("roleLabel", roleLabel);
+        m.put("instruction", instruction == null ? "" : instruction);
+        send(sid, m);
+    }
+
+    /** 子代理结束：回填卡片的结论、内部步数与用到的工具链。 */
+    public void sendSubAgentEnd(String sid, String subId, String role, String roleLabel,
+                                String finalText, int steps, java.util.List<String> toolsUsed, boolean truncated) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("msgType", "subagentEnd");
+        m.put("subId", subId);
+        m.put("role", role);
+        m.put("roleLabel", roleLabel);
+        m.put("finalText", finalText == null ? "" : finalText);
+        m.put("steps", steps);
+        m.put("toolsUsed", toolsUsed == null ? java.util.List.of() : toolsUsed);
+        m.put("truncated", truncated);
+        send(sid, m);
+    }
+
     public void sendConfirmReq(String sid, String reqId, String summary) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("msgType", "confirmReq");

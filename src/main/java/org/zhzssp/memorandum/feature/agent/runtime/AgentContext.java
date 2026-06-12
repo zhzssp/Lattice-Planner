@@ -12,6 +12,8 @@ public final class AgentContext {
 
     private static final ThreadLocal<User> USER = new ThreadLocal<>();
     private static final ThreadLocal<String> SESSION = new ThreadLocal<>();
+    /** 当前推理层级：0=主 Agent，>=1=子代理。用于防止子代理递归再起子代理。 */
+    private static final ThreadLocal<Integer> DEPTH = ThreadLocal.withInitial(() -> 0);
 
     private AgentContext() {
     }
@@ -24,6 +26,22 @@ public final class AgentContext {
     public static void clear() {
         USER.remove();
         SESSION.remove();
+        DEPTH.remove();
+    }
+
+    /** 当前推理层级（0 为主 Agent）。 */
+    public static int depth() {
+        return DEPTH.get();
+    }
+
+    /** 进入子代理：depth++（由 SubAgentRunner 包裹调用）。 */
+    public static void enterSub() {
+        DEPTH.set(DEPTH.get() + 1);
+    }
+
+    /** 退出子代理：depth--。 */
+    public static void exitSub() {
+        DEPTH.set(Math.max(0, DEPTH.get() - 1));
     }
 
     public static User requireUser() {

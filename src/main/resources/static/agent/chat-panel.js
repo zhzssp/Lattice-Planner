@@ -120,6 +120,8 @@
             case 'assistant':  addBubble('assistant', m.text); break;
             case 'toolStart':  addToolCard(m.callId, m.tool, m.args); break;
             case 'toolResult': fillToolResult(m.callId, m.result); break;
+            case 'subagentStart': addSubAgentCard(m.subId, m.roleLabel || m.role, m.instruction); break;
+            case 'subagentEnd':   fillSubAgentResult(m.subId, m); break;
             case 'localCall':  handleLocalCall(m); break;
             case 'confirmReq': addConfirm(m.reqId, m.summary); break;
             case 'error':      addBubble('system', '错误：' + m.message); break;
@@ -280,6 +282,90 @@
             tag.classList.add(isError ? 'fail' : 'done');
             tag.textContent = isError ? '失败' : '完成';
         }
+    }
+
+    /* ------- 子代理卡片（多代理可视化） ------- */
+    function addSubAgentCard(subId, roleLabel, instruction) {
+        const li = document.createElement('li');
+        li.className = 'lp-subagent'; li.dataset.subid = subId;
+
+        const det = document.createElement('details');
+        det.open = true; // 默认展开，运行中可见；完成后用户可自行折叠
+
+        const sum = document.createElement('summary');
+        sum.className = 'lp-sub-h';
+        const icon = document.createElement('span');
+        icon.className = 'lp-sub-icon';
+        icon.textContent = '🤖';
+        sum.appendChild(icon);
+        sum.appendChild(document.createTextNode(' 子代理 · ' + (roleLabel || '')));
+        const tag = document.createElement('span');
+        tag.className = 'lp-sub-status running';
+        tag.textContent = '推理中';
+        sum.appendChild(tag);
+        det.appendChild(sum);
+
+        // 委派任务
+        const insBox = document.createElement('div');
+        insBox.className = 'lp-sub-section';
+        insBox.innerHTML = '<div class="lp-sub-label">委派任务</div>';
+        const insP = document.createElement('div');
+        insP.className = 'lp-sub-ins';
+        insP.textContent = instruction || '';
+        insBox.appendChild(insP);
+        det.appendChild(insBox);
+
+        // 内部工具链（结束时回填）
+        const toolBox = document.createElement('div');
+        toolBox.className = 'lp-sub-section lp-sub-tools-box';
+        toolBox.style.display = 'none';
+        toolBox.innerHTML = '<div class="lp-sub-label">内部工具链</div><div class="lp-sub-tools"></div>';
+        det.appendChild(toolBox);
+
+        // 结论
+        const resBox = document.createElement('div');
+        resBox.className = 'lp-sub-section';
+        resBox.innerHTML = '<div class="lp-sub-label">结论</div>';
+        const resBody = document.createElement('div');
+        resBody.className = 'lp-sub-res';
+        resBody.textContent = '独立上下文推理中…';
+        resBox.appendChild(resBody);
+        det.appendChild(resBox);
+
+        li.appendChild(det);
+        stream.appendChild(li); scrollEnd();
+    }
+
+    function fillSubAgentResult(subId, m) {
+        const li = stream.querySelector('li[data-subid="' + subId + '"]');
+        if (!li) return;
+
+        const tag = li.querySelector('.lp-sub-status');
+        if (tag) {
+            tag.classList.remove('running');
+            tag.classList.add(m.truncated ? 'warn' : 'done');
+            const stepTxt = (m.steps != null ? ' · ' + m.steps + ' 步' : '');
+            tag.textContent = (m.truncated ? '已截断' : '完成') + stepTxt;
+        }
+
+        const tools = Array.isArray(m.toolsUsed) ? m.toolsUsed : [];
+        if (tools.length) {
+            const box = li.querySelector('.lp-sub-tools-box');
+            const wrap = li.querySelector('.lp-sub-tools');
+            if (box) box.style.display = '';
+            if (wrap) {
+                wrap.innerHTML = '';
+                tools.forEach((t) => {
+                    const chip = document.createElement('span');
+                    chip.className = 'lp-sub-tool-chip';
+                    chip.textContent = t;
+                    wrap.appendChild(chip);
+                });
+            }
+        }
+
+        const body = li.querySelector('.lp-sub-res');
+        if (body) body.innerHTML = renderMarkdown(stripToolJson(m.finalText || ''));
     }
 
     function safeStringify(v) {
