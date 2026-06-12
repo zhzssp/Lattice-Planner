@@ -86,7 +86,7 @@ public class McpSseEndpoint {
     }
 
     /** 处理 JSON-RPC 请求（POST /mcp/message?sid=xxx）。 */
-    public Map<String, Object> handleMessage(String sid, Map<String, Object> request) {
+    public Map<String, Object> handleMessage(String sid, Map<String, Object> request) throws Exception {
         McpSessionCtx ctx = sessions.get(sid);
         if (ctx == null) {
             return errorResponse(extractId(request), -32001, "无效的会话 ID");
@@ -171,7 +171,7 @@ public class McpSseEndpoint {
         });
     }
 
-    private Map<String, Object> handleResourcesRead(McpSessionCtx ctx, Object id, Map<String, Object> params) {
+    private Map<String, Object> handleResourcesRead(McpSessionCtx ctx, Object id, Map<String, Object> params) throws Exception {
         String uri = (String) params.get("uri");
         try {
             Map<String, Object> result = ctx.withContext(() -> resourceAdapter.readResource(uri));
