@@ -136,7 +136,10 @@ public class ToolRegistry {
      */
     public List<Map<String, Object>> exportSchemas(Set<String> tagFilter) {
         List<Map<String, Object>> list = new ArrayList<>();
-        for (ToolDefinition t : tools.values()) {
+        // 按工具名排序（ConcurrentHashMap 迭代序不保证，排序确保前缀字节稳定）
+        List<ToolDefinition> sorted = new ArrayList<>(tools.values());
+        sorted.sort(java.util.Comparator.comparing(ToolDefinition::name));
+        for (ToolDefinition t : sorted) {
             if (tagFilter != null && !tagFilter.isEmpty()
                     && t.tags().stream().noneMatch(tagFilter::contains)) {
                 continue;
@@ -160,9 +163,11 @@ public class ToolRegistry {
             entry.put("parameters", parameters);
             list.add(entry);
         }
-        // MCP 远程工具
+        // MCP 远程工具（按 fullName 排序）
         if (tagFilter == null || tagFilter.isEmpty() || tagFilter.contains("mcp")) {
-            for (McpRemoteTool rt : mcpTools.values()) {
+            List<McpRemoteTool> sortedMcp = new ArrayList<>(mcpTools.values());
+            sortedMcp.sort(java.util.Comparator.comparing(McpRemoteTool::fullName));
+            for (McpRemoteTool rt : sortedMcp) {
                 Map<String, Object> entry = new java.util.LinkedHashMap<>();
                 entry.put("name", rt.fullName());
                 entry.put("description", "[MCP/" + rt.serverName() + "] " + rt.description());

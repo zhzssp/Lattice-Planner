@@ -5,8 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 import org.zhzssp.memorandum.feature.agent.tool.ToolRegistry;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,36 +22,89 @@ import java.util.Set;
  *  plan    -> 任务/目标/规划/读+写（+ kb 读，便于规划时引用历史笔记）
  *  reflect -> 任务/目标/insight/笔记/读（+ kb 读，复盘时检索过往）
  *  learn   -> kb/note/read（"我以前学过 X 吗"等纯检索问答）
+ *
+ * P1 重构（Prefix Caching）：拆 buildPrefix / assemble，支持前缀缓存复用。
  */
 @Component
 public class PromptBuilder {
 
     private final ToolRegistry registry;
     private final ObjectMapper om;
+    private final PrefixCache prefixCache;
 
-    public PromptBuilder(ToolRegistry registry, ObjectMapper om) {
+    public PromptBuilder(ToolRegistry registry, ObjectMapper om, PrefixCache prefixCache) {
         this.registry = registry;
         this.om = om;
+        this.prefixCache = prefixCache;
     }
 
+    /** 不变前缀：system content + 字节 hash（用于服务端 prefix caching 命中观测）。 */
+    public record SystemPrefix(String content, String hash) {}
+
+    /** 兼容旧签名：内部 buildPrefix + assemble。 */
     public List<Map<String, String>> build(String mode,
                                            List<ConversationMemory.Msg> history,
                                            String longTermMemo) throws JsonProcessingException {
-        // 注意："subagent" 加入各非 chat 模式过滤集，使主 Agent 可委派子代理；
-        // chat 模式 tagFilter=null（导出全部工具）已天然包含 subagent.* 工具。
-        Set<String> tagFilter = switch (mode == null ? "chat" : mode) {
+        return assemble(buildPrefix(mode, longTermMemo), history);
+    }
+
+    /** 构造 system 前缀（可从 PrefixCache 命中复用）。 */
+    public SystemPrefix buildPrefix(String mode, String longTermMemo) throws JsonProcessingException {
+        Set<String> tagFilter = resolveTagFilter(mode);
+        String toolsJson = om.writerWithDefaultPrettyPrinter()
+                .writeValueAsString(registry.exportSchemas(tagFilter));
+        String memoSection = (longTermMemo == null || longTermMemo.isBlank())
+                ? "(暂无)" : longTermMemo;
+
+        String dateBucket = dateBucket();
+        String toolsetHash = sha256(toolsJson);
+        String memoHash = sha256(memoSection);
+        PrefixCache.PrefixKey key = new PrefixCache.PrefixKey(
+                mode == null ? "chat" : mode, toolsetHash, memoHash, dateBucket);
+
+        // 命中缓存直接返回，miss 则构造并回填
+        return prefixCache.getOrCompute(key, () -> {
+            String sys = buildSystemPrompt(dateBucket, toolsJson, memoSection);
+            String hash = sha256(sys);
+            return new SystemPrefix(sys, hash);
+        });
+    }
+
+    /** 用已构造的前缀 + history 拼装完整 messages。 */
+    public List<Map<String, String>> assemble(SystemPrefix prefix,
+                                               List<ConversationMemory.Msg> history) {
+        List<Map<String, String>> msgs = new ArrayList<>();
+        Map<String, String> sysMsg = new LinkedHashMap<>();
+        sysMsg.put("role", "system");
+        sysMsg.put("content", prefix.content());
+        msgs.add(sysMsg);
+        for (ConversationMemory.Msg m : history) {
+            Map<String, String> entry = new LinkedHashMap<>();
+            entry.put("role", m.role());
+            entry.put("content", m.content());
+            msgs.add(entry);
+        }
+        return msgs;
+    }
+
+    /** 供 CRAG / 其它调用方获取当前 tagFilter（S4 访问：Self-RAG 协议提示）。 */
+    public Set<String> tagFilterForMode(String mode) {
+        return resolveTagFilter(mode);
+    }
+
+    /* ---- 内部 ---- */
+
+    private Set<String> resolveTagFilter(String mode) {
+        return switch (mode == null ? "chat" : mode) {
             case "plan" -> Set.of("task", "goal", "planner", "kb", "read", "write", "subagent", "mcp");
             case "reflect" -> Set.of("task", "goal", "insight", "note", "kb", "read", "subagent", "mcp");
             case "learn" -> Set.of("kb", "note", "read", "subagent", "mcp");
             default -> null;
         };
-        String toolsJson = om.writerWithDefaultPrettyPrinter()
-                .writeValueAsString(registry.exportSchemas(tagFilter));
+    }
 
-        String memoSection = (longTermMemo == null || longTermMemo.isBlank())
-                ? "(暂无)" : longTermMemo;
-
-        String sys = """
+    private String buildSystemPrompt(String dateBucket, String toolsJson, String memoSection) {
+        return """
                 你是 Lattice-Planner 内置的规划助手 Lattice-Agent。今天是 %s。
                 你与用户协作管理目标 / 任务 / 笔记 / 复盘，并可读取用户本地文档。
 
@@ -66,28 +123,33 @@ public class PromptBuilder {
                 【知识检索原则】（涉及"我"自身经验/笔记时严格执行）
                 - 涉及"我"、"我的笔记/项目/经验"、"我之前学过 X"、"上次我们说过 Y" 等表述时，
                   必须先调用 kb.semantic_search 检索个人知识库（笔记 + 已摄取本地文档）。
-                - kb.semantic_search 命中条目最高 score < 0.4 时视为弱相关：最终回答需明示
-                  "未找到强相关笔记，以下基于通用知识"，再给一般性回答。
+                - kb.semantic_search 返回的 grade 为 INCORRECT 或 degraded=true 时，
+                  表示检索质量差，须在答复首句明示"未找到强相关笔记，以下基于通用知识："，
+                  然后再给一般性回答，不可假装命中。
+                - kb.semantic_search 返回的 grade 为 AMBIGUOUS 时，可谨慎引用但须提醒用户
+                  "检索结果相关性一般，仅供参考"。
                 - 命中并真正引用某篇笔记时，使用 [[标题]] 写法（不带路径），用户可点击跳转。
                 - 不要把 kb 工具与 note.create 混用：semantic_search/lookup_by_title 是"读"，
                   仅在用户显式要求"记一笔"时才 note.create。
 
                 【用户长期记忆（来自历史 Agent 会话归档）】
                 %s
-                """.formatted(LocalDate.now(), toolsJson, memoSection);
+                """.formatted(dateBucket, toolsJson, memoSection);
+    }
 
-        List<Map<String, String>> msgs = new ArrayList<>();
-        Map<String, String> sysMsg = new LinkedHashMap<>();
-        sysMsg.put("role", "system");
-        sysMsg.put("content", sys);
-        msgs.add(sysMsg);
+    /** 天级稳定日期，避免同一天内前缀因毫秒差异漂移。 */
+    private static String dateBucket() {
+        return LocalDate.now().toString();
+    }
 
-        for (ConversationMemory.Msg m : history) {
-            Map<String, String> entry = new LinkedHashMap<>();
-            entry.put("role", m.role());
-            entry.put("content", m.content());
-            msgs.add(entry);
+    /** SHA-256 摘要（前缀 hash / toolsetHash / memoHash）。 */
+    static String sha256(String s) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(s.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            return Integer.toHexString(s.hashCode());
         }
-        return msgs;
     }
 }

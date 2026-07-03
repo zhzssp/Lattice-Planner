@@ -7,6 +7,7 @@ import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
 import org.zhzssp.memorandum.feature.agent.tool.AgentTool;
 import org.zhzssp.memorandum.feature.agent.tool.LocalBridgeProxy;
 import org.zhzssp.memorandum.feature.agent.tool.ToolParam;
+import org.zhzssp.memorandum.feature.pkm.crag.CorrectiveRetriever;
 import org.zhzssp.memorandum.feature.pkm.service.NoteIndexService;
 import org.zhzssp.memorandum.feature.pkm.service.RagSearchService;
 import org.zhzssp.memorandum.repository.LinkRepository;
@@ -39,6 +40,7 @@ import java.util.Objects;
 public class KnowledgeTools {
 
     private final RagSearchService rag;
+    private final CorrectiveRetriever correctiveRetriever;
     private final NoteIndexService indexService;
     private final NoteRepository noteRepository;
     private final NoteEmbeddingRepository embeddingRepository;
@@ -46,12 +48,14 @@ public class KnowledgeTools {
     private final LocalBridgeProxy localBridge;
 
     public KnowledgeTools(RagSearchService rag,
+                          CorrectiveRetriever correctiveRetriever,
                           NoteIndexService indexService,
                           NoteRepository noteRepository,
                           NoteEmbeddingRepository embeddingRepository,
                           LinkRepository linkRepository,
                           LocalBridgeProxy localBridge) {
         this.rag = rag;
+        this.correctiveRetriever = correctiveRetriever;
         this.indexService = indexService;
         this.noteRepository = noteRepository;
         this.embeddingRepository = embeddingRepository;
@@ -62,13 +66,17 @@ public class KnowledgeTools {
     @AgentTool(name = "kb.semantic_search", tags = {"kb", "read"},
             description = "在用户笔记 + 已摄取本地文档中做语义+关键字 hybrid 检索；" +
                     "涉及'我之前/我的笔记/我学过/上次我们说过 X'等问题时必须先调用本工具，" +
-                    "命中条目可在最终回答中以 [[标题]] 形式引用。")
+                    "命中条目可在最终回答中以 [[标题]] 形式引用。" +
+                    "返回字段含 grade（CORRECT/AMBIGUOUS/INCORRECT）与 degraded（true 时表示检索质量差，应走通用知识）。")
     public List<Map<String, Object>> semanticSearch(
             @ToolParam(value = "query", desc = "自然语言查询", required = true) String query,
             @ToolParam(value = "topK", desc = "返回条数（1~20，默认 6）") Integer topK
     ) {
         User u = AgentContext.requireUser();
-        List<RagSearchService.Hit> hits = rag.search(u, query, topK);
+        // CRAG 纠错检索
+        CorrectiveRetriever.CragResult cr = correctiveRetriever.retrieve(u, query, topK);
+        List<RagSearchService.Hit> hits = cr.hits();
+
         List<Map<String, Object>> out = new java.util.ArrayList<>(hits.size());
         for (RagSearchService.Hit h : hits) {
             Map<String, Object> row = new LinkedHashMap<>();
@@ -77,7 +85,6 @@ public class KnowledgeTools {
             row.put("reason", h.reason());
             if ("NOTE".equals(h.source())) {
                 row.put("noteId", h.noteId());
-                // 提供标题给 LLM，用于 [[标题]] 引用
                 noteRepository.findById(h.noteId())
                         .filter(n -> n.getUser().getId().equals(u.getId()))
                         .ifPresent(n -> row.put("title", n.getTitle()));
@@ -87,6 +94,15 @@ public class KnowledgeTools {
             row.put("chunkIdx", h.chunkIdx());
             row.put("content", h.content());
             out.add(row);
+        }
+
+        // 附 CRAG 元信息给 LLM 自省（Self-RAG 侧）
+        if (out.isEmpty()) {
+            Map<String, Object> meta = new LinkedHashMap<>();
+            meta.put("grade", cr.grade().name());
+            meta.put("degraded", cr.degraded());
+            meta.put("message", "未找到相关内容" + (cr.degraded() ? "，建议基于通用知识回答" : ""));
+            out.add(meta);
         }
         return out;
     }

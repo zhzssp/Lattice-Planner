@@ -12,6 +12,7 @@ import org.zhzssp.memorandum.entity.User;
 import org.zhzssp.memorandum.repository.LinkRepository;
 import org.zhzssp.memorandum.repository.NoteEmbeddingRepository;
 import org.zhzssp.memorandum.repository.NoteRepository;
+import org.zhzssp.memorandum.feature.pkm.serving.QueryResultCache;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,19 +50,22 @@ public class NoteIndexService {
     private final NoteLinkParser linkParser;
     private final EmbeddingClient embeddingClient;
     private final EmbeddingVectorCache vectorCache;
+    private final QueryResultCache queryResultCache;
 
     public NoteIndexService(NoteRepository noteRepository,
                             NoteEmbeddingRepository embeddingRepository,
                             LinkRepository linkRepository,
                             NoteLinkParser linkParser,
                             EmbeddingClient embeddingClient,
-                            EmbeddingVectorCache vectorCache) {
+                            EmbeddingVectorCache vectorCache,
+                            QueryResultCache queryResultCache) {
         this.noteRepository = noteRepository;
         this.embeddingRepository = embeddingRepository;
         this.linkRepository = linkRepository;
         this.linkParser = linkParser;
         this.embeddingClient = embeddingClient;
         this.vectorCache = vectorCache;
+        this.queryResultCache = queryResultCache;
     }
 
     @Transactional
@@ -78,6 +82,8 @@ public class NoteIndexService {
         rebuildEmbeddings(note);
         // Stage 3：写后失效用户向量缓存，确保下一次 RAG 查询读到最新向量
         vectorCache.invalidate(note.getUser().getId());
+        // RAG Serving：笔记变更同时失效查询结果缓存
+        queryResultCache.invalidate(note.getUser().getId());
     }
 
     /** NOTE→NOTE 双向链接重建。 */
@@ -152,6 +158,7 @@ public class NoteIndexService {
         if (before == 0) return 0;
         embeddingRepository.deleteByLocalPath(userId, path);
         vectorCache.invalidate(userId);
+        queryResultCache.invalidate(userId);
         return before;
     }
 
@@ -179,6 +186,7 @@ public class NoteIndexService {
         }
         // Stage 3：摄取完成失效缓存，使新向量立即可被检索
         vectorCache.invalidate(userId);
+        queryResultCache.invalidate(userId);
         return chunks.size();
     }
 

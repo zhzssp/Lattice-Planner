@@ -61,9 +61,19 @@ public class AgentOrchestrator {
 
     public void handleUserTurn(String sid, String userInput, String mode, String longTermMemo) {
         memory.append(sid, "user", userInput);
+        // P3：前缀在 turn 内构造一次，各 ReAct 步复用
+        PromptBuilder.SystemPrefix prefix;
+        try {
+            prefix = promptBuilder.buildPrefix(mode, longTermMemo);
+        } catch (Exception ex) {
+            log.warn("[Agent] 前缀构造失败：{}", ex.getMessage());
+            ws.sendAssistant(sid, "系统初始化失败：" + ex.getMessage());
+            ws.sendDone(sid);
+            return;
+        }
         try {
             for (int step = 0; step < maxSteps; step++) {
-                var msgs = promptBuilder.build(mode, memory.history(sid), longTermMemo);
+                var msgs = promptBuilder.assemble(prefix, memory.history(sid));
                 String llmRaw;
                 try {
                     llmRaw = llm.generateChat(msgs);

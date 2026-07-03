@@ -13,6 +13,8 @@ import org.zhzssp.memorandum.feature.agent.runtime.ToolCallParser;
 import org.zhzssp.memorandum.feature.agent.service.LlmGateway;
 import org.zhzssp.memorandum.feature.agent.tool.ToolDefinition;
 import org.zhzssp.memorandum.feature.agent.tool.ToolRegistry;
+import org.zhzssp.memorandum.feature.pkm.serving.RagServingService;
+import org.zhzssp.memorandum.entity.User;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -44,6 +46,7 @@ public class SubAgentRunner {
     private final ToolConfirmCoordinator confirm;
     private final ObjectMapper om;
     private final AgentChatWebSocketHandler ws;
+    private final RagServingService ragServing;
 
     @Value("${agent.subagent.max-steps:6}")
     private int maxStepsCap;
@@ -56,13 +59,15 @@ public class SubAgentRunner {
                           ToolCallParser parser,
                           ToolConfirmCoordinator confirm,
                           ObjectMapper om,
-                          @Lazy AgentChatWebSocketHandler ws) {
+                          @Lazy AgentChatWebSocketHandler ws,
+                          RagServingService ragServing) {
         this.llm = llm;
         this.registry = registry;
         this.parser = parser;
         this.confirm = confirm;
         this.om = om;
         this.ws = ws;
+        this.ragServing = ragServing;
     }
 
     /**
@@ -75,6 +80,18 @@ public class SubAgentRunner {
     public SubAgentResult run(SubAgentRole role, String instruction, String parentSid) {
         String subId = UUID.randomUUID().toString();
         emitStart(parentSid, subId, role, instruction);
+
+        // R3：RESEARCH 子代理启动前预取，后续检索大概率命中缓存
+        if (role == SubAgentRole.RESEARCH && instruction != null && !instruction.isBlank()
+                && ragServing != null) {
+            try {
+                User u = AgentContext.requireUser();
+                ragServing.prefetch(u, instruction);
+            } catch (Exception ignore) {
+                // AgentContext 未初始化（非 Agent 线程），跳过预取
+            }
+        }
+
         SubAgentResult result;
         AgentContext.enterSub();
         try {
