@@ -38,9 +38,6 @@ public class PromptBuilder {
         this.prefixCache = prefixCache;
     }
 
-    /** 不变前缀：system content + 字节 hash（用于服务端 prefix caching 命中观测）。 */
-    public record SystemPrefix(String content, String hash) {}
-
     /** 兼容旧签名：内部 buildPrefix + assemble。 */
     public List<Map<String, String>> build(String mode,
                                            List<ConversationMemory.Msg> history,
@@ -49,7 +46,7 @@ public class PromptBuilder {
     }
 
     /** 构造 system 前缀（可从 PrefixCache 命中复用）。 */
-    public SystemPrefix buildPrefix(String mode, String longTermMemo) throws JsonProcessingException {
+    public PrefixCache.CachedPrefix buildPrefix(String mode, String longTermMemo) throws JsonProcessingException {
         Set<String> tagFilter = resolveTagFilter(mode);
         String toolsJson = om.writerWithDefaultPrettyPrinter()
                 .writeValueAsString(registry.exportSchemas(tagFilter));
@@ -66,12 +63,12 @@ public class PromptBuilder {
         return prefixCache.getOrCompute(key, () -> {
             String sys = buildSystemPrompt(dateBucket, toolsJson, memoSection);
             String hash = sha256(sys);
-            return new SystemPrefix(sys, hash);
+            return new PrefixCache.CachedPrefix(sys, hash);
         });
     }
 
     /** 用已构造的前缀 + history 拼装完整 messages。 */
-    public List<Map<String, String>> assemble(SystemPrefix prefix,
+    public List<Map<String, String>> assemble(PrefixCache.CachedPrefix prefix,
                                                List<ConversationMemory.Msg> history) {
         List<Map<String, String>> msgs = new ArrayList<>();
         Map<String, String> sysMsg = new LinkedHashMap<>();

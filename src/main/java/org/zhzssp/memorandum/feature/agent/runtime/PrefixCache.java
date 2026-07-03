@@ -42,17 +42,9 @@ public class PrefixCache {
 
     private final Cache<PrefixKey, CachedPrefix> cache;
 
-    @Value("${agent.prefix-cache.max-entries:256}")
-    private int maxEntries;
-
-    @Value("${agent.prefix-cache.expire-minutes:120}")
-    private int expireMinutes;
-
     public PrefixCache(@Value("${agent.prefix-cache.enabled:true}") boolean enabled,
                        @Value("${agent.prefix-cache.max-entries:256}") int maxEntries,
                        @Value("${agent.prefix-cache.expire-minutes:120}") int expireMinutes) {
-        this.maxEntries = maxEntries;
-        this.expireMinutes = expireMinutes;
         if (enabled) {
             this.cache = Caffeine.newBuilder()
                     .maximumSize(Math.max(1, maxEntries))

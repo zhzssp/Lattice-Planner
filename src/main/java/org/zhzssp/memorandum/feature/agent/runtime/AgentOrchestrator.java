@@ -62,7 +62,7 @@ public class AgentOrchestrator {
     public void handleUserTurn(String sid, String userInput, String mode, String longTermMemo) {
         memory.append(sid, "user", userInput);
         // P3：前缀在 turn 内构造一次，各 ReAct 步复用
-        PromptBuilder.SystemPrefix prefix;
+        PrefixCache.CachedPrefix prefix;
         try {
             prefix = promptBuilder.buildPrefix(mode, longTermMemo);
         } catch (Exception ex) {
