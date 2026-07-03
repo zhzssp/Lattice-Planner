@@ -64,6 +64,10 @@ public class UserPreference {
     @Column(name = "theme", length = 10, nullable = true)
     private String theme;
 
+    /** Agent 自动允许（免确认）的工具名清单，逗号分隔，如 "kb.ingest_local_doc,kb.delete_local_doc" */
+    @Column(name = "agent_auto_approve_tools", length = 2000, nullable = true)
+    private String agentAutoApproveTools;
+
     public enum MindsetMode {
         EXECUTE,  // 执行模式
         LEARN,    // 学习模式

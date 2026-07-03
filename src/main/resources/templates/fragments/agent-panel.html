@@ -17,9 +17,27 @@
                 <option value="plan">自动规划</option>
                 <option value="reflect">复盘</option>
             </select>
+            <button id="lp-agent-settings-btn" type="button" title="设置">⚙</button>
             <button id="lp-agent-close" type="button" title="关闭">×</button>
         </header>
         <ol id="lp-agent-stream"></ol>
+        <!-- Agent 设置面板 -->
+        <div id="lp-agent-settings" class="lp-settings" aria-hidden="true">
+            <div class="lp-settings-header">
+                <span class="lp-settings-title">Agent 设置</span>
+                <button id="lp-settings-close" type="button" class="lp-settings-close-btn">×</button>
+            </div>
+            <div class="lp-settings-body">
+                <div class="lp-settings-section">
+                    <div class="lp-settings-label">自动允许的工具（勾选后调用免确认）</div>
+                    <div id="lp-settings-tools-list" class="lp-settings-tools"></div>
+                </div>
+            </div>
+            <div class="lp-settings-footer">
+                <button id="lp-settings-save" type="button" class="lp-settings-save">保存</button>
+                <span id="lp-settings-status" class="lp-settings-status"></span>
+            </div>
+        </div>
         <footer>
             <textarea id="lp-agent-input" placeholder="向 Agent 提问，按 Ctrl+Enter 发送…"></textarea>
             <div class="lp-agent-actions">

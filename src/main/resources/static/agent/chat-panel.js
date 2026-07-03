@@ -378,6 +378,93 @@
     }
     function scrollEnd() { stream.scrollTop = stream.scrollHeight; }
 
+    /* ------- 设置面板：auto-approve 工具白名单 ------- */
+    const settingsBtn = document.getElementById('lp-agent-settings-btn');
+    const settingsPanel = document.getElementById('lp-agent-settings');
+    const settingsClose = document.getElementById('lp-settings-close');
+    const settingsList = document.getElementById('lp-settings-tools-list');
+    const settingsSave = document.getElementById('lp-settings-save');
+    const settingsStatus = document.getElementById('lp-settings-status');
+
+    function openSettings() {
+        settingsPanel.classList.add('open');
+        loadToolSettings();
+    }
+    function closeSettings() {
+        settingsPanel.classList.remove('open');
+        settingsStatus.textContent = '';
+    }
+    if (settingsBtn) settingsBtn.onclick = openSettings;
+    if (settingsClose) settingsClose.onclick = closeSettings;
+
+    function loadToolSettings() {
+        if (!settingsList) return;
+        settingsList.innerHTML = '<div class="lp-settings-loading">加载中…</div>';
+        if (settingsSave) settingsSave.disabled = true;
+        settingsStatus.textContent = '';
+        fetch('/agent/settings/tools')
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(data => {
+                const tools = data.confirmableTools || [];
+                const approved = new Set(data.autoApproved || []);
+                if (tools.length === 0) {
+                    settingsList.innerHTML = '<div class="lp-settings-empty">当前无可配置的工具</div>';
+                } else {
+                    settingsList.innerHTML = '';
+                    tools.forEach(t => {
+                        const label = document.createElement('label');
+                        label.className = 'lp-settings-tool-item';
+                        const cb = document.createElement('input');
+                        cb.type = 'checkbox';
+                        cb.value = t.name;
+                        if (approved.has(t.name)) cb.checked = true;
+                        label.appendChild(cb);
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'lp-settings-tool-name';
+                        nameSpan.textContent = t.name;
+                        label.appendChild(nameSpan);
+                        const descSpan = document.createElement('span');
+                        descSpan.className = 'lp-settings-tool-desc';
+                        descSpan.textContent = t.description || '';
+                        label.appendChild(descSpan);
+                        settingsList.appendChild(label);
+                    });
+                }
+                if (settingsSave) settingsSave.disabled = false;
+            })
+            .catch(err => {
+                settingsList.innerHTML = '<div class="lp-settings-error">加载失败：' + err.message + '</div>';
+                if (settingsSave) settingsSave.disabled = false;
+            });
+    }
+
+    if (settingsSave) {
+        settingsSave.onclick = function () {
+            const checks = settingsList ? settingsList.querySelectorAll('input[type="checkbox"]:checked') : [];
+            const tools = Array.from(checks).map(cb => cb.value);
+            settingsSave.disabled = true;
+            settingsStatus.textContent = '保存中…';
+            settingsStatus.className = 'lp-settings-status saving';
+            fetch('/agent/settings/auto-approve', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tools: tools })
+            })
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(() => {
+                    settingsStatus.textContent = '已保存';
+                    settingsStatus.className = 'lp-settings-status ok';
+                    settingsSave.disabled = false;
+                    setTimeout(() => { settingsStatus.textContent = ''; settingsStatus.className = 'lp-settings-status'; }, 2000);
+                })
+                .catch(err => {
+                    settingsStatus.textContent = '保存失败：' + err.message;
+                    settingsStatus.className = 'lp-settings-status error';
+                    settingsSave.disabled = false;
+                });
+        };
+    }
+
     /* ------- 终态文本前端兜底清洗：去掉 tool-call JSON ------- */
     function stripToolJson(text) {
         if (!text) return '';

@@ -8,7 +8,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.zhzssp.memorandum.feature.agent.chat.AgentChatWebSocketHandler;
+import org.zhzssp.memorandum.feature.agent.policy.ToolApprovalPolicy;
 import org.zhzssp.memorandum.feature.agent.policy.ToolConfirmCoordinator;
+import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
 import org.zhzssp.memorandum.feature.agent.service.LlmGateway;
 import org.zhzssp.memorandum.feature.agent.tool.ToolDefinition;
 import org.zhzssp.memorandum.feature.agent.tool.ToolRegistry;
@@ -35,6 +37,7 @@ public class AgentOrchestrator {
     private final PromptBuilder promptBuilder;
     private final ConversationMemory memory;
     private final ToolConfirmCoordinator confirmCoordinator;
+    private final ToolApprovalPolicy approvalPolicy;
     private final AgentChatWebSocketHandler ws;
     private final ObjectMapper om;
 
@@ -47,6 +50,7 @@ public class AgentOrchestrator {
                              PromptBuilder promptBuilder,
                              ConversationMemory memory,
                              ToolConfirmCoordinator confirmCoordinator,
+                             ToolApprovalPolicy approvalPolicy,
                              @Lazy AgentChatWebSocketHandler ws,
                              ObjectMapper om) {
         this.llm = llm;
@@ -55,6 +59,7 @@ public class AgentOrchestrator {
         this.promptBuilder = promptBuilder;
         this.memory = memory;
         this.confirmCoordinator = confirmCoordinator;
+        this.approvalPolicy = approvalPolicy;
         this.ws = ws;
         this.om = om;
     }
@@ -108,7 +113,7 @@ public class AgentOrchestrator {
                     continue;
                 }
 
-                if (def.requiresConfirm()) {
+                if (approvalPolicy.needsConfirm(AgentContext.requireUser(), def)) {
                     boolean ok;
                     try {
                         ok = confirmCoordinator.askUser(sid, callId, call.name(), call.arguments()).get();

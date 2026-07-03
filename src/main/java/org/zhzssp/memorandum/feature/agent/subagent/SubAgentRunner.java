@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.zhzssp.memorandum.feature.agent.chat.AgentChatWebSocketHandler;
+import org.zhzssp.memorandum.feature.agent.policy.ToolApprovalPolicy;
 import org.zhzssp.memorandum.feature.agent.policy.ToolConfirmCoordinator;
 import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
 import org.zhzssp.memorandum.feature.agent.runtime.ToolCallParser;
@@ -44,6 +45,7 @@ public class SubAgentRunner {
     private final ToolRegistry registry;
     private final ToolCallParser parser;
     private final ToolConfirmCoordinator confirm;
+    private final ToolApprovalPolicy approvalPolicy;
     private final ObjectMapper om;
     private final AgentChatWebSocketHandler ws;
     private final RagServingService ragServing;
@@ -58,6 +60,7 @@ public class SubAgentRunner {
                           ToolRegistry registry,
                           ToolCallParser parser,
                           ToolConfirmCoordinator confirm,
+                          ToolApprovalPolicy approvalPolicy,
                           ObjectMapper om,
                           @Lazy AgentChatWebSocketHandler ws,
                           RagServingService ragServing) {
@@ -65,6 +68,7 @@ public class SubAgentRunner {
         this.registry = registry;
         this.parser = parser;
         this.confirm = confirm;
+        this.approvalPolicy = approvalPolicy;
         this.om = om;
         this.ws = ws;
         this.ragServing = ragServing;
@@ -146,7 +150,7 @@ public class SubAgentRunner {
                     continue;
                 }
 
-                if (def.requiresConfirm()) {
+                if (approvalPolicy.needsConfirm(AgentContext.requireUser(), def)) {
                     boolean ok;
                     try {
                         // 确认弹窗回到主用户 WS：worker 线程的 sessionId 已被设为 parentSid
