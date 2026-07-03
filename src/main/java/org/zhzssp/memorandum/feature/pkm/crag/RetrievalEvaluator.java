@@ -1,4 +1,4 @@
-g1package org.zhzssp.memorandum.feature.pkm.crag;
+package org.zhzssp.memorandum.feature.pkm.crag;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
