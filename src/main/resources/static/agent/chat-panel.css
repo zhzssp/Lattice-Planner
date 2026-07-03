@@ -70,7 +70,14 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     font-weight: 600;
     background: #f9fafb;
 }
-.lp-agent-title { color: #111827; }
+.lp-agent-title {
+    color: #111827;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100px;
+    flex-shrink: 1;
+}
 #lp-agent-mode {
     margin-left: auto;
     padding: 3px 6px;
@@ -79,6 +86,7 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     border-radius: 4px;
     background: #fff;
     cursor: pointer;
+    flex-shrink: 0;
 }
 #lp-agent-model {
     padding: 3px 6px;
@@ -87,7 +95,10 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     border-radius: 4px;
     background: #fff;
     cursor: pointer;
-    max-width: 160px;
+    max-width: 130px;
+    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 #lp-agent-model:disabled { opacity: .5; cursor: default; }
 #lp-agent-close {
@@ -98,6 +109,7 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     line-height: 1;
     cursor: pointer;
     padding: 0 4px;
+    flex-shrink: 0;
 }
 #lp-agent-close:hover { color: #111827; }
 
@@ -464,15 +476,25 @@ h4.lp-md-h, h5.lp-md-h, h6.lp-md-h { font-size: 13px; }
 
 /* ===== 设置面板 / Auto-Approve ===== */
 #lp-agent-settings-btn {
-    background: transparent;
-    border: none;
-    color: #6b7280;
-    font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    color: #374151;
+    font-size: 12px;
     line-height: 1;
     cursor: pointer;
-    padding: 0 4px;
+    padding: 4px 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
-#lp-agent-settings-btn:hover { color: #111827; }
+#lp-agent-settings-btn:hover {
+    background: #e5e7eb;
+    border-color: #9ca3af;
+    color: #111827;
+}
 
 .lp-settings {
     display: none;
