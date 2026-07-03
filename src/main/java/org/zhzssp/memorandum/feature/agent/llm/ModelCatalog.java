@@ -52,7 +52,8 @@ public class ModelCatalog {
             def = "deepseek-chat";
         }
         // 检查默认模型是否存在于可用列表中
-        boolean exists = availableModels.stream().anyMatch(m -> m.getId().equals(def));
+        final String defFinal = def;
+        boolean exists = availableModels.stream().anyMatch(m -> m.getId().equals(defFinal));
         if (!exists && !availableModels.isEmpty()) {
             def = availableModels.get(0).getId();
             log.info("[ModelCatalog] 默认模型 {} 不在可用列表中，回落为 {}", props.getDefaultModel(), def);
