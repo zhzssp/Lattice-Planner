@@ -2,23 +2,30 @@ package org.zhzssp.memorandum.feature.agent.controller;
 
 import org.springframework.web.bind.annotation.*;
 import org.zhzssp.memorandum.entity.User;
+import org.zhzssp.memorandum.entity.UserPreference;
+import org.zhzssp.memorandum.feature.agent.llm.LlmProperties;
+import org.zhzssp.memorandum.feature.agent.llm.ModelCatalog;
 import org.zhzssp.memorandum.feature.agent.policy.ToolApprovalPolicy;
 import org.zhzssp.memorandum.feature.agent.tool.ToolDefinition;
 import org.zhzssp.memorandum.feature.agent.tool.ToolRegistry;
 import org.zhzssp.memorandum.repository.UserRepository;
+import org.zhzssp.memorandum.service.UserPreferenceService;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Agent 设置接口：读写工具授权白名单。
+ * Agent 设置接口：工具授权白名单 + 多模型切换。
  *
  * <ul>
- *   <li>GET  /agent/settings/tools   — 返回全部「可确认工具」清单 + 当前用户已勾选集合</li>
+ *   <li>GET  /agent/settings/tools   — 可确认工具清单 + 已勾选集合</li>
  *   <li>PUT  /agent/settings/auto-approve — 覆盖保存用户勾选的工具名数组</li>
+ *   <li>GET  /agent/settings/models  — 可用模型列表 + 当前用户选中模型</li>
+ *   <li>PUT  /agent/settings/model   — 切换当前用户 Agent 使用的模型</li>
  * </ul>
  */
 @RestController
@@ -27,14 +34,20 @@ public class AgentSettingsController {
 
     private final ToolRegistry registry;
     private final ToolApprovalPolicy approvalPolicy;
+    private final ModelCatalog modelCatalog;
     private final UserRepository userRepository;
+    private final UserPreferenceService prefService;
 
     public AgentSettingsController(ToolRegistry registry,
                                    ToolApprovalPolicy approvalPolicy,
-                                   UserRepository userRepository) {
+                                   ModelCatalog modelCatalog,
+                                   UserRepository userRepository,
+                                   UserPreferenceService prefService) {
         this.registry = registry;
         this.approvalPolicy = approvalPolicy;
+        this.modelCatalog = modelCatalog;
         this.userRepository = userRepository;
+        this.prefService = prefService;
     }
 
     /**
@@ -88,6 +101,73 @@ public class AgentSettingsController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("status", "ok");
         result.put("autoApproved", approvalPolicy.autoApprovedTools(user));
+        return result;
+    }
+
+    /**
+     * 返回可用模型列表 + 当前用户选中的模型。
+     *
+     * <p>响应格式：<pre>
+     * {
+     *   "models": [
+     *     {"id":"deepseek-chat","displayName":"DeepSeek Chat","provider":"DeepSeek"},
+     *     ...
+     *   ],
+     *   "current": "deepseek-chat"
+     * }
+     * </pre>
+     */
+    @GetMapping("/models")
+    public Map<String, Object> getModelSettings(Principal principal) {
+        User user = resolveUser(principal);
+        List<Map<String, String>> models = new ArrayList<>();
+        for (LlmProperties.ModelDef m : modelCatalog.availableModels()) {
+            Map<String, String> item = new LinkedHashMap<>();
+            item.put("id", m.getId());
+            item.put("displayName", m.getDisplayName());
+            item.put("provider", modelCatalog.providerDisplayName(m.getProviderId()));
+            models.add(item);
+        }
+        String current;
+        if (user != null) {
+            UserPreference pref = prefService.getOrCreatePreference(user);
+            current = (pref.getAgentChatModelId() != null && !pref.getAgentChatModelId().isBlank()
+                    && modelCatalog.find(pref.getAgentChatModelId()).isPresent())
+                    ? pref.getAgentChatModelId() : modelCatalog.defaultModelId();
+        } else {
+            current = modelCatalog.defaultModelId();
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("models", models);
+        result.put("current", current);
+        return result;
+    }
+
+    /**
+     * 切换用户 Agent 使用的模型。
+     *
+     * <p>请求体：{@code {"modelId":"deepseek-reasoner"}} </p>
+     */
+    @PutMapping("/model")
+    public Map<String, Object> updateModel(
+            @RequestBody Map<String, String> body,
+            Principal principal) {
+        User user = resolveUser(principal);
+        String modelId = body != null ? body.get("modelId") : null;
+        if (modelId == null || modelId.isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "modelId 不能为空");
+        }
+        if (modelCatalog.find(modelId).isEmpty()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "无效的模型 id：" + modelId);
+        }
+        UserPreference pref = prefService.getOrCreatePreference(user);
+        pref.setAgentChatModelId(modelId);
+        prefService.savePreference(pref);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", "ok");
+        result.put("modelId", modelId);
         return result;
     }
 

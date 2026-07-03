@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.zhzssp.memorandum.feature.agent.llm.LlmRouter;
 
 import java.io.IOException;
 import java.net.URI;
@@ -11,12 +12,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 /**
- * 单一 LLM 网关：所有 Agent 统一从这里调用。
+ * LLM 网关：统一对外暴露 {@link #generateChat} / {@link #generateText} / {@link #generateEmbedding}。
  *
- * 当前适配：DeepSeek Chat Completions API（OpenAI-Compatible）
+ * <p>{@code generateChat} 经 {@link LlmRouter} 按当前用户路由到对应 provider/endpoint/model；
+ * {@code generateText} 与 {@code generateEmbedding} 保留旧 @Value 路径（避免影响 Scheduler/异步线程）。</p>
  */
 @Component
 public class LlmGateway {
@@ -28,8 +31,7 @@ public class LlmGateway {
     private String model;
 
     /**
-     * 多轮对话专用模型；默认强制使用 deepseek-chat，避免 deepseek-reasoner
-     * 输出 reasoning_content / &lt;think&gt; 段干扰工具调用 JSON 解析。
+     * 多轮对话专用模型；保留作为 default-model 未配置时的兜底。
      */
     @Value("${agent.chat.model:deepseek-chat}")
     private String chatModelOverride;
@@ -37,17 +39,12 @@ public class LlmGateway {
     @Value("${agent.llm.base-url:" + DEFAULT_BASE_URL + "}")
     private String baseUrl;
 
-    /**
-     * 在 application.properties 中配置：
-     * agent.llm.api-key=YOUR_DEEPSEEK_API_KEY
-     */
     @Value("${agent.llm.api-key:}")
     private String configuredApiKey;
 
     /**
      * Embedding 独立配置：DeepSeek 不提供 embedding，必须接入 OpenAI-Compatible
      * 兼容端点（硅基流动 / 智谱 / 通义 / 本地 Ollama nomic-embed-text 等）。
-     * 留空时 base-url 回落到 chat 的 baseUrl，api-key 回落到 resolveApiKey()。
      */
     @Value("${agent.embedding.model:bge-m3}")
     private String embeddingModel;
@@ -60,9 +57,11 @@ public class LlmGateway {
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final LlmRouter router;
 
-    public LlmGateway(ObjectMapper objectMapper) {
+    public LlmGateway(ObjectMapper objectMapper, LlmRouter router) {
         this.objectMapper = objectMapper;
+        this.router = router;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
@@ -115,41 +114,50 @@ public class LlmGateway {
     }
 
     /**
-     * 多轮对话调用：直接传完整 messages 列表（含 system / user / assistant）。
-     * 使用 chatModelOverride（默认 deepseek-chat）避免 reasoner 推理段干扰。
-     * 与 generateText 的差异：① 不强制非空 ② 调用方自行拼 messages ③ 模型独立可配。
+     * 多轮对话调用：经 {@link LlmRouter} 路由到当前用户所选模型。
+     * 与 generateText 的差异：① 不强制非空 ② 调用方自行拼 messages ③ 按用户偏好选模型。
      */
-    public String generateChat(java.util.List<java.util.Map<String, String>> messages) {
-        String apiKey = resolveApiKey();
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("Agent LLM API key is missing. Please set agent.llm.api-key or DEEPSEEK_API_KEY.");
+    public String generateChat(List<Map<String, String>> messages) {
+        LlmRouter.ResolvedTarget target;
+        try {
+            target = router.resolveForCurrentUser();
+        } catch (Exception ex) {
+            throw new IllegalStateException("LlmRouter 路由失败：" + ex.getMessage(), ex);
         }
+        return postChat(target.baseUrl(), target.apiKey(), target.modelId(), messages, 0.2, 90);
+    }
+
+    /**
+     * 通用 Chat Completions 投递（供 generateChat + 可能的后台/fallback 路径复用）。
+     */
+    @SuppressWarnings("unchecked")
+    private String postChat(String baseUrl, String apiKey, String modelId,
+                            List<?> messages, double temperature, int timeoutSeconds) {
         try {
             String endpoint = normalizeBaseUrl(baseUrl) + "/v1/chat/completions";
-            String chatModel = (chatModelOverride == null || chatModelOverride.isBlank())
-                    ? DEFAULT_MODEL : chatModelOverride;
             String requestBody = objectMapper.writeValueAsString(Map.of(
-                    "model", chatModel,
-                    "temperature", 0.2,
+                    "model", modelId,
+                    "temperature", temperature,
                     "messages", messages
             ));
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(endpoint))
-                    .timeout(Duration.ofSeconds(90))
+                    .timeout(Duration.ofSeconds(timeoutSeconds))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + apiKey)
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException("DeepSeek Chat API failed: HTTP " + response.statusCode() + " - " + response.body());
+                throw new IllegalStateException(
+                        "Chat API failed: HTTP " + response.statusCode() + " - " + response.body());
             }
             JsonNode contentNode = objectMapper.readTree(response.body())
                     .path("choices").path(0).path("message").path("content");
             return contentNode.isMissingNode() || contentNode.isNull() ? "" : contentNode.asText("").trim();
         } catch (IOException | InterruptedException ex) {
             if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
-            throw new IllegalStateException("Failed to call DeepSeek Chat API.", ex);
+            throw new IllegalStateException("Failed to call Chat API.", ex);
         }
     }
 

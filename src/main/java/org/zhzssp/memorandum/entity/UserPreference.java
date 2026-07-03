@@ -68,6 +68,10 @@ public class UserPreference {
     @Column(name = "agent_auto_approve_tools", length = 2000, nullable = true)
     private String agentAutoApproveTools;
 
+    /** Agent 对话选用的模型 id（对应 ModelCatalog 中的 ModelDef.id）；null=用系统默认 */
+    @Column(name = "agent_chat_model_id", length = 100, nullable = true)
+    private String agentChatModelId;
+
     public enum MindsetMode {
         EXECUTE,  // 执行模式
         LEARN,    // 学习模式

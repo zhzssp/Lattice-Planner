@@ -80,6 +80,16 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     background: #fff;
     cursor: pointer;
 }
+#lp-agent-model {
+    padding: 3px 6px;
+    font-size: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    max-width: 160px;
+}
+#lp-agent-model:disabled { opacity: .5; cursor: default; }
 #lp-agent-close {
     background: transparent;
     border: none;

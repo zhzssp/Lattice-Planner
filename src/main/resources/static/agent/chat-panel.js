@@ -16,6 +16,7 @@
     const input = document.getElementById('lp-agent-input');
     const sendBtn = document.getElementById('lp-agent-send');
     const modeSel = document.getElementById('lp-agent-mode');
+    const modelSel = document.getElementById('lp-agent-model');
     const fab = document.getElementById('lp-agent-fab');
     const panel = document.getElementById('lp-agent-panel');
     const closeBtn = document.getElementById('lp-agent-close');
@@ -25,6 +26,66 @@
 
     closeBtn.onclick = () => panel.classList.remove('open');
     fab.onclick = () => panel.classList.add('open');
+
+    /* ------- 模型切换 ------- */
+    if (modelSel) {
+        // 面板打开时拉取模型列表（避免每次页面加载都发请求）
+        let modelsLoaded = false;
+        fab.onclick = (function (orig) {
+            return function () {
+                orig.call(this);
+                if (!modelsLoaded) fetchModels();
+            };
+        })(fab.onclick);
+
+        function fetchModels() {
+            modelSel.disabled = true;
+            modelSel.innerHTML = '<option>加载中…</option>';
+            fetch('/agent/settings/models')
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(data => {
+                    const models = data.models || [];
+                    modelSel.innerHTML = '';
+                    if (models.length === 0) {
+                        modelSel.innerHTML = '<option>无可用模型</option>';
+                    } else {
+                        models.forEach(m => {
+                            const opt = document.createElement('option');
+                            opt.value = m.id;
+                            opt.textContent = m.displayName + ' (' + m.provider + ')';
+                            modelSel.appendChild(opt);
+                        });
+                        modelSel.value = data.current || models[0].id;
+                    }
+                    modelSel.disabled = (models.length <= 1);
+                    modelsLoaded = true;
+                })
+                .catch(err => {
+                    modelSel.innerHTML = '<option>模型列表加载失败</option>';
+                    modelSel.disabled = true;
+                });
+        }
+
+        modelSel.onchange = function () {
+            const modelId = modelSel.value;
+            if (!modelId) return;
+            modelSel.disabled = true;
+            fetch('/agent/settings/model', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ modelId: modelId })
+            })
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(() => {
+                    // 切换成功，下拉恢复可用
+                    modelSel.disabled = false;
+                })
+                .catch(err => {
+                    // 切换失败，回到之前的选项（静默处理）
+                    modelSel.disabled = false;
+                });
+        };
+    }
 
     /* ------- 面板宽度：拖拽调整 + 记忆 ------- */
     (function initResize() {
