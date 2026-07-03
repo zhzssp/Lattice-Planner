@@ -2,7 +2,6 @@ package org.zhzssp.memorandum.feature.agent.mcp.client;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -12,7 +11,6 @@ import java.util.Map;
  * 配置格式：mcp.client.servers.{name}.url / .token / .enabled
  */
 @Data
-@Component
 @ConfigurationProperties(prefix = "mcp.client")
 public class McpClientProperties {
 
