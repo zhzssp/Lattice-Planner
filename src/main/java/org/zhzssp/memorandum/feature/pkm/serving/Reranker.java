@@ -79,8 +79,9 @@ public class Reranker {
             }
             // 未提及的候选按原序追加
             for (int i = 0; i < pool.size(); i++) {
-                if (reranked.stream().noneMatch(h -> h.equals(pool.get(i)))) {
-                    reranked.add(pool.get(i));
+                final int idx = i;
+                if (reranked.stream().noneMatch(h -> h.equals(pool.get(idx)))) {
+                    reranked.add(pool.get(idx));
                 }
             }
             log.debug("[RAG Serving] Rerank: {} 候选 → {} 精排 → {} 结果",
