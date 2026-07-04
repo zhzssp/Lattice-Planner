@@ -31,6 +31,7 @@ public class WebSecurityConfig {
                                 "/due-dates",
                                 "/report/**",
                                 "/ws/agent/**",
+                                "/agent/**",
                                 "/api/agent/**",
                                 "/sse",
                                 "/mcp/**",
