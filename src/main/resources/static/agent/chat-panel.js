@@ -91,7 +91,7 @@
     (function initResize() {
         const resizer = document.getElementById('lp-agent-resizer');
         if (!resizer) return;
-        const KEY = 'lp-agent-width';
+        const KEY = 'lp-agent-width-v2';
         const MIN = 320;
         const maxWidth = () => Math.floor(window.innerWidth * 0.96);
 

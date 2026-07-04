@@ -64,21 +64,21 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
 #lp-agent-panel header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
+    gap: 5px;
+    padding: 8px 10px;
     border-bottom: 1px solid #e5e7eb;
     font-weight: 600;
     background: #f9fafb;
-    flex-wrap: wrap;          /* 空间不足时换行到第二行，元素照常可见 */
-    /* 注意：绝不能加 overflow:hidden——否则换行到第二行的控件会被直接裁掉而消失 */
+    /* 不换行：所有控件强制一行，空间不足时标题先截断 */
 }
 .lp-agent-title {
     color: #111827;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    min-width: 0;             /* 允许收缩，配合 flex:1 */
-    flex: 1 1 auto;           /* 占据剩余空间，把右侧控件自然推到右边；空间不足时自身先收缩 */
+    flex: 1 1 0;               /* 标题收缩以腾出空间给控件 */
+    min-width: 30px;           /* 至少留几个字可见 */
+    margin-right: auto;        /* 把右侧控件推到底 */
 }
 #lp-agent-mode {
     padding: 2px 4px;
@@ -87,7 +87,8 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     border-radius: 4px;
     background: #fff;
     cursor: pointer;
-    flex: 0 0 auto;
+    flex-shrink: 0;            /* 绝不收缩，绝不消失 */
+    max-width: 55px;
 }
 #lp-agent-model {
     padding: 2px 4px;
@@ -96,8 +97,10 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     border-radius: 4px;
     background: #fff;
     cursor: pointer;
-    max-width: 130px;
-    flex: 0 0 auto;
+    flex-shrink: 0;            /* 绝不收缩，绝不消失 */
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 #lp-agent-model:disabled { opacity: .5; cursor: default; }
 #lp-agent-close {
@@ -107,8 +110,8 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
-    padding: 0 4px;
-    flex: 0 0 auto;
+    padding: 0 2px;
+    flex-shrink: 0;            /* 绝不收缩，绝不消失 */
 }
 #lp-agent-close:hover { color: #111827; }
 
@@ -477,21 +480,22 @@ h4.lp-md-h, h5.lp-md-h, h6.lp-md-h { font-size: 13px; }
 #lp-agent-settings-btn {
     display: inline-flex;
     align-items: center;
-    background: #f3f4f6;
-    border: 1px solid #d1d5db;
+    gap: 2px;
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
     border-radius: 4px;
-    color: #374151;
+    color: #1d4ed8;
     font-size: 11px;
     line-height: 1;
     cursor: pointer;
     padding: 2px 6px;
     white-space: nowrap;
-    flex: 0 0 auto;           /* 不收缩，保证设置按钮始终可见 */
+    flex-shrink: 0;           /* 绝不收缩，绝不消失 */
 }
 #lp-agent-settings-btn:hover {
-    background: #e5e7eb;
-    border-color: #9ca3af;
-    color: #111827;
+    background: #dbeafe;
+    border-color: #60a5fa;
+    color: #1e40af;
 }
 
 .lp-settings {
