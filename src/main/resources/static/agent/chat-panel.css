@@ -69,28 +69,25 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     border-bottom: 1px solid #e5e7eb;
     font-weight: 600;
     background: #f9fafb;
-    flex-wrap: wrap;          /* 兜底：内容超宽时换行，绝不溢出 */
-    overflow: hidden;         /* 兜底：即使换行也不超出 header */
+    flex-wrap: wrap;          /* 空间不足时换行到第二行，元素照常可见 */
+    /* 注意：绝不能加 overflow:hidden——否则换行到第二行的控件会被直接裁掉而消失 */
 }
 .lp-agent-title {
     color: #111827;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 80px;
-    min-width: 0;             /* 关键：允许 flex 子项收缩到 0，配合 max-width 截断 */
-    flex: 0 1 80px;           /* 可收缩 */
+    min-width: 0;             /* 允许收缩，配合 flex:1 */
+    flex: 1 1 auto;           /* 占据剩余空间，把右侧控件自然推到右边；空间不足时自身先收缩 */
 }
 #lp-agent-mode {
-    margin-left: auto;        /* 关键：把整个右侧组推到最右 */
     padding: 2px 4px;
     font-size: 11px;
     border: 1px solid #d1d5db;
     border-radius: 4px;
     background: #fff;
     cursor: pointer;
-    flex: 0 0 auto;           /* 不收缩 */
-    min-width: 60px;
+    flex: 0 0 auto;
 }
 #lp-agent-model {
     padding: 2px 4px;
@@ -99,11 +96,8 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     border-radius: 4px;
     background: #fff;
     cursor: pointer;
-    max-width: 110px;
-    min-width: 60px;          /* 防止空 select 塌陷为 0 */
-    flex: 0 0 auto;           /* 不收缩 */
-    overflow: hidden;
-    text-overflow: ellipsis;
+    max-width: 130px;
+    flex: 0 0 auto;
 }
 #lp-agent-model:disabled { opacity: .5; cursor: default; }
 #lp-agent-close {
@@ -114,7 +108,7 @@ body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
     line-height: 1;
     cursor: pointer;
     padding: 0 4px;
-    flex: 0 0 auto;           /* 不收缩，保证关闭按钮始终可见 */
+    flex: 0 0 auto;
 }
 #lp-agent-close:hover { color: #111827; }
 
