@@ -50,6 +50,9 @@ public class McpSseClient {
     /** SSE 读取线程 */
     private Thread sseThread;
 
+    /** 从 SSE URL 提取的 base URL（scheme + authority），用于将相对 messageEndpoint 解析为绝对 URL */
+    private String baseUrl;
+
     private static final Pattern SID_PATTERN = Pattern.compile("[?&]sid=([^&]+)");
 
     public McpSseClient(String sseUrl, String authToken, int connectTimeout, int callTimeout, ObjectMapper om) {
@@ -70,6 +73,9 @@ public class McpSseClient {
         httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(connectTimeout))
                 .build();
+
+        // 提取 SSE base URL（scheme + authority），用于后续将相对 messageEndpoint 解析为绝对 URL
+        this.baseUrl = extractBaseUrl(sseUrl);
 
         // 构建 SSE 连接 URL（含 token）
         String url = sseUrl;
@@ -160,13 +166,14 @@ public class McpSseClient {
     private void handleSseEvent(String event, String data) {
         switch (event) {
             case "endpoint" -> {
-                this.messageEndpoint = data;
+                // 将服务端返回的相对路径解析为绝对 URL（服务端返回的是 /mcp/message?sid=xxx）
+                this.messageEndpoint = resolveAbsoluteUrl(data);
                 // 从 endpoint URL 解析 sid
-                Matcher m = SID_PATTERN.matcher(data);
+                Matcher m = SID_PATTERN.matcher(this.messageEndpoint);
                 if (m.find()) {
                     this.sessionId = m.group(1);
                 }
-                log.info("[MCP Client] 收到 endpoint 事件：{}，sid={}", data, sessionId);
+                log.info("[MCP Client] 收到 endpoint 事件：{}，sid={}", this.messageEndpoint, sessionId);
             }
             case "message" -> {
                 try {
@@ -319,6 +326,40 @@ public class McpSseClient {
 
     public String getSessionId() {
         return sessionId;
+    }
+
+    /**
+     * 从完整 SSE URL 提取 scheme + authority 部分作为 base URL。
+     * 例如 http://localhost:8080/sse → http://localhost:8080
+     */
+    private String extractBaseUrl(String fullUrl) {
+        try {
+            URI uri = new URI(fullUrl);
+            return new URI(uri.getScheme(), uri.getAuthority(), null, null, null).toString();
+        } catch (Exception e) {
+            log.warn("[MCP Client] 无法解析 SSE base URL：{}", fullUrl);
+            return fullUrl;
+        }
+    }
+
+    /**
+     * 将服务端返回的 endpoint 解析为绝对 URL。
+     * 若已是绝对 URL（含 scheme）则直接返回，否则用 baseUrl 拼接。
+     */
+    private String resolveAbsoluteUrl(String raw) {
+        if (raw == null || raw.isBlank()) return raw;
+        try {
+            // 尝试作为绝对 URI 解析
+            URI uri = new URI(raw);
+            if (uri.isAbsolute()) {
+                return raw;
+            }
+            // 相对路径：拼接 baseUrl
+            return baseUrl + raw;
+        } catch (Exception e) {
+            // 回退：直接拼接
+            return baseUrl + raw;
+        }
     }
 
     /**
