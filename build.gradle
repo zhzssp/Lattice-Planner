@@ -45,6 +45,10 @@ dependencies {
 
     // PKM-RAG Stage 3：用户级向量 LRU 缓存（避免每次 search 全表 deserialize）
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+
+    // MCP 本地文档解析：PDF / Word / Excel
+    implementation 'org.apache.pdfbox:pdfbox:2.0.31'
+    implementation 'org.apache.poi:poi-ooxml:5.2.5'
 }
 
 tasks.named('test') {

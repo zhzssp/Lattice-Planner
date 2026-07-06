@@ -129,6 +129,17 @@ public class PromptBuilder {
                 - 不要把 kb 工具与 note.create 混用：semantic_search/lookup_by_title 是"读"，
                   仅在用户显式要求"记一笔"时才 note.create。
 
+                【本地文档读取原则】（涉及用户本地磁盘文件时执行）
+                - 当用户提到具体本地文件路径，或要求"读取/总结/分析某份文档（含 PDF/Word/Excel 等）"时，
+                  调用 mcp.loopback.local.read_document 获取内容后再回答；不要凭空猜测文件内容。
+                - 不确定文件是否存在时，可先调用 mcp.loopback.local.list_dir 列目录确认。
+                - 工具返回的 content 若标注 isSummarized=true，说明原文过长已被摘要，
+                  回答时可提示"以下基于文档摘要"，必要时建议用户询问更细节的部分。
+                - 路径不在白名单内会返回错误，此时应直接告知用户"该路径未被授权访问"，
+                  不要重试其它路径猜测用户意图。
+                - 仅使用只读工具（read_document/list_dir/read_file/read_pdf），
+                  不要尝试调用 kb.ingest 等写入/摄取操作。
+
                 【用户长期记忆（来自历史 Agent 会话归档）】
                 %s
                 """.formatted(dateBucket, toolsJson, memoSection);

@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.zhzssp.memorandum.feature.agent.tool.ToolRegistry;
 
@@ -40,7 +42,8 @@ public class McpToolProxy {
         clientManager.setReconnectCallback(this::onServerReconnect);
     }
 
-    /** 启动后注册所有已连接 Server 的远程工具。 */
+    /** 启动后注册所有已连接 Server 的远程工具。必须在 McpClientManager.init() 之后执行。 */
+    @Order(Ordered.LOWEST_PRECEDENCE)
     @EventListener(ApplicationReadyEvent.class)
     public void registerRemoteTools() {
         if (!clientManager.isEnabled()) return;

@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -32,7 +34,8 @@ public class McpClientManager {
         this.om = om;
     }
 
-    /** 启动时连接所有配置的 MCP Server。 */
+    /** 启动时连接所有配置的 MCP Server。必须在 McpToolProxy 注册工具之前完成。 */
+    @Order(Ordered.HIGHEST_PRECEDENCE)
     @EventListener(ApplicationReadyEvent.class)
     public void init() {
         if (!properties.isEnabled()) {
