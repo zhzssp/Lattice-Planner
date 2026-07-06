@@ -38,7 +38,7 @@ public class McpLocalFileService {
     @Value("${mcp.server.local-files-enabled:false}")
     private boolean enabled;
 
-    /** 允许访问的目录白名单（逗号分隔），例如 D:/learning,C:/Users/docs */
+    /** 允许访问的目录白名单（逗号分隔），例如 D:/learning,C:/Users/docs。留空则自动使用用户主目录。 */
     @Value("${mcp.server.local-allowed-dirs:}")
     private String allowedDirsConfig;
 
@@ -60,6 +60,14 @@ public class McpLocalFileService {
                 for (String d : allowedDirsConfig.split(",")) {
                     String trimmed = d.trim();
                     if (!trimmed.isEmpty()) allowedDirs.add(Path.of(trimmed));
+                }
+            }
+            // 未配置白名单时默认允许整个用户主目录（桌面/文档/下载等均自动可用）
+            if (allowedDirs.isEmpty()) {
+                String home = System.getProperty("user.home");
+                if (home != null && !home.isBlank()) {
+                    allowedDirs.add(Path.of(home));
+                    log.info("[MCP] 本地文件白名单未配置，自动使用用户主目录：{}", home);
                 }
             }
         }
@@ -110,7 +118,7 @@ public class McpLocalFileService {
     private Map<String, Object> listDir(String pathStr) {
         if (pathStr == null || pathStr.isBlank()) return errorResult("path 为空");
         Path path = Path.of(pathStr);
-        if (!isAllowed(path)) return errorResult("路径不在白名单内：" + pathStr);
+        if (!isAllowed(path)) return errorResult("路径不在白名单内：" + pathStr + "。 " + allowedDirsHint());
         if (!Files.isDirectory(path)) return errorResult("不是目录：" + pathStr);
         try {
             List<Map<String, Object>> entries = new ArrayList<>();
@@ -137,7 +145,7 @@ public class McpLocalFileService {
     private Map<String, Object> readFile(String pathStr) {
         if (pathStr == null || pathStr.isBlank()) return errorResult("path 为空");
         Path path = Path.of(pathStr);
-        if (!isAllowed(path)) return errorResult("路径不在白名单内：" + pathStr);
+        if (!isAllowed(path)) return errorResult("路径不在白名单内：" + pathStr + "。 " + allowedDirsHint());
         if (!isAllowedExtension(path)) return errorResult("文件扩展名不在白名单内");
         try {
             String content = Files.readString(path, StandardCharsets.UTF_8);
@@ -152,7 +160,7 @@ public class McpLocalFileService {
     private Map<String, Object> readPdf(String pathStr) {
         if (pathStr == null || pathStr.isBlank()) return errorResult("path 为空");
         Path path = Path.of(pathStr);
-        if (!isAllowed(path)) return errorResult("路径不在白名单内：" + pathStr);
+        if (!isAllowed(path)) return errorResult("路径不在白名单内：" + pathStr + "。 " + allowedDirsHint());
         if (!pathStr.toLowerCase().endsWith(".pdf")) return errorResult("仅支持 PDF 文件");
         try {
             ExtractedDocument doc = extractorRegistry.extract(path);
@@ -172,7 +180,7 @@ public class McpLocalFileService {
         // 1. 参数校验
         if (pathStr == null || pathStr.isBlank()) return errorResult("path 为空");
         Path path = Path.of(pathStr);
-        if (!isAllowed(path)) return errorResult("路径不在白名单内：" + pathStr);
+        if (!isAllowed(path)) return errorResult("路径不在白名单内：" + pathStr + "。 " + allowedDirsHint());
         if (!Files.exists(path)) return errorResult("文件不存在：" + pathStr);
         if (!Files.isRegularFile(path)) return errorResult("不是文件：" + pathStr);
 
@@ -224,6 +232,16 @@ public class McpLocalFileService {
             if (abs.startsWith(allowedAbs)) return true;
         }
         return false;
+    }
+
+    /** 生成被拒时的白名单提示（给 LLM 看，帮助它给用户正确指导）。 */
+    private String allowedDirsHint() {
+        List<String> dirs = getAllowedDirs().stream()
+                .map(p -> p.toAbsolutePath().normalize().toString())
+                .toList();
+        if (dirs.isEmpty()) return "（未配置白名单目录，请联系管理员设置 mcp.server.local-allowed-dirs）";
+        return "当前允许访问的目录：" + String.join("、", dirs)
+                + "。请将文件放入这些目录后重试。";
     }
 
     /** 老式扩展名白名单（legacy read_file 用，保持向后兼容）。 */

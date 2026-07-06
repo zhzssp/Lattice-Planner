@@ -133,10 +133,9 @@ public class PromptBuilder {
                 - 当用户提到具体本地文件路径，或要求"读取/总结/分析某份文档（含 PDF/Word/Excel 等）"时，
                   调用 mcp.loopback.local.read_document 获取内容后再回答；不要凭空猜测文件内容。
                 - 不确定文件是否存在时，可先调用 mcp.loopback.local.list_dir 列目录确认。
+                - 如果白名单报错，提示用户将文件移入系统返回的允许目录（默认是用户主目录下的所有位置）。
                 - 工具返回的 content 若标注 isSummarized=true，说明原文过长已被摘要，
                   回答时可提示"以下基于文档摘要"，必要时建议用户询问更细节的部分。
-                - 路径不在白名单内会返回错误，此时应直接告知用户"该路径未被授权访问"，
-                  不要重试其它路径猜测用户意图。
                 - 仅使用只读工具（read_document/list_dir/read_file/read_pdf），
                   不要尝试调用 kb.ingest 等写入/摄取操作。
                 - 严禁调用任何不含 mcp. 前缀的 local.* 工具（旧的 Electron 桥接工具已下线，
