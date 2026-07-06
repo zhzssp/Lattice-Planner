@@ -132,7 +132,7 @@ public class ExcelExtractor implements DocumentExtractor {
                     }
                 }
             }
-            case BLANK, ERROR -> "";
+            case BLANK, ERROR, _NONE -> "";
         };
     }
 }
