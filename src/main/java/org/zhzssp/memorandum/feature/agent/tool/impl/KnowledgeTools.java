@@ -151,8 +151,20 @@ public class KnowledgeTools {
 
     @AgentTool(name = "kb.ingest_local_doc", tags = {"kb", "write", "local"}, requiresConfirm = true,
             description = "把一份本地 md/txt/pdf 文档摄取进个人知识库。" +
-                    "扩展名/路径必须在 Electron 白名单内；同 path 重复摄取会先清旧 chunk 再重建。")
+                    "扩展名/路径必须在 Electron 白名单内；同 path 重复摄取会先清旧 chunk 再重建。" +
+                    "v3 起仅只读模式：写功能暂未启用，调用将返回 WRITE_DISABLED。")
     public Map<String, Object> ingestLocal(
+            @ToolParam(value = "path", desc = "绝对路径（受 Electron 白名单约束）", required = true) String path
+    ) throws Exception {
+        // v3：只读模式，写能力暂未启用（避免依赖 Electron LocalBridge 出现"桥接不可用"）
+        return Map.of("error", "WRITE_DISABLED",
+                "message", "v3 当前为只读模式，本地文档摄取（写）功能暂未启用。" +
+                          "如需启用，请单独排期并实现桥接替换。");
+    }
+
+    /** v3 已禁用：原 write 实现保留在下方注释，供后续启用时参考。 */
+    /*
+    public Map<String, Object> ingestLocalImpl(
             @ToolParam(value = "path", desc = "绝对路径（受 Electron 白名单约束）", required = true) String path
     ) throws Exception {
         User u = AgentContext.requireUser();
@@ -178,6 +190,7 @@ public class KnowledgeTools {
         }
         return r;
     }
+    */
 
     @AgentTool(name = "kb.list_ingested_docs", tags = {"kb", "read"},
             description = "列出当前用户已摄取的本地文档清单（路径 + chunks 数 + 最近摄取时间）。" +
@@ -197,8 +210,19 @@ public class KnowledgeTools {
 
     @AgentTool(name = "kb.delete_local_doc", tags = {"kb", "write", "local"}, requiresConfirm = true,
             description = "按 path 反摄取本地文档：清空该路径在个人知识库中的所有 chunk。" +
-                    "用户明确表达'删掉/移除/反摄取 X'时调用；删除后该文档不再出现在 kb.semantic_search。")
+                    "用户明确表达'删掉/移除/反摄取 X'时调用；删除后该文档不再出现在 kb.semantic_search。" +
+                    "v3 起仅只读模式：写功能暂未启用，调用将返回 WRITE_DISABLED。")
     public Map<String, Object> deleteLocalDoc(
+            @ToolParam(value = "path", desc = "要反摄取的绝对路径（与 ingest 时一致）", required = true) String path
+    ) {
+        // v3：只读模式，写能力暂未启用
+        return Map.of("error", "WRITE_DISABLED",
+                "message", "v3 当前为只读模式，本地文档反摄取（写）功能暂未启用。");
+    }
+
+    /** v3 已禁用：原 write 实现保留在下方注释，供后续启用时参考。 */
+    /*
+    public Map<String, Object> deleteLocalDocImpl(
             @ToolParam(value = "path", desc = "要反摄取的绝对路径（与 ingest 时一致）", required = true) String path
     ) {
         User u = AgentContext.requireUser();
@@ -212,6 +236,7 @@ public class KnowledgeTools {
         if (deleted == 0) r.put("warning", "NOT_INGESTED_OR_ALREADY_REMOVED");
         return r;
     }
+    */
 
     /** 输出给 LLM 的分数保留 3 位，防止 JSON 噪音过大。 */
     private static double round3(double d) {

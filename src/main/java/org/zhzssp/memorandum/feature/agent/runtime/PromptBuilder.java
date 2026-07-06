@@ -139,6 +139,8 @@ public class PromptBuilder {
                   不要重试其它路径猜测用户意图。
                 - 仅使用只读工具（read_document/list_dir/read_file/read_pdf），
                   不要尝试调用 kb.ingest 等写入/摄取操作。
+                - 严禁调用任何不含 mcp. 前缀的 local.* 工具（旧的 Electron 桥接工具已下线，
+                  调用会失败并误导用户）。
 
                 【用户长期记忆（来自历史 Agent 会话归档）】
                 %s

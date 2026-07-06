@@ -8,6 +8,9 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.zhzssp.memorandum.entity.User;
+import org.zhzssp.memorandum.feature.agent.mcp.McpAuthService;
+import org.zhzssp.memorandum.repository.UserRepository;
 
 import java.util.Collections;
 import java.util.List;
@@ -16,6 +19,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * MCP Client 连接管理器。
  * 读取配置 → 创建 McpClientConnection → 管理生命周期 + 健康检查 + 自动重连。
+ *
+ * <p>v3 新增：自动为 loopback 连接生成 MCP Token（免除手动配置步骤）。</p>
  */
 @Component
 public class McpClientManager {
@@ -24,14 +29,20 @@ public class McpClientManager {
 
     private final McpClientProperties properties;
     private final com.fasterxml.jackson.databind.ObjectMapper om;
+    private final McpAuthService authService;
+    private final UserRepository userRepo;
 
     private final List<McpClientConnection> connections = new CopyOnWriteArrayList<>();
     private volatile boolean initialized = false;
 
     public McpClientManager(McpClientProperties properties,
-                            com.fasterxml.jackson.databind.ObjectMapper om) {
+                            com.fasterxml.jackson.databind.ObjectMapper om,
+                            McpAuthService authService,
+                            UserRepository userRepo) {
         this.properties = properties;
         this.om = om;
+        this.authService = authService;
+        this.userRepo = userRepo;
     }
 
     /** 启动时连接所有配置的 MCP Server。必须在 McpToolProxy 注册工具之前完成。 */
@@ -42,6 +53,9 @@ public class McpClientManager {
             log.info("[MCP Client] MCP Client 未启用（mcp.client.enabled=false）");
             return;
         }
+
+        // v3：自动为 loopback 连接生成 Token
+        autoWireLoopbackToken();
 
         log.info("[MCP Client] 初始化 MCP Client，配置了 {} 个 Server",
                 properties.getServers().size());
@@ -76,6 +90,34 @@ public class McpClientManager {
         initialized = true;
         log.info("[MCP Client] 初始化完成，{} 个连接（{} 个已连接）",
                 connections.size(), connections.stream().filter(McpClientConnection::isConnected).count());
+    }
+
+    /**
+     * 自动为 loopback Server 生成 MCP Token。
+     * 仅在 token 配置为空时生效；若用户已手动配置了 token 则跳过。
+     */
+    private void autoWireLoopbackToken() {
+        McpClientProperties.ServerConfig loopback = properties.getServers().get("loopback");
+        if (loopback == null || !loopback.isEnabled()) return;
+
+        String configured = loopback.getToken();
+        if (configured != null && !configured.isBlank()) {
+            log.info("[MCP Client] loopback token 已手动配置，跳过自动生成");
+            return;
+        }
+
+        try {
+            User user = userRepo.findAll().stream().findFirst().orElse(null);
+            if (user == null) {
+                log.warn("[MCP Client] 无可用用户，无法为 loopback 自动生成 token");
+                return;
+            }
+            String rawToken = authService.generateToken(user, "loopback-agent");
+            loopback.setToken(rawToken);
+            log.info("[MCP Client] 已为 loopback 自动生成 token（user={}）", user.getUsername());
+        } catch (Exception e) {
+            log.warn("[MCP Client] loopback token 自动生成失败：{}", e.toString());
+        }
     }
 
     /** 定期健康检查 + 自动重连（每 30 秒）。 */
