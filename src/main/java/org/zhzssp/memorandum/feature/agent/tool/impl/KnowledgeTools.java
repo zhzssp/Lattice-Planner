@@ -8,6 +8,7 @@ import org.zhzssp.memorandum.feature.agent.tool.AgentTool;
 import org.zhzssp.memorandum.feature.agent.tool.LocalBridgeProxy;
 import org.zhzssp.memorandum.feature.agent.tool.ToolParam;
 import org.zhzssp.memorandum.feature.pkm.crag.CorrectiveRetriever;
+import org.zhzssp.memorandum.feature.pkm.crag.RetrievalEvaluator;
 import org.zhzssp.memorandum.feature.pkm.service.NoteIndexService;
 import org.zhzssp.memorandum.feature.pkm.service.RagSearchService;
 import org.zhzssp.memorandum.repository.LinkRepository;
@@ -67,7 +68,9 @@ public class KnowledgeTools {
             description = "在用户笔记 + 已摄取本地文档中做语义+关键字 hybrid 检索；" +
                     "涉及'我之前/我的笔记/我学过/上次我们说过 X'等问题时必须先调用本工具，" +
                     "命中条目可在最终回答中以 [[标题]] 形式引用。" +
-                    "返回字段含 grade（CORRECT/AMBIGUOUS/INCORRECT）与 degraded（true 时表示检索质量差，应走通用知识）。")
+                    "返回数组的第一项是 _meta=\"crag\" 的元信息行（非命中内容），" +
+                    "含 grade（CORRECT/AMBIGUOUS/INCORRECT）、degraded（true 表示检索质量差，应走通用知识）" +
+                    "与 message（行动指引），其余各项才是命中片段。")
     public List<Map<String, Object>> semanticSearch(
             @ToolParam(value = "query", desc = "自然语言查询", required = true) String query,
             @ToolParam(value = "topK", desc = "返回条数（1~20，默认 6）") Integer topK
@@ -96,15 +99,35 @@ public class KnowledgeTools {
             out.add(row);
         }
 
-        // 附 CRAG 元信息给 LLM 自省（Self-RAG 侧）
-        if (out.isEmpty()) {
-            Map<String, Object> meta = new LinkedHashMap<>();
-            meta.put("grade", cr.grade().name());
-            meta.put("degraded", cr.degraded());
-            meta.put("message", "未找到相关内容" + (cr.degraded() ? "，建议基于通用知识回答" : ""));
-            out.add(meta);
-        }
+        // 附 CRAG 元信息给 LLM 自省（Self-RAG 侧）。
+        // 必须无条件返回：否则"有命中但质量差（AMBIGUOUS / degraded=true）"这一最关键场景
+        // 的降级信号会丢失，LLM 无法按系统提示的【知识检索原则】调整措辞。
+        // 放在首位，让 LLM 先看到质量评级再读命中内容。
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put("_meta", "crag");
+        meta.put("grade", cr.grade().name());
+        meta.put("degraded", cr.degraded());
+        meta.put("hitCount", hits.size());
+        meta.put("usedQueries", cr.usedQueries());
+        meta.put("message", cragMessage(cr.grade(), cr.degraded(), hits.isEmpty()));
+        out.add(0, meta);
         return out;
+    }
+
+    /** 依据 CRAG 判级生成给 LLM 的行动指引（与 PromptBuilder 的【知识检索原则】对齐）。 */
+    private String cragMessage(RetrievalEvaluator.Grade grade, boolean degraded, boolean empty) {
+        if (empty) {
+            return "未找到任何相关内容"
+                    + (degraded ? "，请在答复首句明示\"未找到强相关笔记，以下基于通用知识：\"" : "");
+        }
+        if (degraded || grade == RetrievalEvaluator.Grade.INCORRECT) {
+            return "检索质量差（改写重检索后仍未命中强相关内容）："
+                    + "请在答复首句明示\"未找到强相关笔记，以下基于通用知识：\"，不要假装命中。";
+        }
+        if (grade == RetrievalEvaluator.Grade.AMBIGUOUS) {
+            return "检索结果相关性一般：可谨慎引用，但须提醒用户\"检索结果相关性一般，仅供参考\"。";
+        }
+        return "检索质量良好：可直接引用命中片段，引用笔记用 [[标题]] 写法。";
     }
 
     @AgentTool(name = "kb.lookup_by_title", tags = {"kb", "read"},

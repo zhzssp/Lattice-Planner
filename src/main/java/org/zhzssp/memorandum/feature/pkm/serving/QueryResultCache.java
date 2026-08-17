@@ -76,7 +76,7 @@ public class QueryResultCache {
         for (CachedQuery cq : q) {
             double sim = EmbeddingClient.cosine(queryVec, cq.queryVec());
             if (sim >= threshold) {
-                log.debug("[RAG Serving] 查询缓存命中：sim={:.3f}", sim);
+                log.debug("[RAG Serving] 查询缓存命中：sim={}", String.format("%.3f", sim));
                 return Optional.of(cq.hits());
             }
         }

@@ -41,10 +41,13 @@ public class PrefixCache {
     public record CachedPrefix(String content, String prefixHash) {}
 
     private final Cache<PrefixKey, CachedPrefix> cache;
+    private final PrefixCacheMetrics metrics;
 
-    public PrefixCache(@Value("${agent.prefix-cache.enabled:true}") boolean enabled,
+    public PrefixCache(PrefixCacheMetrics metrics,
+                       @Value("${agent.prefix-cache.enabled:true}") boolean enabled,
                        @Value("${agent.prefix-cache.max-entries:256}") int maxEntries,
                        @Value("${agent.prefix-cache.expire-minutes:120}") int expireMinutes) {
+        this.metrics = metrics;
         if (enabled) {
             this.cache = Caffeine.newBuilder()
                     .maximumSize(Math.max(1, maxEntries))
@@ -66,15 +69,36 @@ public class PrefixCache {
     /**
      * 取缓存（启用时返回 Caffeine 语义：命中返回已有值，未命中用 loader 构造并回填）。
      * 禁用时直接返回 loader 结果且不缓存。
+     *
+     * <p>借助「loader 仅在 miss 时被执行」精确区分命中/未命中并上报指标，
+     * 比事后读 Caffeine 内部 stats 更贴合业务语义（后者含内部 refresh 等噪声）。</p>
      */
     public CachedPrefix getOrCompute(PrefixKey key, java.util.function.Supplier<CachedPrefix> loader) {
-        if (!enabled()) return loader.get();
-        return cache.get(key, k -> loader.get());
+        if (!enabled()) {
+            metrics.recordMiss();
+            return loader.get();
+        }
+        boolean[] computed = {false};
+        CachedPrefix value = cache.get(key, k -> {
+            computed[0] = true;
+            return loader.get();
+        });
+        if (computed[0]) {
+            metrics.recordMiss();
+        } else {
+            metrics.recordHit();
+        }
+        return value;
     }
 
-    /** 暴露统计信息。 */
+    /** 暴露统计信息（Caffeine 原生 stats）。 */
     public String stats() {
         if (cache == null) return "disabled";
         return cache.stats().toString() + ", size=" + cache.estimatedSize();
+    }
+
+    /** 当前缓存条目数（禁用时 -1）。 */
+    public long size() {
+        return cache == null ? -1 : cache.estimatedSize();
     }
 }

@@ -2,6 +2,7 @@ package org.zhzssp.memorandum.feature.pkm.crag;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.zhzssp.memorandum.entity.User;
 import org.zhzssp.memorandum.feature.pkm.service.RagSearchService;
@@ -36,16 +37,28 @@ public class CorrectiveRetriever {
     private final RetrievalEvaluator evaluator;
     private final QueryRewriter rewriter;
     private final RagServingService serving; // 可选，null 时回退 rag
+    private final CragMetrics metrics;
+
+    /**
+     * CRAG 总开关。false 时退化为一次普通检索（不改写、不重检索、degraded 恒 false），
+     * 对应计划验收标准「pkm.crag.enabled=false 时 kb.semantic_search 行为与现状一致」。
+     */
+    @Value("${pkm.crag.enabled:true}")
+    private boolean enabled;
 
     public CorrectiveRetriever(RagSearchService rag,
                                RetrievalEvaluator evaluator,
                                QueryRewriter rewriter,
-                               RagServingService serving) {
+                               RagServingService serving,
+                               CragMetrics metrics) {
         this.rag = rag;
         this.evaluator = evaluator;
         this.rewriter = rewriter;
         this.serving = serving;
+        this.metrics = metrics;
     }
+
+    public boolean enabled() { return enabled; }
 
     public record CragResult(
             List<RagSearchService.Hit> hits,
@@ -74,6 +87,16 @@ public class CorrectiveRetriever {
         }
 
         int k = (topK == null || topK <= 0) ? 6 : Math.min(topK, 20);
+        metrics.recordRetrieve();
+
+        // 0) 开关关闭 → 一次普通检索，不做改写/重检索，degraded 恒 false
+        if (!enabled) {
+            metrics.recordBypass();
+            List<RagSearchService.Hit> plain = doSearch(user, query, k);
+            RetrievalEvaluator.Grade g = evaluator.gradeByScore(plain);
+            metrics.recordGrade(g);
+            return new CragResult(truncate(plain, k), g, false, List.of(query));
+        }
 
         // 1) 首次检索
         List<RagSearchService.Hit> hits = doSearch(user, query, k * 4); // 取候选池
@@ -82,12 +105,14 @@ public class CorrectiveRetriever {
         usedQueries.add(query);
 
         if (grade == RetrievalEvaluator.Grade.CORRECT) {
+            metrics.recordGrade(grade);
             return new CragResult(truncate(hits, k), grade, false, usedQueries);
         }
 
-        // 2) AMBIGUOUS / INCORRECT → 改写一次并合并
+        // 2) AMBIGUOUS / INCORRECT → 改写一次并合并（重检索次数上限 1）
         log.debug("[CRAG] 检索质量={}（topScore={}），触发改写重检索",
                 grade, hits.isEmpty() ? 0.0 : hits.get(0).score());
+        metrics.recordRewrite();
 
         List<String> rewrites = rewriter.rewrite(query, 2);
         for (String rw : rewrites.subList(1, rewrites.size())) {
@@ -98,7 +123,9 @@ public class CorrectiveRetriever {
 
         RetrievalEvaluator.Grade g2 = evaluator.gradeByScore(hits);
         boolean degraded = (g2 == RetrievalEvaluator.Grade.INCORRECT || hits.isEmpty());
+        metrics.recordGrade(g2);
         if (degraded) {
+            metrics.recordDegraded();
             log.info("[CRAG] 改写重检索后仍未达标，标记 degraded，建议 LLM 走通用知识");
         }
 

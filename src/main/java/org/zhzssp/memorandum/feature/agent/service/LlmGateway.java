@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.zhzssp.memorandum.feature.agent.llm.LlmRouter;
+import org.zhzssp.memorandum.feature.agent.runtime.PrefixCacheMetrics;
 
 import java.io.IOException;
 import java.net.URI;
@@ -58,10 +59,12 @@ public class LlmGateway {
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final LlmRouter router;
+    private final PrefixCacheMetrics prefixMetrics;
 
-    public LlmGateway(ObjectMapper objectMapper, LlmRouter router) {
+    public LlmGateway(ObjectMapper objectMapper, LlmRouter router, PrefixCacheMetrics prefixMetrics) {
         this.objectMapper = objectMapper;
         this.router = router;
+        this.prefixMetrics = prefixMetrics;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
@@ -129,6 +132,10 @@ public class LlmGateway {
 
     /**
      * 通用 Chat Completions 投递（供 generateChat + 可能的后台/fallback 路径复用）。
+     *
+     * <p>P4：顺带读取响应 {@code usage} 中的 prompt cache token 统计并上报
+     * {@link PrefixCacheMetrics}。DeepSeek 的 context caching 是自动的（按前缀命中，
+     * 无需显式传 cache_id），因此这里只做「观测」，不改请求协议。</p>
      */
     @SuppressWarnings("unchecked")
     private String postChat(String baseUrl, String apiKey, String modelId,
@@ -152,12 +159,42 @@ public class LlmGateway {
                 throw new IllegalStateException(
                         "Chat API failed: HTTP " + response.statusCode() + " - " + response.body());
             }
-            JsonNode contentNode = objectMapper.readTree(response.body())
-                    .path("choices").path(0).path("message").path("content");
+            JsonNode root = objectMapper.readTree(response.body());
+            prefixMetrics.recordChatCall();
+            recordPromptCacheUsage(root.path("usage"));
+            JsonNode contentNode = root.path("choices").path(0).path("message").path("content");
             return contentNode.isMissingNode() || contentNode.isNull() ? "" : contentNode.asText("").trim();
         } catch (IOException | InterruptedException ex) {
             if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
             throw new IllegalStateException("Failed to call Chat API.", ex);
+        }
+    }
+
+    /**
+     * 从 usage 提取 prompt cache 命中/未命中 token 数，兼容两种上游格式：
+     * <ul>
+     *   <li>DeepSeek：{@code usage.prompt_cache_hit_tokens} / {@code usage.prompt_cache_miss_tokens}</li>
+     *   <li>OpenAI：{@code usage.prompt_tokens_details.cached_tokens}（未命中数用 prompt_tokens 相减）</li>
+     * </ul>
+     * 任何解析异常都静默忽略——观测不能影响主链路。
+     */
+    private void recordPromptCacheUsage(JsonNode usage) {
+        if (usage == null || usage.isMissingNode() || usage.isNull()) return;
+        try {
+            long hit = usage.path("prompt_cache_hit_tokens").asLong(-1);
+            long miss = usage.path("prompt_cache_miss_tokens").asLong(-1);
+            if (hit >= 0 || miss >= 0) {
+                prefixMetrics.recordPromptCacheTokens(Math.max(0, hit), Math.max(0, miss));
+                return;
+            }
+            // OpenAI 风格回退
+            long cached = usage.path("prompt_tokens_details").path("cached_tokens").asLong(-1);
+            if (cached >= 0) {
+                long promptTokens = usage.path("prompt_tokens").asLong(0);
+                prefixMetrics.recordPromptCacheTokens(cached, Math.max(0, promptTokens - cached));
+            }
+        } catch (Exception ignore) {
+            // 观测失败不影响主流程
         }
     }
 

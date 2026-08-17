@@ -55,6 +55,7 @@ public class RagServingService {
     public List<RagSearchService.Hit> search(User user, String query, Integer topK) {
         if (user == null || query == null || query.isBlank()) return List.of();
         long t0 = System.currentTimeMillis();
+        metrics.recordSearch();
 
         // 1) embed query
         float[] qv;
@@ -64,6 +65,7 @@ public class RagServingService {
             log.debug("[RAG Serving] Embedding 失败，降级纯关键字：{}", e.getMessage());
             List<RagSearchService.Hit> hits = rag.search(user, query, topK);
             metrics.recordMiss();
+            metrics.recordLatency(System.currentTimeMillis() - t0, false);
             return hits;
         }
 
@@ -73,6 +75,7 @@ public class RagServingService {
             if (cached.isPresent()) {
                 metrics.recordCacheHit();
                 long ms = System.currentTimeMillis() - t0;
+                metrics.recordLatency(ms, true);
                 log.debug("[RAG Serving] 查询缓存命中，{}ms", ms);
                 List<RagSearchService.Hit> hits = cached.get();
                 return truncate(hits, resolveTopK(topK));
@@ -85,7 +88,7 @@ public class RagServingService {
         int c = Math.min(k * 4, 20); // 粗排取 topK*4 或 20
         List<RagSearchService.Hit> candidates = rag.search(user, query, c);
 
-        // 4) 可选二阶段精排
+        // 4) 可选二阶段精排（Reranker 内部自行记录 invoked / fallback）
         List<RagSearchService.Hit> result;
         if (reranker.enabled() && candidates.size() > k) {
             result = reranker.rerank(query, candidates, k);
@@ -99,6 +102,7 @@ public class RagServingService {
         }
 
         long ms = System.currentTimeMillis() - t0;
+        metrics.recordLatency(ms, false);
         if (ms > 200) log.debug("[RAG Serving] 检索耗时 {}ms", ms);
         return result;
     }
@@ -111,6 +115,7 @@ public class RagServingService {
     /** 预取：fire-and-forget，用于 RESEARCH 子代理启动前。 */
     public void prefetch(User user, String query) {
         if (query == null || query.isBlank()) return;
+        metrics.recordPrefetch();
         searchAsync(user, query, null).exceptionally(e -> {
             log.debug("[RAG Serving] 预取失败：{}", e.getMessage());
             return List.of();

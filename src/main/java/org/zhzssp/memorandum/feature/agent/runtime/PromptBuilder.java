@@ -31,11 +31,14 @@ public class PromptBuilder {
     private final ToolRegistry registry;
     private final ObjectMapper om;
     private final PrefixCache prefixCache;
+    private final PrefixCacheMetrics prefixMetrics;
 
-    public PromptBuilder(ToolRegistry registry, ObjectMapper om, PrefixCache prefixCache) {
+    public PromptBuilder(ToolRegistry registry, ObjectMapper om,
+                         PrefixCache prefixCache, PrefixCacheMetrics prefixMetrics) {
         this.registry = registry;
         this.om = om;
         this.prefixCache = prefixCache;
+        this.prefixMetrics = prefixMetrics;
     }
 
     /** 兼容旧签名：内部 buildPrefix + assemble。 */
@@ -59,10 +62,12 @@ public class PromptBuilder {
         PrefixCache.PrefixKey key = new PrefixCache.PrefixKey(
                 mode == null ? "chat" : mode, toolsetHash, memoHash, dateBucket);
 
-        // 命中缓存直接返回，miss 则构造并回填
+        // 命中缓存直接返回，miss 则构造并回填（loader 内计时 → 得到真实构造成本）
         return prefixCache.getOrCompute(key, () -> {
+            long t0 = System.nanoTime();
             String sys = buildSystemPrompt(dateBucket, toolsJson, memoSection);
             String hash = sha256(sys);
+            prefixMetrics.recordBuild((System.nanoTime() - t0) / 1_000_000);
             return new PrefixCache.CachedPrefix(sys, hash);
         });
     }
@@ -120,11 +125,12 @@ public class PromptBuilder {
                 【知识检索原则】（涉及"我"自身经验/笔记时严格执行）
                 - 涉及"我"、"我的笔记/项目/经验"、"我之前学过 X"、"上次我们说过 Y" 等表述时，
                   必须先调用 kb.semantic_search 检索个人知识库（笔记 + 已摄取本地文档）。
-                - kb.semantic_search 返回的 grade 为 INCORRECT 或 degraded=true 时，
-                  表示检索质量差，须在答复首句明示"未找到强相关笔记，以下基于通用知识："，
-                  然后再给一般性回答，不可假装命中。
-                - kb.semantic_search 返回的 grade 为 AMBIGUOUS 时，可谨慎引用但须提醒用户
-                  "检索结果相关性一般，仅供参考"。
+                - kb.semantic_search 返回数组的**第一项**是 _meta="crag" 的元信息行（不是命中内容），
+                  其中的 grade / degraded / message 决定你该如何措辞，必须先读它再读后续命中片段。
+                - grade 为 INCORRECT 或 degraded=true 时，表示检索质量差，须在答复首句明示
+                  "未找到强相关笔记，以下基于通用知识："，然后再给一般性回答，不可假装命中。
+                - grade 为 AMBIGUOUS 时，可谨慎引用但须提醒用户"检索结果相关性一般，仅供参考"。
+                - grade 为 CORRECT 时可正常引用命中内容。
                 - 命中并真正引用某篇笔记时，使用 [[标题]] 写法（不带路径），用户可点击跳转。
                 - 不要把 kb 工具与 note.create 混用：semantic_search/lookup_by_title 是"读"，
                   仅在用户显式要求"记一笔"时才 note.create。
