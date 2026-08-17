@@ -31,12 +31,6 @@ public class LlmGateway {
     @Value("${agent.llm.model:" + DEFAULT_MODEL + "}")
     private String model;
 
-    /**
-     * 多轮对话专用模型；保留作为 default-model 未配置时的兜底。
-     */
-    @Value("${agent.chat.model:deepseek-chat}")
-    private String chatModelOverride;
-
     @Value("${agent.llm.base-url:" + DEFAULT_BASE_URL + "}")
     private String baseUrl;
 

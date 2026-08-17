@@ -66,9 +66,12 @@ public class AgentSettingsController {
     @GetMapping("/tools")
     public Map<String, Object> getToolSettings(Principal principal) {
         User user = resolveUser(principal);
-        // 过滤出 requiresConfirm=true 的工具
-        List<Map<String, String>> confirmable = registry.all().stream()
+        // 过滤出 requiresConfirm=true 的工具。
+        // 用 allWithMcp() 而非 all()：AgentOrchestrator 判定确认时走的是 registry.get(name)，
+        // 能命中 MCP 远程工具；若此处只列本地工具，需确认的 MCP 工具将无法在 UI 中勾选免确认。
+        List<Map<String, String>> confirmable = registry.allWithMcp().stream()
                 .filter(ToolDefinition::requiresConfirm)
+                .sorted(java.util.Comparator.comparing(ToolDefinition::name))
                 .map(def -> {
                     Map<String, String> m = new LinkedHashMap<>();
                     m.put("name", def.name());
@@ -94,7 +97,7 @@ public class AgentSettingsController {
     public Map<String, Object> updateAutoApprove(
             @RequestBody Map<String, List<String>> body,
             Principal principal) {
-        User user = resolveUser(principal);
+        User user = requireUser(principal);
         List<String> tools = body != null ? body.get("tools") : null;
         Set<String> toolSet = (tools != null) ? Set.copyOf(tools) : Set.of();
         approvalPolicy.updateAutoApproved(user, toolSet);
@@ -152,7 +155,7 @@ public class AgentSettingsController {
     public Map<String, Object> updateModel(
             @RequestBody Map<String, String> body,
             Principal principal) {
-        User user = resolveUser(principal);
+        User user = requireUser(principal);
         String modelId = body != null ? body.get("modelId") : null;
         if (modelId == null || modelId.isBlank()) {
             throw new org.springframework.web.server.ResponseStatusException(
@@ -174,5 +177,21 @@ public class AgentSettingsController {
     private User resolveUser(Principal principal) {
         if (principal == null) return null;
         return userRepository.findByUsername(principal.getName()).orElse(null);
+    }
+
+    /**
+     * 写操作专用：解析不到用户时返回 401，而不是静默成功。
+     *
+     * <p>背景：{@code /agent/**} 在 WebSecurityConfig 中被 permitAll（因为静态资源
+     * {@code /agent/chat-panel.js|css} 也在该前缀下），所以写接口必须自己兜住鉴权，
+     * 否则匿名调用会静默返回 {@code {"status":"ok"}} 而实际什么都没保存。</p>
+     */
+    private User requireUser(Principal principal) {
+        User user = resolveUser(principal);
+        if (user == null) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED, "请先登录");
+        }
+        return user;
     }
 }

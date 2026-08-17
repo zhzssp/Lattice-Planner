@@ -1,4 +1,4 @@
-git {
+{
   "name": "Lattice-Planner",
   "version": "1.0.0",
   "description": "Lattice-Planner 桌面客户端（Electron），支持任务 DDL 提醒与系统托盘",

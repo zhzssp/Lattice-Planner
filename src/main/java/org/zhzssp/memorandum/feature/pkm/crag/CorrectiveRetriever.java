@@ -132,26 +132,52 @@ public class CorrectiveRetriever {
         return new CragResult(truncate(hits, k), g2, degraded, usedQueries);
     }
 
-    /** RRF 合并两份命中列表（复用 RagSearchService 里的 (source,noteId/path,chunkIdx) key 思路）。 */
+    /**
+     * RRF（Reciprocal Rank Fusion）合并两份命中列表。
+     *
+     * <p>去重 key 为 {@code (source, noteId/path, chunkIdx)}（见 {@link #hitKey}），
+     * <strong>不含 rank</strong>——否则同一文档在两个列表中排名不同时会被当成两条不同结果，
+     * 既无法去重也无法融合分数。</p>
+     *
+     * <p>融合公式为标准 RRF：{@code score = Σ 1/(k + rank)}，k=60 为业界常用常数，
+     * 让排名靠前的贡献更大且对绝对分数尺度不敏感（两路检索的 score 量纲可能不同）。
+     * 同时保留各路原始 score 的最大值，供 {@link RetrievalEvaluator#gradeByScore} 判级
+     * ——判级依赖的是"原始融合分数"语义，不能用 RRF 分数（量级完全不同）。</p>
+     */
     private List<RagSearchService.Hit> mergeByRrf(List<RagSearchService.Hit> a, List<RagSearchService.Hit> b) {
-        Map<String, RagSearchService.Hit> merged = new LinkedHashMap<>();
-        int rank = 0;
-        for (RagSearchService.Hit h : a) {
-            String key = hitKey(h) + "#" + rank++;
-            merged.put(key, h);
+        final int k = 60;
+        Map<String, RagSearchService.Hit> byKey = new LinkedHashMap<>();
+        Map<String, Double> rrf = new LinkedHashMap<>();
+        Map<String, Double> maxScore = new LinkedHashMap<>();
+
+        for (List<RagSearchService.Hit> list : List.of(a, b)) {
+            int rank = 0;
+            for (RagSearchService.Hit h : list) {
+                String key = hitKey(h);
+                rrf.merge(key, 1.0 / (k + rank), Double::sum);
+                maxScore.merge(key, h.score(), Math::max);
+                // 首次出现时登记；重复出现时用内容更完整的那条
+                byKey.merge(key, h, (old, nu) -> {
+                    boolean oldBlank = old.content() == null || old.content().isBlank();
+                    boolean nuHasContent = nu.content() != null && !nu.content().isBlank();
+                    return (oldBlank && nuHasContent) ? nu : old;
+                });
+                rank++;
+            }
         }
-        rank = 0;
-        for (RagSearchService.Hit h : b) {
-            String key = hitKey(h) + "#" + rank++;
-            // 累加分数（简化的 RRF：取平均）
-            merged.merge(key, h, (old, nu) -> new RagSearchService.Hit(
-                    old.source(), old.noteId(), old.sourcePath(), old.chunkIdx(),
-                    nu.content() != null && !nu.content().isBlank() ? nu.content() : old.content(),
-                    (old.score() + nu.score()) / 2.0,
-                    old.reason() + "|" + nu.reason()));
-        }
-        return merged.values().stream()
-                .sorted(Comparator.comparingDouble((RagSearchService.Hit hit) -> -hit.score()))
+
+        // 按 RRF 降序排列，但 Hit.score 回填为各路原始分数的最大值（保持判级语义）
+        return byKey.entrySet().stream()
+                .sorted(Comparator.comparingDouble(
+                        (Map.Entry<String, RagSearchService.Hit> e) -> -rrf.getOrDefault(e.getKey(), 0.0)))
+                .map(e -> {
+                    RagSearchService.Hit h = e.getValue();
+                    double best = maxScore.getOrDefault(e.getKey(), h.score());
+                    if (best == h.score()) return h;
+                    return new RagSearchService.Hit(
+                            h.source(), h.noteId(), h.sourcePath(), h.chunkIdx(),
+                            h.content(), best, h.reason());
+                })
                 .toList();
     }
 

@@ -1,9 +1,9 @@
 {
-  "_comment": "Lattice-Agent 本地工具白名单。allowDirs 与 denyDirs 同时存在，路径必须在 allowDirs 之内且不在 denyDirs 之内才会被允许访问。请按本机实际情况修改。Stage 2 PKM-RAG 摄取 PDF 后单文件可能较大，maxFileBytes 提到 4MB；批量摄取由 Agent 多次单文件调用，前端无需统一上限。",
+  "_comment": "Lattice-Agent 本地工具白名单（Electron LocalBridge 通道专用）。allowDirs 与 denyDirs 同时生效：路径必须在 allowDirs 之内且不在 denyDirs 之内才允许访问。注意：Agent 读本地文档走的是后端直读 + MCP loopback 通道，其白名单由 application.properties 的 mcp.server.local-allowed-dirs 控制（留空则默认整个用户主目录），与本文件互不影响。",
   "allowDirs": [
-    "D:/notes",
-    "D:/learning",
-    "C:/Users/Public/Documents"
+    "C:/Users/hanishzheng/Desktop",
+    "C:/Users/hanishzheng/Documents",
+    "C:/Users/hanishzheng/Downloads"
   ],
   "denyDirs": [
     "C:/Windows",

@@ -20,7 +20,10 @@ public class EndpointBalancer {
      * 从 provider 的 endpoints 中按加权轮询挑选一个。
      *
      * @param provider 提供方（含 endpoints 列表）
-     * @return 选中的 endpoint（不会为 null，provider.endpoints 为空时由 Catalog 校验层拦截）
+     * @return 选中的 endpoint
+     * @throws IllegalStateException endpoints 为空时抛出。正常情况下不会发生——
+     *         {@code ModelCatalog} 已在启动期剔除无可用 endpoint 的 provider 下的模型，
+     *         此处仅作为防御性兜底。
      */
     public LlmProperties.Endpoint pick(LlmProperties.Provider provider) {
         List<LlmProperties.Endpoint> endpoints = provider.getEndpoints();

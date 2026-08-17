@@ -65,10 +65,15 @@ public class LlmRouter {
         LlmProperties.Endpoint endpoint = balancer.pick(provider);
 
         String baseUrl = endpoint.getBaseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            throw new IllegalStateException(
+                    "[LlmRouter] provider=" + provider.getId() + " model=" + modelId
+                            + " 的 endpoint 未配置 base-url");
+        }
+
         String apiKey = endpoint.getApiKey();
         if (apiKey == null || apiKey.isBlank()) {
-            // 回落环境变量
-            apiKey = System.getenv("DEEPSEEK_API_KEY");
+            apiKey = envKeyFor(provider.getId());
         }
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException(
@@ -76,6 +81,22 @@ public class LlmRouter {
         }
 
         return new ResolvedTarget(modelId, provider.getId(), baseUrl, apiKey);
+    }
+
+    /**
+     * 按 provider 选择环境变量回落来源。
+     *
+     * <p>不能对所有 provider 都回落 {@code DEEPSEEK_API_KEY}——那会让 openai-compat 等
+     * 非 DeepSeek 提供方误用 DeepSeek 的 key，导致难以定位的 401。</p>
+     */
+    private String envKeyFor(String providerId) {
+        if (providerId == null) return null;
+        return switch (providerId) {
+            case "deepseek" -> System.getenv("DEEPSEEK_API_KEY");
+            case "openai-compat" -> System.getenv("OPENAI_COMPAT_API_KEY");
+            // 未知 provider：按约定尝试 <PROVIDER_ID>_API_KEY（连字符转下划线并大写）
+            default -> System.getenv(providerId.toUpperCase().replace('-', '_') + "_API_KEY");
+        };
     }
 
     /** 当前 AgentContext 用户选中的模型 id（供前端展示），无法解析时返回默认值。 */

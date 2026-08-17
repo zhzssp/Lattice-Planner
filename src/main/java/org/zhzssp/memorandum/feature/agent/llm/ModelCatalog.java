@@ -30,11 +30,18 @@ public class ModelCatalog {
                         p -> p,
                         (a, b) -> a));
 
-        // 校验并过滤 model：providerId 必须存在，enabled=true 才上架
+        // 校验并过滤 model：providerId 必须存在、provider 必须有可用 endpoint、enabled=true 才上架
         this.availableModels = props.getModels().stream()
                 .filter(m -> {
-                    if (!providerMap.containsKey(m.getProviderId())) {
+                    LlmProperties.Provider p = providerMap.get(m.getProviderId());
+                    if (p == null) {
                         log.warn("[ModelCatalog] 模型 {} 的 providerId={} 不存在，已跳过",
+                                m.getId(), m.getProviderId());
+                        return false;
+                    }
+                    if (!hasUsableEndpoint(p)) {
+                        log.warn("[ModelCatalog] 模型 {} 的 provider={} 没有配置有效 endpoint"
+                                        + "（endpoints 为空或 base-url 全为空），已跳过",
                                 m.getId(), m.getProviderId());
                         return false;
                     }
@@ -44,6 +51,19 @@ public class ModelCatalog {
                 .toList();
 
         this.defaultModelId = ensureDefaultModel();
+    }
+
+    /**
+     * provider 是否至少有一个可用 endpoint（存在且 base-url 非空）。
+     *
+     * <p>在启动期剔除无效模型，避免用户在下拉里选到一个必然 500 的模型
+     * ——例如 openai-compat 的 {@code base-url=${OPENAI_COMPAT_BASE_URL:}} 未设置环境变量时为空串。</p>
+     */
+    private boolean hasUsableEndpoint(LlmProperties.Provider p) {
+        List<LlmProperties.Endpoint> eps = p.getEndpoints();
+        if (eps == null || eps.isEmpty()) return false;
+        return eps.stream().anyMatch(e ->
+                e != null && e.getBaseUrl() != null && !e.getBaseUrl().isBlank());
     }
 
     private String ensureDefaultModel() {

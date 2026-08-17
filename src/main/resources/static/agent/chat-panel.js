@@ -31,6 +31,8 @@
     if (modelSel) {
         // 面板打开时拉取模型列表（避免每次页面加载都发请求）
         let modelsLoaded = false;
+        // 记住最后一次「后端已确认」的模型，供切换失败时回滚下拉
+        let lastAppliedModel = null;
         fab.onclick = (function (orig) {
             return function () {
                 orig.call(this);
@@ -56,6 +58,7 @@
                             modelSel.appendChild(opt);
                         });
                         modelSel.value = data.current || models[0].id;
+                        lastAppliedModel = modelSel.value;
                     }
                     modelSel.disabled = (models.length <= 1);
                     modelsLoaded = true;
@@ -69,6 +72,7 @@
         modelSel.onchange = function () {
             const modelId = modelSel.value;
             if (!modelId) return;
+            const prev = lastAppliedModel;
             modelSel.disabled = true;
             fetch('/agent/settings/model', {
                 method: 'PUT',
@@ -77,12 +81,15 @@
             })
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
                 .then(() => {
-                    // 切换成功，下拉恢复可用
+                    // 切换成功：记录新值并恢复可用
+                    lastAppliedModel = modelId;
                     modelSel.disabled = false;
                 })
                 .catch(err => {
-                    // 切换失败，回到之前的选项（静默处理）
+                    // 切换失败：回滚到上一次后端已确认的值，避免 UI 与后端状态不一致
+                    if (prev !== null) modelSel.value = prev;
                     modelSel.disabled = false;
+                    console.warn('[Lattice-Agent] 模型切换失败，已回滚：', err && err.message);
                 });
         };
     }

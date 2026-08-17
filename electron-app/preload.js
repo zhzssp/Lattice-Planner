@@ -14,17 +14,7 @@ contextBridge.exposeInMainWorld('latticePlanner', {
 });
 
 // ★ Lattice-Agent 本地能力桥：仅在 Electron 客户端环境下可用
-// 后端 JVM 不直接做磁盘 IO，所有本地操作必须经过此桥（main.js 内基于白名单实施二次校验）
-contextBridge.exposeInMainWorld('lattice', {
-    localBridge: {
-        listDir:  (p) => ipcRenderer.invoke('local:list_dir',  { path: p }),
-        readFile: (p) => ipcRenderer.invoke('local:read_file', { path: p }),
-        readPdf:  (p) => ipcRenderer.invoke('local:read_pdf',  { path: p })
-    }
-});
-
-// ★ Lattice-Agent 本地能力桥：仅在 Electron 客户端环境下可用
-// 后端 JVM 不直接做磁盘 IO，所有本地操作必须经过此桥（main.js 内基于白名单实施二次校验）
+// 注意：contextBridge 对同一 key 重复 exposeInMainWorld 会抛错，此处只能声明一次。
 contextBridge.exposeInMainWorld('lattice', {
     localBridge: {
         listDir:  (p) => ipcRenderer.invoke('local:list_dir',  { path: p }),

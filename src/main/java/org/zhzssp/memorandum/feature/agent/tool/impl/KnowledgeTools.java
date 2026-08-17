@@ -5,11 +5,9 @@ import org.zhzssp.memorandum.entity.Link;
 import org.zhzssp.memorandum.entity.User;
 import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
 import org.zhzssp.memorandum.feature.agent.tool.AgentTool;
-import org.zhzssp.memorandum.feature.agent.tool.LocalBridgeProxy;
 import org.zhzssp.memorandum.feature.agent.tool.ToolParam;
 import org.zhzssp.memorandum.feature.pkm.crag.CorrectiveRetriever;
 import org.zhzssp.memorandum.feature.pkm.crag.RetrievalEvaluator;
-import org.zhzssp.memorandum.feature.pkm.service.NoteIndexService;
 import org.zhzssp.memorandum.feature.pkm.service.RagSearchService;
 import org.zhzssp.memorandum.repository.LinkRepository;
 import org.zhzssp.memorandum.repository.NoteEmbeddingRepository;
@@ -17,7 +15,6 @@ import org.zhzssp.memorandum.repository.NoteRepository;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,28 +37,19 @@ import java.util.Objects;
 @Component
 public class KnowledgeTools {
 
-    private final RagSearchService rag;
     private final CorrectiveRetriever correctiveRetriever;
-    private final NoteIndexService indexService;
     private final NoteRepository noteRepository;
     private final NoteEmbeddingRepository embeddingRepository;
     private final LinkRepository linkRepository;
-    private final LocalBridgeProxy localBridge;
 
-    public KnowledgeTools(RagSearchService rag,
-                          CorrectiveRetriever correctiveRetriever,
-                          NoteIndexService indexService,
+    public KnowledgeTools(CorrectiveRetriever correctiveRetriever,
                           NoteRepository noteRepository,
                           NoteEmbeddingRepository embeddingRepository,
-                          LinkRepository linkRepository,
-                          LocalBridgeProxy localBridge) {
-        this.rag = rag;
+                          LinkRepository linkRepository) {
         this.correctiveRetriever = correctiveRetriever;
-        this.indexService = indexService;
         this.noteRepository = noteRepository;
         this.embeddingRepository = embeddingRepository;
         this.linkRepository = linkRepository;
-        this.localBridge = localBridge;
     }
 
     @AgentTool(name = "kb.semantic_search", tags = {"kb", "read"},
@@ -185,7 +173,20 @@ public class KnowledgeTools {
                           "如需启用，请单独排期并实现桥接替换。");
     }
 
-    /** v3 已禁用：原 write 实现保留在下方注释，供后续启用时参考。 */
+    /**
+     * v3 已禁用：原 write 实现保留在下方注释，供后续启用时参考。
+     *
+     * <p><strong>恢复时需注意</strong>：本类已移除 {@code NoteIndexService indexService} 与
+     * {@code LocalBridgeProxy localBridge} 两个注入（原先只被本注释块引用，属死注入）。
+     * 启用写能力时需要：
+     * <ol>
+     *   <li>重新注入 {@code NoteIndexService}（{@code rebuildForLocalDoc} 已实现且完整可用）；</li>
+     *   <li>把取文逻辑从 {@code localBridge.call("read_file"/"read_pdf")} 换成后端直读
+     *       （{@code DocumentExtractorRegistry.extract(Path)}）——Electron LocalBridge 通道
+     *       在 v3 已被 MCP 后端直读取代，{@code LocalDocTools} 亦已下线；</li>
+     *   <li>同时恢复 {@code java.util.Locale} import。</li>
+     * </ol>
+     */
     /*
     public Map<String, Object> ingestLocalImpl(
             @ToolParam(value = "path", desc = "绝对路径（受 Electron 白名单约束）", required = true) String path
