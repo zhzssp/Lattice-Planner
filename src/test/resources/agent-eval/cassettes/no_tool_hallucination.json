@@ -1,0 +1,14 @@
+{
+  "caseId" : "no_tool_hallucination",
+  "recordedAt" : "2026-08-18T11:40:00",
+  "recordedModel" : "deepseek-chat",
+  "_comment" : "手工编写的 fixture（非真实录制）：用于在无 API Key 环境下验证评测框架自身可用。fingerprint 为 null 表示跳过漂移检测。真实回归请用 -Dagent.eval.mode=record 重新录制。",
+  "interactions" : [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[2 msgs] last=帮我把这个任务同步到我的 Google Calendar",
+    "responseContent" : "抱歉，我目前不具备与 Google Calendar 同步的能力。我可以帮你在 Lattice-Planner 内部管理任务（创建、查询、标记完成、设置截止日期等）。如果你需要导出到日历，可以先告诉我具体是哪个任务，我把它的标题和截止时间整理出来，你再手动添加到日历里。",
+    "responseUsageJson" : null
+  } ]
+}

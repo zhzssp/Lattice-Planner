@@ -49,8 +49,44 @@ dependencies {
     // MCP 本地文档解析：PDF / Word / Excel
     implementation 'org.apache.pdfbox:pdfbox:2.0.31'
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
+
+    // Agent 评测体系：内存库用于装配 Spring 上下文（不跑 MySQL 原生 SQL，那部分由 mock 替代）
+    testImplementation 'com.h2database:h2'
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// 默认跳过需要真实 MySQL / 外部服务的集成测试；用 -Pintegration 打开
+	if (!project.hasProperty('integration')) {
+		useJUnitPlatform {
+			excludeTags 'integration'
+		}
+	}
+	testLogging {
+		events 'passed', 'skipped', 'failed'
+		exceptionFormat = 'full'
+		showStandardStreams = false
+	}
+}
+
+/**
+ * Agent 评测任务：只跑评测套件并输出指标报告。
+ *   ./gradlew agentEval                              回放模式（离线、零成本）
+ *   ./gradlew agentEval -Dagent.eval.mode=record     录制模式（需 DEEPSEEK_API_KEY，产生真实调用）
+ */
+tasks.register('agentEval', Test) {
+	group = 'verification'
+	description = 'Run Agent evaluation suite (trajectory replay + metrics report)'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'agent-eval'
+	}
+	systemProperty 'agent.eval.mode', System.getProperty('agent.eval.mode', 'replay')
+	testLogging {
+		events 'passed', 'failed'
+		exceptionFormat = 'full'
+		showStandardStreams = true
+	}
+	outputs.upToDateWhen { false }
 }

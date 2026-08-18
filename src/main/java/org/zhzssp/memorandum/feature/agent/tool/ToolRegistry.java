@@ -36,6 +36,7 @@ public class ToolRegistry {
 
     private final ApplicationContext ctx;
     private final ObjectMapper om;
+    private final ToolArgumentValidator validator;
     private final Map<String, ToolDefinition> tools = new ConcurrentHashMap<>();
 
     // MCP 远程工具注册表（fullName → McpRemoteTool）
@@ -44,9 +45,10 @@ public class ToolRegistry {
     // MCP 工具代理（延迟注入，避免循环依赖）
     private volatile Object mcpProxy;
 
-    public ToolRegistry(ApplicationContext ctx, ObjectMapper om) {
+    public ToolRegistry(ApplicationContext ctx, ObjectMapper om, ToolArgumentValidator validator) {
         this.ctx = ctx;
         this.om = om;
+        this.validator = validator;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -181,19 +183,46 @@ public class ToolRegistry {
     /**
      * 根据 LLM 给出的 arguments(JsonNode) 反射调用工具方法。
      * 支持本地 @AgentTool 和 MCP 远程工具。
+     *
+     * <p>E：调用前先做参数校验。校验失败时<strong>返回</strong>错误 Map 而非抛异常，
+     * 目的是让它走与工具业务错误一致的回灌通道（{@code {"error":...}}），
+     * 从而能被 {@code ReflexionAdvisor} 分类并附加修复策略。
+     * 抛异常则会被上层包装成笼统的 {@code IllegalArgumentException}，丢掉全部细节。</p>
      */
     public Object invoke(String name, JsonNode args) throws Exception {
         // 优先匹配本地工具
         ToolDefinition t = tools.get(name);
         if (t != null) {
+            Map<String, Object> invalid = validator.validateLocal(t, args);
+            if (invalid != null) {
+                log.debug("[Agent] 参数校验拒绝 tool={} issues={}", name, invalid.get("issues"));
+                return invalid;
+            }
             return invokeLocal(t, args);
         }
         // MCP 远程工具
         McpRemoteTool mcp = mcpTools.get(name);
         if (mcp != null) {
+            Map<String, Object> invalid = validateMcpArgs(mcp, args);
+            if (invalid != null) {
+                log.debug("[Agent] 参数校验拒绝(MCP) tool={} issues={}", name, invalid.get("issues"));
+                return invalid;
+            }
             return invokeMcp(name, args);
         }
         throw new IllegalArgumentException("未知工具：" + name);
+    }
+
+    /** MCP 工具的 inputSchema 是 Map，转成 JsonNode 后交给校验器。 */
+    private Map<String, Object> validateMcpArgs(McpRemoteTool mcp, JsonNode args) {
+        if (mcp.inputSchema() == null || mcp.inputSchema().isEmpty()) return null;
+        try {
+            return validator.validateMcp(mcp.fullName(), om.valueToTree(mcp.inputSchema()), args);
+        } catch (Exception e) {
+            // 远端 schema 形状不可控，校验器自身异常绝不能阻断真实调用
+            log.debug("[Agent] MCP 参数校验跳过 tool={}：{}", mcp.fullName(), e.getMessage());
+            return null;
+        }
     }
 
     /** 本地工具反射调用。 */
@@ -252,11 +281,8 @@ public class ToolRegistry {
     }
 
     private String jsonType(Class<?> c) {
-        if (c == String.class) return "string";
-        if (c == Integer.class || c == int.class || c == Long.class || c == long.class) return "integer";
-        if (c == Double.class || c == double.class || c == Float.class || c == float.class) return "number";
-        if (c == Boolean.class || c == boolean.class) return "boolean";
-        if (Collection.class.isAssignableFrom(c) || c.isArray()) return "array";
-        return "object";
+        // 委托给校验器的同一套映射：保证 LLM 看到的 schema 类型
+        // 与校验时的期望类型永远一致（两处各写一份必然会漂移）
+        return ToolArgumentValidator.jsonTypeOf(c);
     }
 }

@@ -1,18 +1,12 @@
 package org.zhzssp.memorandum.feature.agent.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.zhzssp.memorandum.feature.agent.llm.LlmRouter;
+import org.zhzssp.memorandum.feature.agent.llm.transport.LlmTransport;
 import org.zhzssp.memorandum.feature.agent.runtime.PrefixCacheMetrics;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -21,12 +15,27 @@ import java.util.Map;
  *
  * <p>{@code generateChat} 经 {@link LlmRouter} 按当前用户路由到对应 provider/endpoint/model；
  * {@code generateText} 与 {@code generateEmbedding} 保留旧 @Value 路径（避免影响 Scheduler/异步线程）。</p>
+ *
+ * <p><strong>分层</strong>：本类负责业务语义（路由、参数默认值、usage 统计上报、空响应校验），
+ * 实际 HTTP 投递委托给 {@link LlmTransport}。这个切分使得 Agent 评测可以替换传输层来固定
+ * LLM 响应，而本类的路由与统计逻辑仍被真实执行。</p>
  */
 @Component
 public class LlmGateway {
 
     private static final String DEFAULT_MODEL = "deepseek-chat";
     private static final String DEFAULT_BASE_URL = "https://api.deepseek.com";
+
+    /** generateText 的固定参数（历史行为，不要随意改动） */
+    private static final double TEXT_TEMPERATURE = 0.3;
+    private static final int TEXT_TIMEOUT_SECONDS = 60;
+    private static final String TEXT_SYSTEM_PROMPT = "You are a precise planning assistant.";
+
+    /** generateChat 的固定参数 */
+    private static final double CHAT_TEMPERATURE = 0.2;
+    private static final int CHAT_TIMEOUT_SECONDS = 90;
+
+    private static final int EMBED_TIMEOUT_SECONDS = 60;
 
     @Value("${agent.llm.model:" + DEFAULT_MODEL + "}")
     private String model;
@@ -50,64 +59,50 @@ public class LlmGateway {
     @Value("${agent.embedding.api-key:}")
     private String embeddingApiKey;
 
-    private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
+    private final LlmTransport transport;
     private final LlmRouter router;
     private final PrefixCacheMetrics prefixMetrics;
 
-    public LlmGateway(ObjectMapper objectMapper, LlmRouter router, PrefixCacheMetrics prefixMetrics) {
-        this.objectMapper = objectMapper;
+    public LlmGateway(LlmTransport transport, LlmRouter router, PrefixCacheMetrics prefixMetrics) {
+        this.transport = transport;
         this.router = router;
         this.prefixMetrics = prefixMetrics;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
     }
 
+    /**
+     * 单轮文本生成：摘要 / 查询改写 / rerank / 规划草稿等。
+     *
+     * <p>不经 LlmRouter——因为它会被 Scheduler、异步索引等无 AgentContext 的线程调用。</p>
+     */
     public String generateText(String prompt) {
         String apiKey = resolveApiKey();
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("Agent LLM API key is missing. Please set agent.llm.api-key or DEEPSEEK_API_KEY.");
+            throw new IllegalStateException(
+                    "Agent LLM API key is missing. Please set agent.llm.api-key or DEEPSEEK_API_KEY.");
         }
 
+        List<Map<String, String>> messages = List.of(
+                Map.of("role", "system", "content", TEXT_SYSTEM_PROMPT),
+                Map.of("role", "user", "content", prompt)
+        );
+
+        LlmTransport.ChatResponse resp;
         try {
-            String endpoint = normalizeBaseUrl(baseUrl) + "/v1/chat/completions";
-            String requestBody = objectMapper.writeValueAsString(Map.of(
-                    "model", model,
-                    "temperature", 0.3,
-                    "messages", new Object[]{
-                            Map.of("role", "system", "content", "You are a precise planning assistant."),
-                            Map.of("role", "user", "content", prompt)
-                    }
-            ));
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(endpoint))
-                    .timeout(Duration.ofSeconds(60))
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + apiKey)
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException("DeepSeek API request failed: HTTP " + response.statusCode() + " - " + response.body());
-            }
-
-            JsonNode root = objectMapper.readTree(response.body());
-            JsonNode contentNode = root.path("choices").path(0).path("message").path("content");
-            String text = contentNode.isMissingNode() || contentNode.isNull() ? null : contentNode.asText();
-
-            if (text == null || text.isBlank()) {
-                throw new IllegalStateException("LLM returned empty response.");
-            }
-            return text.trim();
-        } catch (IOException | InterruptedException ex) {
-            if (ex instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+            resp = transport.chat(new LlmTransport.ChatRequest(
+                    baseUrl, apiKey, model, messages,
+                    TEXT_TEMPERATURE, TEXT_TIMEOUT_SECONDS, LlmTransport.Purpose.TEXT));
+        } catch (LlmTransport.LlmHttpException ex) {
+            throw new IllegalStateException(
+                    "DeepSeek API request failed: HTTP " + ex.statusCode() + " - " + ex.responseBody());
+        } catch (LlmTransport.LlmTransportException ex) {
             throw new IllegalStateException("Failed to call DeepSeek API.", ex);
         }
+
+        String text = resp.content();
+        if (text == null || text.isBlank()) {
+            throw new IllegalStateException("LLM returned empty response.");
+        }
+        return text.trim();
     }
 
     /**
@@ -121,48 +116,59 @@ public class LlmGateway {
         } catch (Exception ex) {
             throw new IllegalStateException("LlmRouter 路由失败：" + ex.getMessage(), ex);
         }
-        return postChat(target.baseUrl(), target.apiKey(), target.modelId(), messages, 0.2, 90);
+
+        LlmTransport.ChatResponse resp;
+        try {
+            resp = transport.chat(new LlmTransport.ChatRequest(
+                    target.baseUrl(), target.apiKey(), target.modelId(), messages,
+                    CHAT_TEMPERATURE, CHAT_TIMEOUT_SECONDS, LlmTransport.Purpose.CHAT));
+        } catch (LlmTransport.LlmHttpException ex) {
+            throw new IllegalStateException(
+                    "Chat API failed: HTTP " + ex.statusCode() + " - " + ex.responseBody());
+        } catch (LlmTransport.LlmTransportException ex) {
+            throw new IllegalStateException("Failed to call Chat API.", ex);
+        }
+
+        prefixMetrics.recordChatCall();
+        recordPromptCacheUsage(resp.usage());
+        return resp.content();
     }
 
     /**
-     * 通用 Chat Completions 投递（供 generateChat + 可能的后台/fallback 路径复用）。
+     * 调用 OpenAI-Compatible /v1/embeddings 接口。
+     * 返回与输入顺序对齐的向量数组；不缓存，由调用方（NoteIndexService / RagSearchService）控制频率。
      *
-     * <p>P4：顺带读取响应 {@code usage} 中的 prompt cache token 统计并上报
-     * {@link PrefixCacheMetrics}。DeepSeek 的 context caching 是自动的（按前缀命中，
-     * 无需显式传 cache_id），因此这里只做「观测」，不改请求协议。</p>
+     * 失败时抛 IllegalStateException 给上层，RagSearchService 会捕获并降级到纯关键字。
      */
-    @SuppressWarnings("unchecked")
-    private String postChat(String baseUrl, String apiKey, String modelId,
-                            List<?> messages, double temperature, int timeoutSeconds) {
+    public List<float[]> generateEmbedding(List<String> inputs) {
+        if (inputs == null || inputs.isEmpty()) return List.of();
+
+        String key = (embeddingApiKey != null && !embeddingApiKey.isBlank())
+                ? embeddingApiKey.trim() : resolveApiKey();
+        if (key == null || key.isBlank()) {
+            throw new IllegalStateException(
+                    "Embedding API key 未配置：请设置 agent.embedding.api-key（或 agent.llm.api-key 作为回落）");
+        }
+        String base = (embeddingBaseUrl != null && !embeddingBaseUrl.isBlank())
+                ? embeddingBaseUrl : baseUrl;
+
         try {
-            String endpoint = normalizeBaseUrl(baseUrl) + "/v1/chat/completions";
-            String requestBody = objectMapper.writeValueAsString(Map.of(
-                    "model", modelId,
-                    "temperature", temperature,
-                    "messages", messages
-            ));
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(endpoint))
-                    .timeout(Duration.ofSeconds(timeoutSeconds))
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + apiKey)
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                    .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException(
-                        "Chat API failed: HTTP " + response.statusCode() + " - " + response.body());
-            }
-            JsonNode root = objectMapper.readTree(response.body());
-            prefixMetrics.recordChatCall();
-            recordPromptCacheUsage(root.path("usage"));
-            JsonNode contentNode = root.path("choices").path(0).path("message").path("content");
-            return contentNode.isMissingNode() || contentNode.isNull() ? "" : contentNode.asText("").trim();
-        } catch (IOException | InterruptedException ex) {
-            if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
-            throw new IllegalStateException("Failed to call Chat API.", ex);
+            return transport.embed(new LlmTransport.EmbedRequest(
+                    base, key, embeddingModel, inputs, EMBED_TIMEOUT_SECONDS));
+        } catch (LlmTransport.LlmHttpException ex) {
+            throw new IllegalStateException(
+                    "Embedding API 请求失败：HTTP " + ex.statusCode() + " - " + ex.responseBody());
+        } catch (LlmTransport.LlmTransportException ex) {
+            throw new IllegalStateException("调用 Embedding API 失败", ex);
         }
     }
+
+    /** 当前 embedding 模型名（写入 note_embedding.model 字段，便于后续切换模型时识别旧向量）。 */
+    public String embeddingModelName() {
+        return embeddingModel;
+    }
+
+    /* ---- 内部 ---- */
 
     /**
      * 从 usage 提取 prompt cache 命中/未命中 token 数，兼容两种上游格式：
@@ -181,7 +187,6 @@ public class LlmGateway {
                 prefixMetrics.recordPromptCacheTokens(Math.max(0, hit), Math.max(0, miss));
                 return;
             }
-            // OpenAI 风格回退
             long cached = usage.path("prompt_tokens_details").path("cached_tokens").asLong(-1);
             if (cached >= 0) {
                 long promptTokens = usage.path("prompt_tokens").asLong(0);
@@ -192,80 +197,11 @@ public class LlmGateway {
         }
     }
 
-    /**
-     * 调用 OpenAI-Compatible /v1/embeddings 接口。
-     * 返回与输入顺序对齐的向量数组；不缓存，由调用方（NoteIndexService / RagSearchService）控制频率。
-     *
-     * 失败时抛 IllegalStateException 给上层，RagSearchService 会捕获并降级到纯关键字。
-     */
-    public java.util.List<float[]> generateEmbedding(java.util.List<String> inputs) {
-        if (inputs == null || inputs.isEmpty()) return java.util.List.of();
-
-        String key = (embeddingApiKey != null && !embeddingApiKey.isBlank())
-                ? embeddingApiKey.trim() : resolveApiKey();
-        if (key == null || key.isBlank()) {
-            throw new IllegalStateException(
-                    "Embedding API key 未配置：请设置 agent.embedding.api-key（或 agent.llm.api-key 作为回落）");
-        }
-        String base = (embeddingBaseUrl != null && !embeddingBaseUrl.isBlank())
-                ? normalizeBaseUrl(embeddingBaseUrl) : normalizeBaseUrl(baseUrl);
-
-        try {
-            String body = objectMapper.writeValueAsString(Map.of(
-                    "model", embeddingModel,
-                    "input", inputs
-            ));
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(base + "/v1/embeddings"))
-                    .timeout(Duration.ofSeconds(60))
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + key)
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build();
-            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-                throw new IllegalStateException(
-                        "Embedding API 请求失败：HTTP " + resp.statusCode() + " - " + resp.body());
-            }
-            JsonNode arr = objectMapper.readTree(resp.body()).path("data");
-            java.util.List<float[]> out = new java.util.ArrayList<>(inputs.size());
-            for (JsonNode n : arr) {
-                JsonNode emb = n.path("embedding");
-                float[] v = new float[emb.size()];
-                for (int i = 0; i < emb.size(); i++) v[i] = (float) emb.get(i).asDouble();
-                out.add(v);
-            }
-            return out;
-        } catch (IOException | InterruptedException ex) {
-            if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
-            throw new IllegalStateException("调用 Embedding API 失败", ex);
-        }
-    }
-
-    /** 当前 embedding 模型名（写入 note_embedding.model 字段，便于后续切换模型时识别旧向量）。 */
-    public String embeddingModelName() {
-        return embeddingModel;
-    }
-
-    private String normalizeBaseUrl(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return DEFAULT_BASE_URL;
-        }
-        String trimmed = raw.trim();
-        if (trimmed.endsWith("/")) {
-            return trimmed.substring(0, trimmed.length() - 1);
-        }
-        return trimmed;
-    }
-
     private String resolveApiKey() {
         if (configuredApiKey != null && !configuredApiKey.isBlank()) {
             return configuredApiKey.trim();
         }
         String env = System.getenv("DEEPSEEK_API_KEY");
-        if (env != null && !env.isBlank()) {
-            return env.trim();
-        }
-        return null;
+        return (env != null && !env.isBlank()) ? env.trim() : null;
     }
 }

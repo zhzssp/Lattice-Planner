@@ -10,6 +10,7 @@ import org.zhzssp.memorandum.feature.agent.chat.AgentChatWebSocketHandler;
 import org.zhzssp.memorandum.feature.agent.policy.ToolApprovalPolicy;
 import org.zhzssp.memorandum.feature.agent.policy.ToolConfirmCoordinator;
 import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
+import org.zhzssp.memorandum.feature.agent.runtime.ReflexionAdvisor;
 import org.zhzssp.memorandum.feature.agent.runtime.ToolCallParser;
 import org.zhzssp.memorandum.feature.agent.service.LlmGateway;
 import org.zhzssp.memorandum.feature.agent.tool.ToolDefinition;
@@ -49,6 +50,7 @@ public class SubAgentRunner {
     private final ObjectMapper om;
     private final AgentChatWebSocketHandler ws;
     private final RagServingService ragServing;
+    private final ReflexionAdvisor reflexionAdvisor;
 
     @Value("${agent.subagent.max-steps:6}")
     private int maxStepsCap;
@@ -63,7 +65,8 @@ public class SubAgentRunner {
                           ToolApprovalPolicy approvalPolicy,
                           ObjectMapper om,
                           @Lazy AgentChatWebSocketHandler ws,
-                          RagServingService ragServing) {
+                          RagServingService ragServing,
+                          ReflexionAdvisor reflexionAdvisor) {
         this.llm = llm;
         this.registry = registry;
         this.parser = parser;
@@ -72,6 +75,7 @@ public class SubAgentRunner {
         this.om = om;
         this.ws = ws;
         this.ragServing = ragServing;
+        this.reflexionAdvisor = reflexionAdvisor;
     }
 
     /**
@@ -114,6 +118,10 @@ public class SubAgentRunner {
     private SubAgentResult doRun(SubAgentRole role, String instruction) {
         List<String> used = new ArrayList<>();
         int effectiveMaxSteps = Math.min(role.maxSteps(), Math.max(1, maxStepsCap));
+        // D：子代理独立的 Reflexion 状态。子代理步数预算更紧（默认 6），
+        // 一次工具循环就可能吃掉全部预算并只回一句"已达最大步数"，
+        // 因此显式失败干预在这里的收益比主 Agent 更高。
+        ReflexionAdvisor.TurnState reflexion = reflexionAdvisor.newTurn();
         {
             List<Map<String, String>> msgs = new ArrayList<>();
             msgs.add(msg("system", buildSystemPrompt(role)));
@@ -146,7 +154,17 @@ public class SubAgentRunner {
                 ToolDefinition def = registry.get(call.name());
                 if (def == null) {
                     feed(msgs, call.name(),
-                            "{\"error\":\"UNKNOWN_TOOL\",\"tool\":\"" + call.name() + "\"}");
+                            "{\"error\":\"UNKNOWN_TOOL\",\"tool\":\"" + call.name() + "\"}",
+                            reflexionAdvisor.onFailure(reflexion, call.name(),
+                                    ReflexionAdvisor.FailureMode.UNKNOWN_TOOL));
+                    continue;
+                }
+
+                // D · 执行层强制：已封禁工具不再真正执行
+                if (reflexion.isBanned(call.name())) {
+                    log.info("[SubAgent:{}] 阻断已封禁工具调用 tool={}", role, call.name());
+                    feed(msgs, call.name(),
+                            safeWrite(reflexionAdvisor.bannedResult(reflexion, call.name())), null);
                     continue;
                 }
 
@@ -160,12 +178,23 @@ public class SubAgentRunner {
                         ok = false;
                     }
                     if (!ok) {
-                        feed(msgs, call.name(), "{\"status\":\"USER_REJECTED\"}");
+                        feed(msgs, call.name(), "{\"status\":\"USER_REJECTED\"}",
+                                reflexionAdvisor.onFailure(reflexion, call.name(),
+                                        ReflexionAdvisor.FailureMode.USER_REJECTED));
                         continue;
                     }
                 }
 
-                feed(msgs, call.name(), safeInvoke(call));
+                String resultJson = safeInvoke(call);
+                ReflexionAdvisor.FailureMode fm = reflexionAdvisor.classify(resultJson);
+                String hint;
+                if (fm == ReflexionAdvisor.FailureMode.NONE) {
+                    reflexionAdvisor.onSuccess(reflexion, call.name());
+                    hint = null;
+                } else {
+                    hint = reflexionAdvisor.onFailure(reflexion, call.name(), fm);
+                }
+                feed(msgs, call.name(), resultJson, hint);
             }
 
             return new SubAgentResult(role.name(),
@@ -214,9 +243,26 @@ public class SubAgentRunner {
         }
     }
 
-    /** 把工具结果作为 user 消息回灌局部上下文（Reflexion：错误 JSON 也喂回，让子代理自纠）。 */
-    private void feed(List<Map<String, String>> msgs, String tool, String resultJson) {
-        msgs.add(msg("user", "[tool_result " + tool + "]\n" + truncate(resultJson, resultMaxChars)));
+    /**
+     * 把工具结果作为 user 消息回灌局部上下文。
+     *
+     * <p>两层 Reflexion：错误 JSON 本身是隐式回灌，{@code strategyHint} 是 D 的显式策略注入。</p>
+     */
+    private void feed(List<Map<String, String>> msgs, String tool, String resultJson, String strategyHint) {
+        String body = "[tool_result " + tool + "]\n" + truncate(resultJson, resultMaxChars);
+        if (strategyHint != null && !strategyHint.isBlank()) {
+            body = body + "\n\n[策略提示]\n" + strategyHint;
+        }
+        msgs.add(msg("user", body));
+    }
+
+    /** 序列化失败时给一个可读兜底，避免把异常抛进 ReAct 循环。 */
+    private String safeWrite(Object value) {
+        try {
+            return om.writeValueAsString(value);
+        } catch (Exception e) {
+            return "{\"error\":\"" + ReflexionAdvisor.BANNED_ERROR + "\"}";
+        }
     }
 
     private String buildSystemPrompt(SubAgentRole role) {

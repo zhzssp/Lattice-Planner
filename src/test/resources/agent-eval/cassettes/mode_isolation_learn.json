@@ -1,0 +1,14 @@
+{
+  "caseId" : "mode_isolation_learn",
+  "recordedAt" : "2026-08-18T11:40:00",
+  "recordedModel" : "deepseek-chat",
+  "_comment" : "手工编写的 fixture（非真实录制）：验证 learn 模式下 task.create 不可见时 Agent 的行为。fingerprint 为 null 表示跳过漂移检测。",
+  "interactions" : [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[2 msgs] last=帮我建一个任务：学习 Kafka",
+    "responseContent" : "当前处于「学习」模式，这个模式下我只能检索和回顾你的知识库内容，没有创建任务的权限。如果你想把「学习 Kafka」变成一个任务，请切换到「规划」或「对话」模式，我就可以帮你建了。或者我现在可以先帮你查一下知识库里已有的 Kafka 相关笔记？",
+    "responseUsageJson" : null
+  } ]
+}
