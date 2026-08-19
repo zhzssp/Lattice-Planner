@@ -66,6 +66,8 @@ public class ReflexionAdvisor {
         UNKNOWN_TOOL(false),
         /** 疑似偶发（超时/网络/上游 5xx）——可重试一次 */
         TRANSIENT(true),
+        /** 工具存在但在当前 scope 不可见——策略性拒绝，重试毫无意义（方案 K） */
+        TOOL_NOT_VISIBLE(false),
         /** 无法归类 */
         OTHER(true),
         /** 未失败 */
@@ -151,6 +153,11 @@ public class ReflexionAdvisor {
 
         if (hay.contains("UNKNOWN_TOOL")) {
             return FailureMode.UNKNOWN_TOOL;
+        }
+
+        // K：工具存在但在当前 scope 不可见。必须先于 DENIED 判定——它比 DENIED 更具体
+        if (hay.contains("TOOL_NOT_VISIBLE")) {
+            return FailureMode.TOOL_NOT_VISIBLE;
         }
 
         if (hay.contains("INVALID_ARGUMENTS") || hay.contains("ILLEGALARGUMENT")
@@ -267,6 +274,9 @@ public class ReflexionAdvisor {
                     + "禁止再次调用该名称。请严格从系统提示【可用工具】列表里"
                     + "逐字复制工具名，注意前缀（本地工具无 mcp. 前缀，MCP 工具必须带 mcp.<server>. 前缀）；"
                     + "若列表中没有能完成该目标的工具，请直接告知用户此能力不可用。";
+            case TOOL_NOT_VISIBLE -> "⛔ 工具 " + tool + " 在当前模式/角色下不可见，这是策略边界，"
+                    + "换参数或重试都不会通过。禁止再次调用该工具，也不要尝试用其它写工具绕过。"
+                    + "请在【可用工具】列表范围内重新规划，或用自然语言说明当前模式不支持该操作。";
             default -> "⛔ 工具 " + tool + " 失败且不可重试，请改用其它路径。";
         };
     }
@@ -294,6 +304,8 @@ public class ReflexionAdvisor {
                     "建议：回到【可用工具】列表逐字核对工具名与前缀，或改用列表中已有的等效工具。";
             case TRANSIENT ->
                     "建议：改用不依赖该外部服务的替代路径，或告知用户稍后重试。";
+            case TOOL_NOT_VISIBLE ->
+                    "建议：回到【可用工具】列表，只调用当前模式可见的工具；若确需写操作，请告知用户切换模式。";
             default ->
                     "建议：换一个能达成同一目标的工具，或改变解题思路。";
         };
@@ -307,6 +319,7 @@ public class ReflexionAdvisor {
             case USER_REJECTED -> "用户拒绝授权";
             case UNKNOWN_TOOL -> "工具不存在";
             case TRANSIENT -> "疑似偶发故障";
+            case TOOL_NOT_VISIBLE -> "工具当前不可见";
             case OTHER -> "执行失败";
             case NONE -> "无失败";
         };

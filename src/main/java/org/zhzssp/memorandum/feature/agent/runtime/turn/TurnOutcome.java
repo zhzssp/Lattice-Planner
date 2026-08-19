@@ -35,6 +35,11 @@ public final class TurnOutcome {
     private boolean degraded;
     private final Set<String> degradeCauses = new LinkedHashSet<>();
 
+    /** 本轮已被 steer 的次数（L3：由 TurnStoppingBus 递增并受硬上限约束）。 */
+    private int steerCount;
+    /** 最近一次 steer 的顾问名（供埋点归因）。 */
+    private String lastAdvisorName;
+
     public TurnOutcome(String sessionId, String mode, String userInput) {
         this.sessionId = sessionId;
         this.mode = mode;
@@ -86,5 +91,19 @@ public final class TurnOutcome {
         if (cause != null && !cause.isBlank()) {
             this.degradeCauses.add(cause);
         }
+    }
+
+    public int steerCount() {
+        return steerCount;
+    }
+
+    public String lastAdvisorName() {
+        return lastAdvisorName;
+    }
+
+    /** 记录一次 steer（由 TurnStoppingBus 调用）。 */
+    public void recordSteer(String advisorName) {
+        this.steerCount++;
+        this.lastAdvisorName = advisorName;
     }
 }

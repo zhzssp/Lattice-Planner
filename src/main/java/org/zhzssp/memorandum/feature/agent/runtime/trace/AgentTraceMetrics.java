@@ -59,6 +59,17 @@ public class AgentTraceMetrics implements AgentTraceListener {
     private final AtomicLong degradedTurns = new AtomicLong();
     /** 降级原因 → 次数 */
     private final Map<String, AtomicLong> degradeCauses = new ConcurrentHashMap<>();
+    /* ---- 方案 L（L3）：收尾顾问 steer ---- */
+    /** steer 注入次数 */
+    private final AtomicLong steerInjected = new AtomicLong();
+    /** 顾问名 → steer 次数 */
+    private final Map<String, AtomicLong> steerByAdvisor = new ConcurrentHashMap<>();
+
+    /* ---- 方案 K（K3）：工具可见性拦截 ---- */
+    /** 不可见工具被拦截的次数（越界，区别于幻觉） */
+    private final AtomicLong notVisibleBlocked = new AtomicLong();
+    /** 工具名 → 越界次数 */
+    private final Map<String, AtomicLong> notVisibleByTool = new ConcurrentHashMap<>();
 
     @Override
     public void onTurnStart(String sessionId, String userInput, String mode) {
@@ -163,6 +174,22 @@ public class AgentTraceMetrics implements AgentTraceListener {
         }
     }
 
+    @Override
+    public void onTurnSteered(String sessionId, int step, String advisorName, int steerCount) {
+        steerInjected.incrementAndGet();
+        if (advisorName != null) {
+            steerByAdvisor.computeIfAbsent(advisorName, k -> new AtomicLong()).incrementAndGet();
+        }
+    }
+
+    @Override
+    public void onToolNotVisible(String sessionId, int step, String tool, String reason) {
+        notVisibleBlocked.incrementAndGet();
+        if (tool != null) {
+            notVisibleByTool.computeIfAbsent(tool, k -> new AtomicLong()).incrementAndGet();
+        }
+    }
+
     /* ---- 派生指标 ---- */
 
     /**
@@ -240,6 +267,17 @@ public class AgentTraceMetrics implements AgentTraceListener {
         tools.put("hallucinationRate", round4(hallucinationRate()));
         m.put("tools", tools);
 
+        // K：工具可见性拦截（越界，区别于幻觉）
+        Map<String, Object> visibility = new LinkedHashMap<>();
+        visibility.put("notVisibleBlocked", notVisibleBlocked.get());
+        Map<String, Long> nvByTool = new java.util.LinkedHashMap<>();
+        notVisibleByTool.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue().get(), a.getValue().get()))
+                .limit(10)
+                .forEach(e -> nvByTool.put(e.getKey(), e.getValue().get()));
+        visibility.put("notVisibleByTool", nvByTool);
+        m.put("visibility", visibility);
+
         // E：参数前置校验
         Map<String, Object> validation = new LinkedHashMap<>();
         validation.put("argumentsRejected", argsRejected.get());
@@ -278,6 +316,10 @@ public class AgentTraceMetrics implements AgentTraceListener {
         degradeCauses.forEach((k, v) -> causes.put(k, v.get()));
         turnEnd.put("degradeCauses", causes);
         turnEnd.put("cleanConvergenceRate", round4(cleanConvergenceRate()));
+        turnEnd.put("steerInjected", steerInjected.get());
+        Map<String, Long> steerAdv = new java.util.TreeMap<>();
+        steerByAdvisor.forEach((k, v) -> steerAdv.put(k, v.get()));
+        turnEnd.put("steerByAdvisor", steerAdv);
         m.put("turnEnd", turnEnd);
 
         Map<String, Object> confirm = new LinkedHashMap<>();

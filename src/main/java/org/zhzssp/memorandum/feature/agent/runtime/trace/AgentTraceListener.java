@@ -119,4 +119,28 @@ public interface AgentTraceListener {
      */
     default void onTurnEnd(String sessionId, String reason, int usedSteps,
                            boolean degraded, java.util.Set<String> degradeCauses) {}
+
+    /**
+     * 收尾前被顾问 steer，轮次继续（方案 L，L3）。
+     *
+     * <p>这个事件回答「顾问机制是否真的在起作用」——若长期为 0，
+     * 说明要么没有顾问命中，要么开关未生效。</p>
+     *
+     * @param advisorName 胜出的顾问名
+     * @param steerCount  本轮累计 steer 次数（含本次）
+     */
+    default void onTurnSteered(String sessionId, int step, String advisorName, int steerCount) {}
+
+    /* ---------------- 方案 K（K3）：工具可见性拦截 ---------------- */
+
+    /**
+     * 模型调用了<strong>当前 scope 不可见</strong>的工具（工具存在但被 deny），
+     * 被执行层短路拒绝。
+     *
+     * <p>与 {@link #onUnknownTool}（工具不存在）区分：这是「越界」，不是「幻觉」。
+     * 此前两者混算进幻觉率，导致幻觉率被高估。此事件独立埋点，修正该度量。</p>
+     *
+     * @param reason 不可见原因（如 MODE(learn):deny(tag=write)）
+     */
+    default void onToolNotVisible(String sessionId, int step, String tool, String reason) {}
 }

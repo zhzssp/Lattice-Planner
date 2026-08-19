@@ -44,12 +44,20 @@ public class ToolVisibilityResolver {
     @Value("${agent.tool.visibility.enabled:true}")
     private boolean enabled;
 
+    @Value("${agent.tool.visibility.enforce:true}")
+    private boolean enforce;
+
     public ToolVisibilityResolver(ToolRegistry registry) {
         this.registry = registry;
     }
 
     public boolean enabled() {
         return enabled;
+    }
+
+    /** 执行层强制是否开启（K3）：不可见工具是否被短路拦截。 */
+    public boolean enforce() {
+        return enforce;
     }
 
     /**
@@ -61,6 +69,31 @@ public class ToolVisibilityResolver {
         AgentMode m = AgentMode.of(mode);
         ScopeChain chain = new ScopeChain(List.of(m.toLayer()));
         return resolve(chain);
+    }
+
+    /**
+     * K3：构造「工具不可见」的结果 Map，回灌给 LLM。
+     *
+     * <p>延续方案 E 的「为模型设计错误信息」原则——错误必须可操作：
+     * 给出原因、决策链、可用的替代工具，而不是笼统的拒绝。</p>
+     */
+    public Map<String, Object> notVisibleResult(ToolView view, String toolName) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("error", "TOOL_NOT_VISIBLE");
+        m.put("tool", toolName);
+        m.put("reason", view.reasonOf(toolName));
+        // 给模型可用的替代方向（同域可见工具，最多 5 个）
+        List<String> alternatives = view.names().stream()
+                .filter(n -> !n.equals(toolName))
+                .limit(5)
+                .toList();
+        if (!alternatives.isEmpty()) {
+            m.put("visibleAlternatives", alternatives);
+        }
+        m.put("hint", "该工具在当前模式/角色下不可见，本次调用未执行，不会产生任何副作用。"
+                + "请从 visibleAlternatives 或【可用工具】列表中选择可见工具完成目标；"
+                + "若确需该操作，请用自然语言告知用户切换到相应模式。");
+        return m;
     }
 
     /**

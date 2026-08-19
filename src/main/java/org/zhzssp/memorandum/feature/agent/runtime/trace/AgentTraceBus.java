@@ -103,4 +103,12 @@ public class AgentTraceBus {
                         boolean degraded, java.util.Set<String> degradeCauses) {
         emit(l -> l.onTurnEnd(sid, reason, usedSteps, degraded, degradeCauses));
     }
+
+    public void turnSteered(String sid, int step, String advisorName, int steerCount) {
+        emit(l -> l.onTurnSteered(sid, step, advisorName, steerCount));
+    }
+
+    public void toolNotVisible(String sid, int step, String tool, String reason) {
+        emit(l -> l.onToolNotVisible(sid, step, tool, reason));
+    }
 }

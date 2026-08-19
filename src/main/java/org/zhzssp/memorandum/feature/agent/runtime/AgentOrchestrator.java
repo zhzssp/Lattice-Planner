@@ -42,6 +42,8 @@ public class AgentOrchestrator {
     private final ObjectMapper om;
     private final org.zhzssp.memorandum.feature.agent.runtime.trace.AgentTraceBus trace;
     private final ReflexionAdvisor reflexionAdvisor;
+    private final org.zhzssp.memorandum.feature.agent.runtime.turn.TurnStoppingBus turnStopping;
+    private final org.zhzssp.memorandum.feature.agent.tool.visibility.ToolVisibilityResolver visibility;
 
     @Value("${agent.chat.max-steps:8}")
     private int maxSteps;
@@ -56,7 +58,9 @@ public class AgentOrchestrator {
                              @Lazy AgentChatWebSocketHandler ws,
                              ObjectMapper om,
                              org.zhzssp.memorandum.feature.agent.runtime.trace.AgentTraceBus trace,
-                             ReflexionAdvisor reflexionAdvisor) {
+                             ReflexionAdvisor reflexionAdvisor,
+                             org.zhzssp.memorandum.feature.agent.runtime.turn.TurnStoppingBus turnStopping,
+                             org.zhzssp.memorandum.feature.agent.tool.visibility.ToolVisibilityResolver visibility) {
         this.llm = llm;
         this.registry = registry;
         this.parser = parser;
@@ -68,6 +72,8 @@ public class AgentOrchestrator {
         this.om = om;
         this.trace = trace;
         this.reflexionAdvisor = reflexionAdvisor;
+        this.turnStopping = turnStopping;
+        this.visibility = visibility;
     }
 
     public void handleUserTurn(String sid, String userInput, String mode, String longTermMemo) {
@@ -78,6 +84,9 @@ public class AgentOrchestrator {
                 new org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome(sid, mode, userInput);
         // D：Reflexion 状态是单轮作用域的（新一轮用户输入可能已补齐信息，不能继承上轮封禁）
         ReflexionAdvisor.TurnState reflexion = reflexionAdvisor.newTurn();
+        // K3：turn 开始解析一次当前模式的可见工具视图，供执行层拦截
+        org.zhzssp.memorandum.feature.agent.tool.visibility.ToolView toolView =
+                visibility.resolveMode(mode);
         // P3：前缀在 turn 内构造一次，各 ReAct 步复用
         PrefixCache.CachedPrefix prefix;
         try {
@@ -116,7 +125,8 @@ public class AgentOrchestrator {
                     }
                     outcome.propose(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnEndReason.FINAL_ANSWER,
                             finalAnswer, step);
-                    closeTurn(sid, outcome);
+                    // L3：收尾前询问顾问，若被 steer 则轮次继续
+                    if (finishOrSteer(sid, outcome)) continue;
                     return;
                 }
 
@@ -132,6 +142,23 @@ public class AgentOrchestrator {
                             ReflexionAdvisor.FailureMode.UNKNOWN_TOOL);
                     ws.sendToolResult(sid, callId, err);
                     appendToolTrace(sid, call.name(), call.arguments(), err, hint, outcome);
+                    continue;
+                }
+
+                // K3 · 执行层强制：工具存在，但当前 scope 不可见 → 越界，短路拒绝。
+                // 可见性若只影响 schema 导出，就仍是提示层约束——模型凭上下文记忆
+                // 调不可见工具照样能调通（registry.get 查全量）。这一层才是真正的硬边界。
+                if (visibility.enforce() && !toolView.contains(call.name())) {
+                    String blocked = writeJson(visibility.notVisibleResult(toolView, call.name()),
+                            "{\"error\":\"TOOL_NOT_VISIBLE\"}");
+                    trace.toolNotVisible(sid, step, call.name(), toolView.reasonOf(call.name()));
+                    log.info("[Agent] 阻断不可见工具调用 tool={} sid={} reason={}",
+                            call.name(), sid, toolView.reasonOf(call.name()));
+                    // 不可见是不可重试的策略性拒绝，一次即封禁（与 DENIED 同语义）
+                    String hint = advise(reflexion, sid, step, call.name(),
+                            ReflexionAdvisor.FailureMode.TOOL_NOT_VISIBLE);
+                    ws.sendToolResult(sid, callId, blocked);
+                    appendToolTrace(sid, call.name(), call.arguments(), blocked, hint, outcome);
                     continue;
                 }
 
@@ -164,9 +191,9 @@ public class AgentOrchestrator {
                         // D：用户拒绝是不可重试的确定性结果，立即封禁避免反复弹窗骚扰用户
                         String hint = advise(reflexion, sid, step, call.name(),
                                 ReflexionAdvisor.FailureMode.USER_REJECTED);
-                    ws.sendToolResult(sid, callId, rej);
-                    appendToolTrace(sid, call.name(), call.arguments(), rej, hint, outcome);
-                    continue;
+                        ws.sendToolResult(sid, callId, rej);
+                        appendToolTrace(sid, call.name(), call.arguments(), rej, hint, outcome);
+                        continue;
                     }
                 }
 
@@ -226,12 +253,28 @@ public class AgentOrchestrator {
             String exhaustedMsg = "（已达最大推理步数 " + maxSteps + "，请换种说法或拆分为更小的步骤）";
             outcome.propose(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnEndReason.STEPS_EXHAUSTED,
                     exhaustedMsg, maxSteps);
+            // 步数耗尽无剩余步数，finishOrSteer 的剩余步数保护会直接放行收尾
             closeTurn(sid, outcome);
         } catch (Exception ex) {
             log.error("[Agent] handleUserTurn 异常", ex);
             ws.sendError(sid, "Agent 处理异常：" + ex.getMessage());
             ws.sendDone(sid);
         }
+    }
+
+    /**
+     * L3：收尾前询问顾问。若顾问返回 steer，则把消息回灌短期记忆并返回 {@code true}
+     * （调用方 {@code continue} 让循环继续）；否则执行统一收尾并返回 {@code false}。
+     */
+    private boolean finishOrSteer(String sid, org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome outcome) {
+        java.util.Optional<String> steer = turnStopping.consult(outcome, maxSteps);
+        if (steer.isPresent()) {
+            trace.turnSteered(sid, outcome.usedSteps(), outcome.lastAdvisorName(), outcome.steerCount());
+            memory.append(sid, "user", steer.get());
+            return true;
+        }
+        closeTurn(sid, outcome);
+        return false;
     }
 
     /** 统一收尾出口（方案 L）：所有结束路径的唯一出口，保证埋点与 WS 语义一致。 */
