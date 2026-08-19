@@ -72,6 +72,33 @@ public class ToolVisibilityResolver {
     }
 
     /**
+     * K4：解析「模式 + 会话」的可见工具视图。
+     *
+     * <p>链从近到远为 [SESSION, MODE]。SESSION 层由 {@link SessionToolMask} 提供，
+     * 无规则时是空层（不产生任何收窄/剔除）。</p>
+     *
+     * @param mode      思维模式
+     * @param sessionMask 会话层规则；null 则仅 MODE 层
+     */
+    public ToolView resolveModeWithSession(String mode, SessionToolMask.Mask sessionMask) {
+        AgentMode m = AgentMode.of(mode);
+        List<ToolLayer> layers = new ArrayList<>();
+        // 近 → 远：SESSION 在前，MODE 在后
+        if (sessionMask != null && !sessionMask.isEmpty()) {
+            layers.add(new ToolLayer(
+                    ToolLayer.ScopeKind.SESSION,
+                    "SESSION",
+                    Set.of(),
+                    Set.of(),
+                    sessionMask.denyTags(),
+                    sessionMask.denyTools(),
+                    sessionMask.pinnedTools()));
+        }
+        layers.add(m.toLayer());
+        return resolve(new ScopeChain(layers));
+    }
+
+    /**
      * K3：构造「工具不可见」的结果 Map，回灌给 LLM。
      *
      * <p>延续方案 E 的「为模型设计错误信息」原则——错误必须可操作：
@@ -94,6 +121,43 @@ public class ToolVisibilityResolver {
                 + "请从 visibleAlternatives 或【可用工具】列表中选择可见工具完成目标；"
                 + "若确需该操作，请用自然语言告知用户切换到相应模式。");
         return m;
+    }
+
+    /**
+     * K5：解析子代理的可见工具视图。
+     *
+     * <p>链从近到远为 [ROLE, MODE(父对话)]：
+     * <ul>
+     *   <li>ROLE 层用角色 {@code toolTags} 做 allow 收窄（最小职责集）；</li>
+     *   <li>MODE 层继承父对话的 deny（如 learn 禁写）——子代理不得绕过模式边界；</li>
+     *   <li><strong>结构性保留</strong>：{@code subagent.*} 无条件剔除，子代理不可再委派。</li>
+     * </ul></p>
+     *
+     * @param role       子代理角色
+     * @param parentMode 父对话模式；null 表示不继承 mode 层
+     */
+    public ToolView resolveSubAgent(org.zhzssp.memorandum.feature.agent.subagent.SubAgentRole role,
+                                    String parentMode) {
+        List<ToolLayer> layers = new ArrayList<>();
+        // 近 → 远：ROLE 在前，MODE 在后
+        layers.add(ToolLayer.allowOnly(ToolLayer.ScopeKind.ROLE, "ROLE(" + role.name() + ")", role.toolTags()));
+        if (parentMode != null && !parentMode.isBlank()) {
+            layers.add(AgentMode.of(parentMode).toLayer());
+        }
+        ToolView view = resolve(new ScopeChain(layers));
+
+        // 结构性保留：ROLE 层存在时，subagent.* 无条件剔除（不可递归委派）
+        if (!view.names().stream().noneMatch(n -> n.startsWith("subagent."))) {
+            Set<String> filtered = new LinkedHashSet<>();
+            for (String n : view.names()) {
+                if (n.startsWith("subagent.")) {
+                    continue;
+                }
+                filtered.add(n);
+            }
+            return new ToolView(filtered, view.reasons(), view.signature());
+        }
+        return view;
     }
 
     /**

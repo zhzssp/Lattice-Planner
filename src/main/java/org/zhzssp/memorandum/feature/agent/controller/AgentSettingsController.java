@@ -37,17 +37,20 @@ public class AgentSettingsController {
     private final ModelCatalog modelCatalog;
     private final UserRepository userRepository;
     private final UserPreferenceService prefService;
+    private final org.zhzssp.memorandum.feature.agent.tool.visibility.SessionToolMask sessionToolMask;
 
     public AgentSettingsController(ToolRegistry registry,
                                    ToolApprovalPolicy approvalPolicy,
                                    ModelCatalog modelCatalog,
                                    UserRepository userRepository,
-                                   UserPreferenceService prefService) {
+                                   UserPreferenceService prefService,
+                                   org.zhzssp.memorandum.feature.agent.tool.visibility.SessionToolMask sessionToolMask) {
         this.registry = registry;
         this.approvalPolicy = approvalPolicy;
         this.modelCatalog = modelCatalog;
         this.userRepository = userRepository;
         this.prefService = prefService;
+        this.sessionToolMask = sessionToolMask;
     }
 
     /**
@@ -172,6 +175,52 @@ public class AgentSettingsController {
         result.put("status", "ok");
         result.put("modelId", modelId);
         return result;
+    }
+
+    /**
+     * 设置会话级工具屏蔽（方案 K，K4）。
+     *
+     * <p>请求体：{@code {"sid":"abc", "denyTools":["task.create"], "denyTags":["write"], "pinnedTools":[]}}
+     * 该规则仅对本会话生效，空闲过期后自动清除。</p>
+     */
+    @PutMapping("/visibility/session")
+    public Map<String, Object> updateSessionMask(
+            @RequestBody Map<String, Object> body,
+            Principal principal) {
+        requireUser(principal);
+        String sid = body != null ? (String) body.get("sid") : null;
+        if (sid == null || sid.isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "sid 不能为空");
+        }
+        Set<String> denyTools = asStringSet(body, "denyTools");
+        Set<String> denyTags = asStringSet(body, "denyTags");
+        Set<String> pinnedTools = asStringSet(body, "pinnedTools");
+        sessionToolMask.deny(sid, denyTools, denyTags);
+        sessionToolMask.pin(sid, pinnedTools);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", "ok");
+        return result;
+    }
+
+    /** 清空会话级工具屏蔽。 */
+    @DeleteMapping("/visibility/session/{sid}")
+    public Map<String, Object> clearSessionMask(@PathVariable String sid, Principal principal) {
+        requireUser(principal);
+        sessionToolMask.clear(sid);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", "ok");
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<String> asStringSet(Map<String, Object> body, String key) {
+        Object v = body == null ? null : body.get(key);
+        if (v instanceof java.util.List<?> list) {
+            return list.stream().filter(o -> o instanceof String).map(o -> (String) o)
+                    .collect(java.util.stream.Collectors.toSet());
+        }
+        return Set.of();
     }
 
     private User resolveUser(Principal principal) {

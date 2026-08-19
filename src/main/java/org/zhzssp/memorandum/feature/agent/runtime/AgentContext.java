@@ -14,6 +14,8 @@ public final class AgentContext {
     private static final ThreadLocal<String> SESSION = new ThreadLocal<>();
     /** 当前推理层级：0=主 Agent，>=1=子代理。用于防止子代理递归再起子代理。 */
     private static final ThreadLocal<Integer> DEPTH = ThreadLocal.withInitial(() -> 0);
+    /** 当前思维模式（chat/plan/reflect/learn）。K5 子代理继承父 mode 的 deny 用。 */
+    private static final ThreadLocal<String> MODE = new ThreadLocal<>();
 
     private AgentContext() {
     }
@@ -23,10 +25,16 @@ public final class AgentContext {
         SESSION.set(sessionId);
     }
 
+    /** 设置思维模式（由 AgentOrchestrator 在 turn 开始时调用）。 */
+    public static void setMode(String mode) {
+        MODE.set(mode);
+    }
+
     public static void clear() {
         USER.remove();
         SESSION.remove();
         DEPTH.remove();
+        MODE.remove();
     }
 
     /** 当前推理层级（0 为主 Agent）。 */
@@ -54,5 +62,10 @@ public final class AgentContext {
 
     public static String sessionId() {
         return SESSION.get();
+    }
+
+    /** 当前思维模式；未设置时返回 null（子代理据此回退，不继承 deny）。 */
+    public static String mode() {
+        return MODE.get();
     }
 }

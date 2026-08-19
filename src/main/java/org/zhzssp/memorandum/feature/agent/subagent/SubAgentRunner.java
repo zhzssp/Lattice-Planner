@@ -51,12 +51,17 @@ public class SubAgentRunner {
     private final AgentChatWebSocketHandler ws;
     private final RagServingService ragServing;
     private final ReflexionAdvisor reflexionAdvisor;
+    private final org.zhzssp.memorandum.feature.agent.tool.visibility.ToolVisibilityResolver visibility;
 
     @Value("${agent.subagent.max-steps:6}")
     private int maxStepsCap;
 
     @Value("${agent.subagent.result-max-chars:4000}")
     private int resultMaxChars;
+
+    /** K5：子代理是否继承主对话 mode 层规则（如 learn 模式禁写）。 */
+    @Value("${agent.tool.visibility.subagent-inherits-mode:true}")
+    private boolean subagentInheritsMode;
 
     public SubAgentRunner(LlmGateway llm,
                           ToolRegistry registry,
@@ -66,7 +71,8 @@ public class SubAgentRunner {
                           ObjectMapper om,
                           @Lazy AgentChatWebSocketHandler ws,
                           RagServingService ragServing,
-                          ReflexionAdvisor reflexionAdvisor) {
+                          ReflexionAdvisor reflexionAdvisor,
+                          org.zhzssp.memorandum.feature.agent.tool.visibility.ToolVisibilityResolver visibility) {
         this.llm = llm;
         this.registry = registry;
         this.parser = parser;
@@ -76,6 +82,7 @@ public class SubAgentRunner {
         this.ws = ws;
         this.ragServing = ragServing;
         this.reflexionAdvisor = reflexionAdvisor;
+        this.visibility = visibility;
     }
 
     /**
@@ -271,8 +278,11 @@ public class SubAgentRunner {
     private String buildSystemPrompt(SubAgentRole role) {
         String toolsJson;
         try {
+            // K5：子代理工具集 = ROLE 层 + 继承父 mode 的 deny + 结构性保留（subagent.* 不可见）
+            String parentMode = subagentInheritsMode ? AgentContext.mode() : null;
+            var view = visibility.resolveSubAgent(role, parentMode);
             toolsJson = om.writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(registry.exportSchemas(role.toolTags()));
+                    .writeValueAsString(registry.exportSchemas(view));
         } catch (Exception ex) {
             toolsJson = "[]";
         }

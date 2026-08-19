@@ -44,9 +44,14 @@ public class AgentOrchestrator {
     private final ReflexionAdvisor reflexionAdvisor;
     private final org.zhzssp.memorandum.feature.agent.runtime.turn.TurnStoppingBus turnStopping;
     private final org.zhzssp.memorandum.feature.agent.tool.visibility.ToolVisibilityResolver visibility;
+    private final org.zhzssp.memorandum.feature.agent.tool.visibility.SessionToolMask sessionToolMask;
 
     @Value("${agent.chat.max-steps:8}")
     private int maxSteps;
+
+    /** L6：工具提前收尾开关。默认关闭（多步意图会被吞掉）。 */
+    @Value("${agent.chat.tool-conclude.enabled:false}")
+    private boolean toolConcludeEnabled;
 
     public AgentOrchestrator(LlmGateway llm,
                              ToolRegistry registry,
@@ -60,7 +65,8 @@ public class AgentOrchestrator {
                              org.zhzssp.memorandum.feature.agent.runtime.trace.AgentTraceBus trace,
                              ReflexionAdvisor reflexionAdvisor,
                              org.zhzssp.memorandum.feature.agent.runtime.turn.TurnStoppingBus turnStopping,
-                             org.zhzssp.memorandum.feature.agent.tool.visibility.ToolVisibilityResolver visibility) {
+                             org.zhzssp.memorandum.feature.agent.tool.visibility.ToolVisibilityResolver visibility,
+                             org.zhzssp.memorandum.feature.agent.tool.visibility.SessionToolMask sessionToolMask) {
         this.llm = llm;
         this.registry = registry;
         this.parser = parser;
@@ -74,6 +80,7 @@ public class AgentOrchestrator {
         this.reflexionAdvisor = reflexionAdvisor;
         this.turnStopping = turnStopping;
         this.visibility = visibility;
+        this.sessionToolMask = sessionToolMask;
     }
 
     public void handleUserTurn(String sid, String userInput, String mode, String longTermMemo) {
@@ -84,9 +91,11 @@ public class AgentOrchestrator {
                 new org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome(sid, mode, userInput);
         // D：Reflexion 状态是单轮作用域的（新一轮用户输入可能已补齐信息，不能继承上轮封禁）
         ReflexionAdvisor.TurnState reflexion = reflexionAdvisor.newTurn();
-        // K3：turn 开始解析一次当前模式的可见工具视图，供执行层拦截
+        // K5：把 mode 写入 AgentContext，子代理据此继承父对话的 deny（如 learn 禁写）
+        AgentContext.setMode(mode);
+        // K3/K4：turn 开始解析一次「模式 + 会话」的可见工具视图，供执行层拦截
         org.zhzssp.memorandum.feature.agent.tool.visibility.ToolView toolView =
-                visibility.resolveMode(mode);
+                visibility.resolveModeWithSession(mode, sessionToolMask.of(sid));
         // P3：前缀在 turn 内构造一次，各 ReAct 步复用
         PrefixCache.CachedPrefix prefix;
         try {
@@ -228,6 +237,20 @@ public class AgentOrchestrator {
                 }
                 if (looksSubAgentTruncated(resultJson)) {
                     outcome.markDegraded(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome.CAUSE_SUBAGENT_TRUNCATED);
+                }
+
+                // L6：工具提前收尾——工具返回 _concludesTurn=true 且 _finalText 非空时，
+                // 跳过「再走一步 LLM 转述」，直接用 _finalText 收尾（省一次 LLM 调用）。
+                // 默认关闭（tool-conclude.enabled=false）；即使开启也仍要过收尾顾问。
+                if (toolConcludeEnabled && !isError) {
+                    String concludedText = extractConcludeFinalText(resultJson);
+                    if (concludedText != null) {
+                        log.info("[Agent] 工具提前收尾 tool={} sid={}", call.name(), sid);
+                        outcome.propose(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnEndReason.TOOL_CONCLUDED,
+                                concludedText, step);
+                        if (finishOrSteer(sid, outcome)) continue;
+                        return;
+                    }
                 }
 
                 String hint = null;
@@ -415,6 +438,25 @@ public class AgentOrchestrator {
             return tr.isBoolean() && tr.asBoolean();
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    /**
+     * L6：提取工具提前收尾的最终文本。
+     *
+     * <p>约定：工具结果 Map 含 {@code _concludesTurn=true} 且 {@code _finalText} 非空时，
+     * 返回 {@code _finalText}；否则返回 {@code null}（不提前收尾）。</p>
+     */
+    private String extractConcludeFinalText(String resultJson) {
+        if (resultJson == null || resultJson.isEmpty()) return null;
+        try {
+            com.fasterxml.jackson.databind.JsonNode n = om.readTree(resultJson);
+            if (!n.isObject()) return null;
+            if (!n.path("_concludesTurn").asBoolean(false)) return null;
+            String text = n.path("_finalText").asText(null);
+            return (text == null || text.isBlank()) ? null : text;
+        } catch (Exception e) {
+            return null;
         }
     }
 }
