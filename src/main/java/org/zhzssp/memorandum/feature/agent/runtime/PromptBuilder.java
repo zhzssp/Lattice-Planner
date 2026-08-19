@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 import org.zhzssp.memorandum.feature.agent.tool.ToolRegistry;
+import org.zhzssp.memorandum.feature.agent.tool.visibility.ToolView;
+import org.zhzssp.memorandum.feature.agent.tool.visibility.ToolVisibilityResolver;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -29,13 +31,18 @@ import java.util.Set;
 public class PromptBuilder {
 
     private final ToolRegistry registry;
+    private final ToolVisibilityResolver visibility;
     private final ObjectMapper om;
     private final PrefixCache prefixCache;
     private final PrefixCacheMetrics prefixMetrics;
 
-    public PromptBuilder(ToolRegistry registry, ObjectMapper om,
-                         PrefixCache prefixCache, PrefixCacheMetrics prefixMetrics) {
+    public PromptBuilder(ToolRegistry registry,
+                         ToolVisibilityResolver visibility,
+                         ObjectMapper om,
+                         PrefixCache prefixCache,
+                         PrefixCacheMetrics prefixMetrics) {
         this.registry = registry;
+        this.visibility = visibility;
         this.om = om;
         this.prefixCache = prefixCache;
         this.prefixMetrics = prefixMetrics;
@@ -50,9 +57,7 @@ public class PromptBuilder {
 
     /** 构造 system 前缀（可从 PrefixCache 命中复用）。 */
     public PrefixCache.CachedPrefix buildPrefix(String mode, String longTermMemo) throws JsonProcessingException {
-        Set<String> tagFilter = resolveTagFilter(mode);
-        String toolsJson = om.writerWithDefaultPrettyPrinter()
-                .writeValueAsString(registry.exportSchemas(tagFilter));
+        String toolsJson = exportToolsJson(mode);
         String memoSection = (longTermMemo == null || longTermMemo.isBlank())
                 ? "(暂无)" : longTermMemo;
 
@@ -96,6 +101,25 @@ public class PromptBuilder {
 
     /* ---- 内部 ---- */
 
+    /**
+     * 方案 K：按模式导出工具 schema JSON。
+     *
+     * <p>可见性开关开启时走 {@link ToolVisibilityResolver}（含 deny 语义，
+     * 修「learn 模式能写笔记」的 bug）；关闭时回退到 {@link #resolveTagFilter(String)}
+     * 的旧 tag 过滤路径，行为与改造前逐字节一致。</p>
+     */
+    private String exportToolsJson(String mode) throws JsonProcessingException {
+        if (visibility.enabled()) {
+            ToolView view = visibility.resolveMode(mode);
+            return om.writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(registry.exportSchemas(view));
+        }
+        Set<String> tagFilter = resolveTagFilter(mode);
+        return om.writerWithDefaultPrettyPrinter()
+                .writeValueAsString(registry.exportSchemas(tagFilter));
+    }
+
+    /** 旧 tag 过滤（降级路径）。 */
     private Set<String> resolveTagFilter(String mode) {
         return switch (mode == null ? "chat" : mode) {
             case "plan" -> Set.of("task", "goal", "planner", "kb", "read", "write", "subagent", "mcp");

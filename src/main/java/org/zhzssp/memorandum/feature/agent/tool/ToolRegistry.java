@@ -137,6 +137,7 @@ public class ToolRegistry {
      * tagFilter == null 或空 -> 全部工具；否则保留至少一个 tag 命中的工具。
      */
     public List<Map<String, Object>> exportSchemas(Set<String> tagFilter) {
+        // 降级路径：tag 过滤。行为与方案 K 引入前逐字节一致。
         List<Map<String, Object>> list = new ArrayList<>();
         // 按工具名排序（ConcurrentHashMap 迭代序不保证，排序确保前缀字节稳定）
         List<ToolDefinition> sorted = new ArrayList<>(tools.values());
@@ -146,38 +147,72 @@ public class ToolRegistry {
                     && t.tags().stream().noneMatch(tagFilter::contains)) {
                 continue;
             }
-            ObjectNode props = om.createObjectNode();
-            List<String> required = new ArrayList<>();
-            for (ToolDefinition.ParamDef p : t.params()) {
-                ObjectNode pn = om.createObjectNode();
-                pn.put("type", jsonType(p.javaType()));
-                pn.put("description", p.desc());
-                props.set(p.name(), pn);
-                if (p.required()) required.add(p.name());
-            }
-            ObjectNode parameters = om.createObjectNode();
-            parameters.put("type", "object");
-            parameters.set("properties", props);
-            parameters.set("required", om.valueToTree(required));
-            Map<String, Object> entry = new java.util.LinkedHashMap<>();
-            entry.put("name", t.name());
-            entry.put("description", t.description() + (t.requiresConfirm() ? "（需用户确认）" : ""));
-            entry.put("parameters", parameters);
-            list.add(entry);
+            list.add(exportOneLocal(t));
         }
         // MCP 远程工具（按 fullName 排序）
         if (tagFilter == null || tagFilter.isEmpty() || tagFilter.contains("mcp")) {
             List<McpRemoteTool> sortedMcp = new ArrayList<>(mcpTools.values());
             sortedMcp.sort(java.util.Comparator.comparing(McpRemoteTool::fullName));
             for (McpRemoteTool rt : sortedMcp) {
-                Map<String, Object> entry = new java.util.LinkedHashMap<>();
-                entry.put("name", rt.fullName());
-                entry.put("description", "[MCP/" + rt.serverName() + "] " + rt.description());
-                entry.put("parameters", rt.inputSchema() != null ? rt.inputSchema() : Map.of("type", "object", "properties", Map.of()));
-                list.add(entry);
+                list.add(exportOneMcp(rt));
             }
         }
         return list;
+    }
+
+    /**
+     * 方案 K：按可见工具视图导出 schema。
+     *
+     * <p>{@code view} 已由 {@code ToolVisibilityResolver} 按 scope 链算好
+     * （含 allow 收窄 / deny 剔除 / 同名 MCP 遮蔽），本方法只负责序列化，
+     * <strong>不重复实现过滤逻辑</strong>——序列化是单一事实来源。</p>
+     */
+    public List<Map<String, Object>> exportSchemas(
+            org.zhzssp.memorandum.feature.agent.tool.visibility.ToolView view) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (String name : view.names()) {
+            ToolDefinition local = tools.get(name);
+            if (local != null) {
+                list.add(exportOneLocal(local));
+                continue;
+            }
+            McpRemoteTool mcp = mcpTools.get(name);
+            if (mcp != null) {
+                list.add(exportOneMcp(mcp));
+            }
+        }
+        return list;
+    }
+
+    /** 序列化单个本地工具为 schema 条目。 */
+    private Map<String, Object> exportOneLocal(ToolDefinition t) {
+        ObjectNode props = om.createObjectNode();
+        List<String> required = new ArrayList<>();
+        for (ToolDefinition.ParamDef p : t.params()) {
+            ObjectNode pn = om.createObjectNode();
+            pn.put("type", jsonType(p.javaType()));
+            pn.put("description", p.desc());
+            props.set(p.name(), pn);
+            if (p.required()) required.add(p.name());
+        }
+        ObjectNode parameters = om.createObjectNode();
+        parameters.put("type", "object");
+        parameters.set("properties", props);
+        parameters.set("required", om.valueToTree(required));
+        Map<String, Object> entry = new java.util.LinkedHashMap<>();
+        entry.put("name", t.name());
+        entry.put("description", t.description() + (t.requiresConfirm() ? "（需用户确认）" : ""));
+        entry.put("parameters", parameters);
+        return entry;
+    }
+
+    /** 序列化单个 MCP 远程工具为 schema 条目。 */
+    private Map<String, Object> exportOneMcp(McpRemoteTool rt) {
+        Map<String, Object> entry = new java.util.LinkedHashMap<>();
+        entry.put("name", rt.fullName());
+        entry.put("description", "[MCP/" + rt.serverName() + "] " + rt.description());
+        entry.put("parameters", rt.inputSchema() != null ? rt.inputSchema() : Map.of("type", "object", "properties", Map.of()));
+        return entry;
     }
 
     /**
