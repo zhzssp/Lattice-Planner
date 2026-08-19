@@ -73,6 +73,9 @@ public class AgentOrchestrator {
     public void handleUserTurn(String sid, String userInput, String mode, String longTermMemo) {
         memory.append(sid, "user", userInput);
         trace.turnStart(sid, userInput, mode);
+        // L：单轮收尾上下文（承载粘性降级标记，见 TurnOutcome）
+        org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome outcome =
+                new org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome(sid, mode, userInput);
         // D：Reflexion 状态是单轮作用域的（新一轮用户输入可能已补齐信息，不能继承上轮封禁）
         ReflexionAdvisor.TurnState reflexion = reflexionAdvisor.newTurn();
         // P3：前缀在 turn 内构造一次，各 ReAct 步复用
@@ -81,8 +84,10 @@ public class AgentOrchestrator {
             prefix = promptBuilder.buildPrefix(mode, longTermMemo);
         } catch (Exception ex) {
             log.warn("[Agent] 前缀构造失败：{}", ex.getMessage());
-            ws.sendAssistant(sid, "系统初始化失败：" + ex.getMessage());
-            ws.sendDone(sid);
+            String msg = "系统初始化失败：" + ex.getMessage();
+            outcome.propose(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnEndReason.SETUP_FAILURE,
+                    msg, 0);
+            closeTurn(sid, outcome);
             return;
         }
         try {
@@ -95,8 +100,10 @@ public class AgentOrchestrator {
                 } catch (Exception ex) {
                     log.warn("[Agent] LLM 调用失败：{}", ex.getMessage());
                     trace.llmFailure(sid, step, ex.getMessage());
-                    ws.sendAssistant(sid, "LLM 调用失败：" + ex.getMessage());
-                    ws.sendDone(sid);
+                    String msg = "LLM 调用失败：" + ex.getMessage();
+                    outcome.propose(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnEndReason.LLM_FAILURE,
+                            msg, step);
+                    closeTurn(sid, outcome);
                     return;
                 }
 
@@ -107,10 +114,9 @@ public class AgentOrchestrator {
                     if (finalAnswer.isBlank()) {
                         finalAnswer = "（模型未返回内容，请重试或换一个表述）";
                     }
-                    memory.append(sid, "assistant", finalAnswer);
-                    trace.finalAnswer(sid, step, finalAnswer);
-                    ws.sendAssistant(sid, finalAnswer);
-                    ws.sendDone(sid);
+                    outcome.propose(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnEndReason.FINAL_ANSWER,
+                            finalAnswer, step);
+                    closeTurn(sid, outcome);
                     return;
                 }
 
@@ -125,7 +131,7 @@ public class AgentOrchestrator {
                     String hint = advise(reflexion, sid, step, call.name(),
                             ReflexionAdvisor.FailureMode.UNKNOWN_TOOL);
                     ws.sendToolResult(sid, callId, err);
-                    appendToolTrace(sid, call.name(), call.arguments(), err, hint);
+                    appendToolTrace(sid, call.name(), call.arguments(), err, hint, outcome);
                     continue;
                 }
 
@@ -138,8 +144,10 @@ public class AgentOrchestrator {
                             "{\"error\":\"" + ReflexionAdvisor.BANNED_ERROR + "\"}");
                     trace.toolBanned(sid, step, call.name(), reflexion.lastMode(call.name()).name());
                     log.info("[Agent] 阻断已封禁工具调用 tool={} sid={}", call.name(), sid);
+                    // L：本轮发生过工具封禁，也是「路径受阻」的信号，纳入粘性降级
+                    outcome.markDegraded(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome.CAUSE_TOOL_BANNED);
                     ws.sendToolResult(sid, callId, blocked);
-                    appendToolTrace(sid, call.name(), call.arguments(), blocked, null);
+                    appendToolTrace(sid, call.name(), call.arguments(), blocked, null, outcome);
                     continue;
                 }
 
@@ -156,9 +164,9 @@ public class AgentOrchestrator {
                         // D：用户拒绝是不可重试的确定性结果，立即封禁避免反复弹窗骚扰用户
                         String hint = advise(reflexion, sid, step, call.name(),
                                 ReflexionAdvisor.FailureMode.USER_REJECTED);
-                        ws.sendToolResult(sid, callId, rej);
-                        appendToolTrace(sid, call.name(), call.arguments(), rej, hint);
-                        continue;
+                    ws.sendToolResult(sid, callId, rej);
+                    appendToolTrace(sid, call.name(), call.arguments(), rej, hint, outcome);
+                    continue;
                     }
                 }
 
@@ -187,6 +195,14 @@ public class AgentOrchestrator {
                 trace.toolResult(sid, step, call.name(), resultJson, isError,
                         System.currentTimeMillis() - t0);
 
+                // L：检测工具结果携带的降级信号，置位粘性标记（信息丢失不可抹除）
+                if (looksCragDegraded(resultJson)) {
+                    outcome.markDegraded(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome.CAUSE_CRAG_DEGRADED);
+                }
+                if (looksSubAgentTruncated(resultJson)) {
+                    outcome.markDegraded(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome.CAUSE_SUBAGENT_TRUNCATED);
+                }
+
                 String hint = null;
                 if (isError) {
                     ReflexionAdvisor.FailureMode fm = reflexionAdvisor.classify(resultJson);
@@ -203,16 +219,29 @@ public class AgentOrchestrator {
                 }
 
                 ws.sendToolResult(sid, callId, resultJson);
-                appendToolTrace(sid, call.name(), call.arguments(), resultJson, hint);
+                appendToolTrace(sid, call.name(), call.arguments(), resultJson, hint, outcome);
             }
+            // L：步数耗尽统一走 closeTurn（此前该分支漏记 history，一并修正）
             trace.stepsExhausted(sid, maxSteps);
-            ws.sendAssistant(sid, "（已达最大推理步数 " + maxSteps + "，请换种说法或拆分为更小的步骤）");
-            ws.sendDone(sid);
+            String exhaustedMsg = "（已达最大推理步数 " + maxSteps + "，请换种说法或拆分为更小的步骤）";
+            outcome.propose(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnEndReason.STEPS_EXHAUSTED,
+                    exhaustedMsg, maxSteps);
+            closeTurn(sid, outcome);
         } catch (Exception ex) {
             log.error("[Agent] handleUserTurn 异常", ex);
             ws.sendError(sid, "Agent 处理异常：" + ex.getMessage());
             ws.sendDone(sid);
         }
+    }
+
+    /** 统一收尾出口（方案 L）：所有结束路径的唯一出口，保证埋点与 WS 语义一致。 */
+    private void closeTurn(String sid, org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome outcome) {
+        memory.append(sid, "assistant", outcome.finalAnswer());
+        trace.finalAnswer(sid, outcome.usedSteps(), outcome.finalAnswer());
+        trace.turnEnd(sid, outcome.reason().name(), outcome.usedSteps(),
+                outcome.degraded(), outcome.degradeCauses());
+        ws.sendAssistant(sid, outcome.finalAnswer());
+        ws.sendDone(sid);
     }
 
     /** 记录失败并生成策略提示，同时埋点。返回 null 表示本次不注入额外提示。 */
@@ -283,7 +312,8 @@ public class AgentOrchestrator {
      * 「⛔ 禁止再次调用…」这类措辞只会造成困惑。</p>
      */
     private void appendToolTrace(String sid, String tool, Object args,
-                                 String resultJson, String strategyHint) {
+                                 String resultJson, String strategyHint,
+                                 org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome outcome) {
         try {
             Map<String, Object> assistantTurn = new LinkedHashMap<>();
             assistantTurn.put("tool", tool);
@@ -291,7 +321,8 @@ public class AgentOrchestrator {
             memory.append(sid, "assistant", om.writeValueAsString(assistantTurn));
         } catch (JsonProcessingException ignore) {
         }
-        String body = "[tool_result " + tool + "]\n" + truncate(resultJson, 4000);
+        // L：截断发生时置位粘性降级标记（截断 = 信息丢失，不可静默）
+        String body = "[tool_result " + tool + "]\n" + truncate(resultJson, 4000, outcome);
         if (strategyHint != null && !strategyHint.isBlank()) {
             // 提示放在结果之后：模型先看到发生了什么，再看到该怎么办
             body = body + "\n\n[策略提示]\n" + strategyHint;
@@ -299,8 +330,48 @@ public class AgentOrchestrator {
         memory.append(sid, "user", body);
     }
 
-    private String truncate(String s, int max) {
+    /** 截断字符串；发生截断时置位降级标记（TRUNCATED）。 */
+    private String truncate(String s, int max,
+                            org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome outcome) {
         if (s == null) return "";
-        return s.length() <= max ? s : s.substring(0, max) + "...[truncated]";
+        if (s.length() <= max) return s;
+        if (outcome != null) {
+            outcome.markDegraded(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome.CAUSE_TRUNCATED);
+        }
+        return s.substring(0, max) + "...[truncated]";
+    }
+
+    /**
+     * L：识别 CRAG 降级信号——工具结果数组首项是 {@code _meta="crag"} 且
+     * {@code degraded=true}（检索质量差，模型应明示却可能没有）。
+     */
+    private boolean looksCragDegraded(String resultJson) {
+        if (resultJson == null || resultJson.isEmpty()) return false;
+        try {
+            com.fasterxml.jackson.databind.JsonNode n = om.readTree(resultJson);
+            if (!n.isArray() || n.isEmpty()) return false;
+            com.fasterxml.jackson.databind.JsonNode meta = n.get(0);
+            if (meta == null || !meta.isObject()) return false;
+            if (!"crag".equals(meta.path("_meta").asText(null))) return false;
+            return meta.path("degraded").asBoolean(false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * L：识别子代理截断信号——{@code subagent.*} 工具返回的 Map 里
+     * {@code truncated=true}（子代理结论被截断 / 达步数上限）。
+     */
+    private boolean looksSubAgentTruncated(String resultJson) {
+        if (resultJson == null || resultJson.isEmpty()) return false;
+        try {
+            com.fasterxml.jackson.databind.JsonNode n = om.readTree(resultJson);
+            if (!n.isObject()) return false;
+            com.fasterxml.jackson.databind.JsonNode tr = n.path("truncated");
+            return tr.isBoolean() && tr.asBoolean();
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

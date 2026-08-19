@@ -10,7 +10,8 @@ import java.util.List;
  * @param finalText 给主 Agent 的最终自然语言结论
  * @param steps     子代理实际推理步数
  * @param toolsUsed 子代理用到的工具名列表（用于可视化叙事）
- * @param truncated 是否因达最大步数 / 异常而提前收尾
+ * @param truncated 结果是否不完整（达最大步数 / 异常 / 结论超长被截断）
+ *                  —— 主 Agent 据此感知「子代理结论不完整」并纳入粘性降级（方案 L）
  */
 public record SubAgentResult(
         String role,

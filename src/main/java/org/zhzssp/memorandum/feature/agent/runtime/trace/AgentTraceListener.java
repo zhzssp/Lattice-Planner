@@ -103,4 +103,20 @@ public interface AgentTraceListener {
      * 强制层是冗余保险；若不为 0，就证明了强制层的必要性。
      */
     default void onToolBanned(String sessionId, int step, String tool, String failureMode) {}
+
+    /* ---------------- 方案 L：轮次收尾归因 ---------------- */
+
+    /**
+     * 一轮用户输入<strong>真正结束</strong>（统一收尾出口）。
+     *
+     * <p>与 {@link #onFinalAnswer} 的区别：{@code onFinalAnswer} 在终态答复产生的
+     * <strong>那一刻</strong>触发；{@code onTurnEnd} 在<strong>所有结束路径</strong>
+     * 收敛后触发，且携带粘性降级标记——用于归因「这一轮是否在丢过信息的情况下作答」。</p>
+     *
+     * @param reason        {@code TurnEndReason} 名称
+     * @param degraded      本轮是否发生过信息丢失（粘性，只增不减）
+     * @param degradeCauses 降级原因集合（如 TRUNCATED / CRAG_DEGRADED）
+     */
+    default void onTurnEnd(String sessionId, String reason, int usedSteps,
+                           boolean degraded, java.util.Set<String> degradeCauses) {}
 }

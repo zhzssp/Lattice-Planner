@@ -52,6 +52,14 @@ public class AgentTraceMetrics implements AgentTraceListener {
     /** 失败模式 → 次数，反映 Agent 最常撞哪种墙 */
     private final Map<String, AtomicLong> failureModes = new ConcurrentHashMap<>();
 
+    /* ---- 方案 L：轮次收尾归因 ---- */
+    /** 结束原因 → 次数 */
+    private final Map<String, AtomicLong> turnEndReasons = new ConcurrentHashMap<>();
+    /** 降级轮次计数（粘性标记置位的轮次） */
+    private final AtomicLong degradedTurns = new AtomicLong();
+    /** 降级原因 → 次数 */
+    private final Map<String, AtomicLong> degradeCauses = new ConcurrentHashMap<>();
+
     @Override
     public void onTurnStart(String sessionId, String userInput, String mode) {
         turns.incrementAndGet();
@@ -139,6 +147,22 @@ public class AgentTraceMetrics implements AgentTraceListener {
         bannedBlocks.incrementAndGet();
     }
 
+    @Override
+    public void onTurnEnd(String sessionId, String reason, int usedSteps,
+                          boolean degraded, java.util.Set<String> causes) {
+        if (reason != null) {
+            turnEndReasons.computeIfAbsent(reason, k -> new AtomicLong()).incrementAndGet();
+        }
+        if (degraded) {
+            degradedTurns.incrementAndGet();
+            if (causes != null) {
+                for (String c : causes) {
+                    degradeCauses.computeIfAbsent(c, k -> new AtomicLong()).incrementAndGet();
+                }
+            }
+        }
+    }
+
     /* ---- 派生指标 ---- */
 
     /**
@@ -157,6 +181,19 @@ public class AgentTraceMetrics implements AgentTraceListener {
     public double convergenceRate() {
         long total = finalAnswers.get() + stepsExhausted.get() + llmFailures.get();
         return total == 0 ? 0.0 : (double) finalAnswers.get() / total;
+    }
+
+    /**
+     * 干净收敛率（方案 L）：排除「丢过信息但最后蒙对」的降级轮次。
+     *
+     * <p>与 {@link #convergenceRate()} 的差值即为「被高估的部分」——
+     * 这是衡量截断/降级对实际体验影响的关键数字。</p>
+     */
+    public double cleanConvergenceRate() {
+        long total = finalAnswers.get() + stepsExhausted.get() + llmFailures.get();
+        if (total == 0) return 0.0;
+        long clean = finalAnswers.get() - degradedTurns.get();
+        return (double) Math.max(0, clean) / total;
     }
 
     /** 平均收敛步数（仅统计成功收敛的轮次）。 */
@@ -227,6 +264,21 @@ public class AgentTraceMetrics implements AgentTraceListener {
         failureModes.forEach((k, v) -> modes.put(k, v.get()));
         reflexion.put("failureModes", modes);
         m.put("reflexion", reflexion);
+
+        // L：轮次收尾归因
+        Map<String, Object> turnEnd = new LinkedHashMap<>();
+        Map<String, Long> reasons = new java.util.TreeMap<>();
+        turnEndReasons.forEach((k, v) -> reasons.put(k, v.get()));
+        turnEnd.put("reasons", reasons);
+        turnEnd.put("degradedTurns", degradedTurns.get());
+        turnEnd.put("degradeRate", round4(
+                finalAnswers.get() == 0 ? 0.0
+                        : (double) degradedTurns.get() / finalAnswers.get()));
+        Map<String, Long> causes = new java.util.TreeMap<>();
+        degradeCauses.forEach((k, v) -> causes.put(k, v.get()));
+        turnEnd.put("degradeCauses", causes);
+        turnEnd.put("cleanConvergenceRate", round4(cleanConvergenceRate()));
+        m.put("turnEnd", turnEnd);
 
         Map<String, Object> confirm = new LinkedHashMap<>();
         confirm.put("approved", confirmApproved.get());

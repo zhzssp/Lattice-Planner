@@ -144,8 +144,11 @@ public class SubAgentRunner {
                     if (finalText.isBlank()) {
                         finalText = "（子代理未返回内容）";
                     }
+                    // L：结论超长被截断时，truncated 置 true——主 Agent 据此感知
+                    // 「子代理结论不完整」并纳入粘性降级（静默截断 → 显式信号）。
+                    boolean textTruncated = finalText.length() > resultMaxChars;
                     return new SubAgentResult(role.name(),
-                            truncate(finalText, resultMaxChars), step, used, false);
+                            truncate(finalText, resultMaxChars), step, used, textTruncated);
                 }
 
                 used.add(call.name());

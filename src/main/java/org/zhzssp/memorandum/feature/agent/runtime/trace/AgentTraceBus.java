@@ -98,4 +98,9 @@ public class AgentTraceBus {
     public void toolBanned(String sid, int step, String tool, String failureMode) {
         emit(l -> l.onToolBanned(sid, step, tool, failureMode));
     }
+
+    public void turnEnd(String sid, String reason, int usedSteps,
+                        boolean degraded, java.util.Set<String> degradeCauses) {
+        emit(l -> l.onTurnEnd(sid, reason, usedSteps, degraded, degradeCauses));
+    }
 }
