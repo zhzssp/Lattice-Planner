@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title>知识落地检验 · Checkpoint</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .ck-container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+        .ck-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.1rem; }
+        .ck-header h2 { margin: 0; }
+        .ck-back { color: #6c5ce7; text-decoration: none; }
+        .ck-intro { color: #666; margin-bottom: 1.1rem; line-height: 1.7; font-size: 0.93rem; }
+        .ck-intro code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        .ck-banner { border-radius: 8px; padding: 0.9rem 1.1rem; margin-bottom: 1.1rem; font-size: 0.92rem; line-height: 1.65; }
+        .ck-banner-err { background: #fdecea; border: 1px solid #f5c2bd; color: #a33227; }
+        .ck-banner-info { background: #eef4ff; border: 1px solid #c3d4f5; color: #2c4a80; }
+        .ck-banner-warn { background: #fff8e6; border: 1px solid #f0d9a0; color: #8a6d1f; }
+        .ck-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.6rem; margin-bottom: 1.2rem; }
+        .ck-stat { background: #fff; border: 1px solid #e6e6e6; border-radius: 8px; padding: 0.75rem 0.85rem; }
+        .ck-stat-label { font-size: 0.76rem; color: #999; }
+        .ck-stat-value { font-size: 1.35rem; font-weight: 600; margin-top: 3px; }
+        .ck-stat-hint { font-size: 0.72rem; color: #aaa; margin-top: 2px; }
+        .ck-toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+        .ck-toolbar select, .ck-toolbar button { padding: 0.4rem 0.8rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; background: #fff; cursor: pointer; }
+        .ck-btn { background: #6c5ce7; color: #fff; border: none; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+        .ck-btn:hover { background: #5b4bd5; }
+        .ck-btn:disabled { background: #bbb; cursor: not-allowed; }
+        .ck-btn-sm { padding: 0.3rem 0.7rem; font-size: 0.84rem; background: #f0f0f0; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; }
+        .ck-btn-sm:hover { background: #e4e4e4; }
+        .ck-card { background: #fff; border: 1px solid #e6e6e6; border-radius: 8px; padding: 1rem; margin-bottom: 0.8rem; }
+        .ck-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+        .ck-code { font-family: monospace; font-weight: 600; color: #5b4bd5; }
+        .ck-title { font-weight: 600; margin-top: 3px; }
+        .ck-tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 0.73rem; margin-left: 5px; background: #eef0ff; color: #5b4bd5; }
+        .ck-tag-l0 { background: #f0f0f0; color: #777; }
+        .ck-tag-l1 { background: #e8f4fd; color: #2b7cb8; }
+        .ck-tag-l2 { background: #fdf0e3; color: #b5711f; font-weight: 600; }
+        .ck-tag-l3 { background: #f3e8fd; color: #7d3cb5; }
+        .ck-tag-pass { background: #e6f7ec; color: #1e7e45; }
+        .ck-tag-fail { background: #fdecea; color: #a33227; }
+        .ck-tag-degr { background: #fff8e6; color: #8a6d1f; }
+        .ck-body { margin-top: 0.7rem; font-size: 0.9rem; color: #555; line-height: 1.65; }
+        .ck-section { margin-top: 0.8rem; }
+        .ck-section-title { font-size: 0.82rem; color: #999; margin-bottom: 0.3rem; }
+        .ck-pre { background: #f7f7f9; border-radius: 6px; padding: 0.7rem; font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; max-height: 260px; overflow-y: auto; }
+        .ck-predict-box { border: 2px solid #f0d9a0; background: #fffdf6; border-radius: 8px; padding: 0.9rem; margin-top: 0.8rem; }
+        .ck-predict-box textarea { width: 100%; min-height: 90px; padding: 0.6rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; font-family: inherit; box-sizing: border-box; resize: vertical; }
+        .ck-predict-frozen { border: 1px solid #d8d8d8; background: #fafafa; border-radius: 8px; padding: 0.9rem; margin-top: 0.8rem; }
+        .ck-frozen-label { font-size: 0.78rem; color: #999; margin-bottom: 0.35rem; }
+        .ck-locked { color: #b5711f; font-size: 0.86rem; }
+        .ck-assert { font-size: 0.85rem; padding: 3px 0; }
+        .ck-assert-ok::before { content: '✓ '; color: #1e7e45; }
+        .ck-assert-no::before { content: '✗ '; color: #a33227; }
+        .ck-empty { color: #999; text-align: center; padding: 2rem 0; }
+        .ck-judge { border: 1px solid #c3d4f5; background: #f7faff; border-radius: 8px; padding: 0.9rem; margin-top: 0.8rem; }
+        .ck-judge textarea { width: 100%; min-height: 60px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.88rem; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+<div class="ck-container">
+    <div class="ck-header">
+        <h2>知识落地检验 <span style="font-size:0.72em;color:#999;">Checkpoint</span></h2>
+        <a href="/codex" class="ck-back">← 知识仓库</a>
+    </div>
+
+    <div class="ck-intro">
+        这套体系回答一个问题：<strong>怎么证明你不是「看懂了」，而是「能改能跑」。</strong>
+        判据统一为：在动手项目里加一个组件 / 改一处机制，跑出可观察的差异，并说得出为什么。
+        <br>
+        分级：<code>L0</code> 复现 → <code>L1</code> 改一处 → <code>L2</code> <strong>加组件（主判据）</strong> → <code>L3</code> 打通。
+        入门线是每个工具至少两条 L2 通过。
+    </div>
+
+    <div class="ck-banner ck-banner-err" th:if="${!verifyEnabled}">
+        <strong>验证闭环未启用。</strong>
+        请设置 <code>codex.verify.enabled=true</code> 后重启服务。
+    </div>
+
+    <div class="ck-banner ck-banner-info">
+        <strong>为什么必须先写预测：</strong>
+        改完再解释，人会自动为既成结果编理由。先写下预测，才能暴露真实的心智模型。
+        <strong>预测错不扣分，预测错但没发现自己错了才是问题。</strong>
+        因此未填预测时「运行验收」按钮会被锁定，且预测一旦提交即冻结、不可修改。
+    </div>
+
+    <div class="ck-stats" id="ck-stats"></div>
+
+    <div class="ck-toolbar">
+        <select id="ck-filter-level">
+            <option value="">全部级别</option>
+            <option value="L0">L0 复现</option>
+            <option value="L1">L1 改一处</option>
+            <option value="L2">L2 加组件（主判据）</option>
+            <option value="L3">L3 打通</option>
+        </select>
+        <select id="ck-filter-status">
+            <option value="">全部状态</option>
+            <option value="TODO">待填预测</option>
+            <option value="PREDICTED">可运行</option>
+            <option value="PASSED">已通过</option>
+            <option value="DEGRADED">通过（判定弱）</option>
+            <option value="FAILED">失败</option>
+        </select>
+        <button class="ck-btn" id="ck-sync">从检验册重新解析</button>
+        <span id="ck-sync-msg" style="font-size:0.86rem;color:#666;"></span>
+    </div>
+
+    <div id="ck-list"><div class="ck-empty">加载中…</div></div>
+</div>
+
+<!--
+  不使用 th:inline="javascript"：脚本大量使用 JS 模板字符串（${...}），
+  与 Thymeleaf 的 JS 内联语法会互相干扰。服务端状态一律经 /api/codex/** 拉取。
+-->
+<script>
+    const CSRF_TOKEN = document.querySelector('meta[name="_csrf"]')?.content;
+    const CSRF_HEADER = document.querySelector('meta[name="_csrf_header"]')?.content;
+
+    function headers() {
+        const h = { 'Content-Type': 'application/json' };
+        if (CSRF_TOKEN && CSRF_HEADER) h[CSRF_HEADER] = CSRF_TOKEN;
+        return h;
+    }
+
+    function esc(s) {
+        if (s === null || s === undefined) return '';
+        return String(s).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function statusTag(st) {
+        const map = {
+            PASSED: ['ck-tag-pass', '已通过'],
+            DEGRADED: ['ck-tag-degr', '通过（判定弱）'],
+            FAILED: ['ck-tag-fail', '失败'],
+            PREDICTED: ['', '可运行'],
+            TODO: ['', '待填预测'],
+            SKIPPED: ['', '跳过']
+        };
+        const [cls, text] = map[st] || ['', st];
+        return `<span class="ck-tag ${cls}">${esc(text)}</span>`;
+    }
+
+    async function loadStats() {
+        const box = document.getElementById('ck-stats');
+        try {
+            const res = await fetch('/api/codex/checkpoints/stats');
+            if (!res.ok) { box.innerHTML = ''; return; }
+            const s = await res.json();
+            const acc = s.predictionAccuracy != null
+                ? Math.round(s.predictionAccuracy * 100) + '%' : '—';
+            const pr = s.passRate != null ? Math.round(s.passRate * 100) + '%' : '—';
+            box.innerHTML = `
+                <div class="ck-stat"><div class="ck-stat-label">检验总数</div>
+                    <div class="ck-stat-value">${esc(s.total ?? 0)}</div></div>
+                <div class="ck-stat"><div class="ck-stat-label">已通过</div>
+                    <div class="ck-stat-value">${esc(s.passed ?? 0)}</div>
+                    <div class="ck-stat-hint">通过率 ${pr}</div></div>
+                <div class="ck-stat"><div class="ck-stat-label">L2 通过（主判据）</div>
+                    <div class="ck-stat-value">${esc(s.l2Passed ?? 0)}</div>
+                    <div class="ck-stat-hint">入门线：每工具 ≥2 条</div></div>
+                <div class="ck-stat"><div class="ck-stat-label">预测准确率</div>
+                    <div class="ck-stat-value">${acc}</div>
+                    <div class="ck-stat-hint">已判定 ${esc(s.predictionJudged ?? 0)} 条</div></div>
+                <div class="ck-stat"><div class="ck-stat-label">预测错误</div>
+                    <div class="ck-stat-value">${esc(s.mispredicted ?? 0)}</div>
+                    <div class="ck-stat-hint">最值得复盘的一类</div></div>`;
+        } catch (e) {
+            box.innerHTML = '';
+        }
+    }
+
+    async function loadList() {
+        const box = document.getElementById('ck-list');
+        const level = document.getElementById('ck-filter-level').value;
+        const status = document.getElementById('ck-filter-status').value;
+        const qs = new URLSearchParams();
+        if (level) qs.set('level', level);
+        if (status) qs.set('status', status);
+        try {
+            const res = await fetch('/api/codex/checkpoints?' + qs.toString());
+            if (!res.ok) {
+                const e = await res.json().catch(() => ({}));
+                box.innerHTML = `<div class="ck-empty">${esc(e.message || ('HTTP ' + res.status))}</div>`;
+                return;
+            }
+            const list = await res.json();
+            if (!list.length) {
+                box.innerHTML = '<div class="ck-empty">没有匹配的检验条目。'
+                    + '若知识仓库里有 docs/checkpoints/ 检验册，点上方「从检验册重新解析」。</div>';
+                return;
+            }
+            box.innerHTML = list.map(renderCard).join('');
+        } catch (e) {
+            box.innerHTML = `<div class="ck-empty">加载失败：${esc(e.message)}</div>`;
+        }
+    }
+
+    function renderCard(c) {
+        const lv = 'ck-tag-' + c.level.toLowerCase();
+        return `<div class="ck-card" data-id="${c.id}">
+            <div class="ck-card-head">
+                <div>
+                    <span class="ck-code">${esc(c.code)}</span>
+                    <span class="ck-tag ${lv}">${esc(c.level)}</span>
+                    ${statusTag(c.status)}
+                    ${c.resourceTag ? `<span class="ck-tag">${esc(c.resourceTag)}</span>` : ''}
+                    ${c.estHours ? `<span class="ck-tag">${esc(c.estHours)}h</span>` : ''}
+                    ${c.predictionCorrect === false
+                        ? '<span class="ck-tag ck-tag-degr">预测错（高价值）</span>' : ''}
+                    ${c.predictionCorrect === true
+                        ? '<span class="ck-tag ck-tag-pass">预测对</span>' : ''}
+                    <div class="ck-title">${esc(c.title)}</div>
+                </div>
+                <button class="ck-btn-sm" onclick="toggleDetail(${c.id})">展开</button>
+            </div>
+            <div class="ck-body" id="ck-detail-${c.id}" style="display:none;"></div>
+        </div>`;
+    }
+
+    async function toggleDetail(id) {
+        const box = document.getElementById('ck-detail-' + id);
+        if (box.style.display !== 'none') { box.style.display = 'none'; return; }
+        box.style.display = 'block';
+        if (box.dataset.loaded === '1') return;
+        box.innerHTML = '加载中…';
+        try {
+            const res = await fetch('/api/codex/checkpoints/' + id);
+            const c = await res.json();
+            box.innerHTML = renderDetail(c);
+            box.dataset.loaded = '1';
+        } catch (e) {
+            box.innerHTML = '加载失败：' + esc(e.message);
+        }
+    }
+
+    function renderDetail(c) {
+        let h = '';
+        if (c.checksWhat) {
+            h += `<div class="ck-section"><div class="ck-section-title">检验什么</div>${esc(c.checksWhat)}</div>`;
+        }
+        if (c.prerequisite) {
+            h += `<div class="ck-section"><div class="ck-section-title">前置</div>${esc(c.prerequisite)}</div>`;
+        }
+        if (c.verifySource === 'PARSED') {
+            h += `<div class="ck-banner ck-banner-warn" style="margin-top:0.8rem;">
+                <strong>判据强度提示：</strong>该条判据由原文 Markdown 解析推断，通常只能判「退出码为 0」。
+                机器判定通过<strong>不等于</strong>内容完全正确，仍应对照下方「通过标准」人工核对。
+            </div>`;
+        }
+        if (c.verify) {
+            let cmdText = c.verify;
+            try {
+                const v = JSON.parse(c.verify);
+                cmdText = (v.cwd ? '# cwd: ' + v.cwd + '\n' : '') + (v.cmd || '');
+                if (v.alternatives && v.alternatives.length) {
+                    cmdText += '\n\n# 其他候选命令（不自动执行）：\n'
+                        + v.alternatives.map(x => '# ' + x).join('\n');
+                }
+            } catch (e) { /* 保持原文展示 */ }
+            h += `<div class="ck-section"><div class="ck-section-title">验收命令</div>
+                <div class="ck-pre">${esc(cmdText)}</div></div>`;
+        }
+        if (c.passCriteria) {
+            h += `<div class="ck-section"><div class="ck-section-title">通过标准（人工核对用）</div>
+                <div class="ck-pre">${esc(c.passCriteria)}</div></div>`;
+        }
+
+        // ---- 预测区：门禁的可见落点 ----
+        if (c.predictedAt) {
+            h += `<div class="ck-predict-frozen">
+                <div class="ck-frozen-label">你的预测（已于 ${esc(c.predictedAt)} 冻结，不可修改）</div>
+                <div class="ck-pre">${esc(c.prediction || '')}</div>
+            </div>`;
+        } else {
+            h += `<div class="ck-predict-box">
+                <div style="font-weight:600;margin-bottom:0.4rem;">先写下预测，才能运行验收</div>
+                ${c.predictionQuestions
+                    ? `<div class="ck-pre" style="margin-bottom:0.6rem;">${esc(c.predictionQuestions)}</div>`
+                    : '<div style="font-size:0.86rem;color:#8a6d1f;margin-bottom:0.5rem;">你认为会发生什么？为什么？</div>'}
+                <textarea id="ck-pred-${c.id}" placeholder="写下你认为会发生什么、以及为什么。提交后即冻结，不可修改。"></textarea>
+                <div style="margin-top:0.5rem;">
+                    <button class="ck-btn" onclick="submitPrediction(${c.id})">提交并冻结预测</button>
+                    <span id="ck-pred-msg-${c.id}" style="font-size:0.85rem;color:#666;margin-left:0.5rem;"></span>
+                </div>
+            </div>`;
+        }
+
+        // ---- 运行区 ----
+        h += `<div class="ck-section">`;
+        if (!c.canRun) {
+            const why = !c.predictedAt
+                ? '未填预测——按纪律要求，运行验收已锁定。'
+                : '该条没有可执行的验收命令（可能是纯口述题，或原文命令含 shell 特性无法安全解析）。';
+            h += `<div class="ck-locked">🔒 ${esc(why)}</div>`;
+        } else {
+            h += `<button class="ck-btn" onclick="runCheckpoint(${c.id})">运行验收</button>
+                  <span style="font-size:0.82rem;color:#999;margin-left:0.5rem;">
+                  将在你的机器上真实执行上方命令</span>`;
+        }
+        h += `<div id="ck-run-${c.id}"></div></div>`;
+
+        // ---- 预测判定区（已跑过才显示）----
+        if (c.predictedAt && (c.status === 'PASSED' || c.status === 'DEGRADED'
+                || c.status === 'FAILED')) {
+            h += `<div class="ck-judge">
+                <div style="font-weight:600;margin-bottom:0.4rem;">你的预测和实际一致吗？</div>
+                <div style="font-size:0.85rem;color:#666;margin-bottom:0.5rem;">
+                    「通过但预测错」是最有价值的信号——它说明结果正确但因果理解有偏差，
+                    这是所有假通过里最危险的一类。
+                </div>
+                <textarea id="ck-div-${c.id}" placeholder="若不一致：我原以为…，实际…（判定不一致时必填）"
+                    >${esc(c.divergence || '')}</textarea>
+                <div style="margin-top:0.5rem;">
+                    <button class="ck-btn-sm" onclick="grade(${c.id}, true)">一致</button>
+                    <button class="ck-btn-sm" onclick="grade(${c.id}, false)">不一致（预测错）</button>
+                    <span id="ck-judge-msg-${c.id}" style="font-size:0.85rem;color:#666;margin-left:0.5rem;"></span>
+                    ${c.predictionJudge ? `<span class="ck-tag">当前判定来源：${esc(c.predictionJudge)}</span>` : ''}
+                </div>
+            </div>`;
+        }
+
+        if (c.blindSpots) {
+            h += `<details class="ck-section"><summary style="cursor:pointer;color:#6c5ce7;">
+                常见失败 → 盲点对照</summary>
+                <div class="ck-pre" style="margin-top:0.4rem;">${esc(c.blindSpots)}</div></details>`;
+        }
+        return h;
+    }
+
+    async function submitPrediction(id) {
+        const ta = document.getElementById('ck-pred-' + id);
+        const msg = document.getElementById('ck-pred-msg-' + id);
+        const text = ta.value.trim();
+        if (!text) { msg.textContent = '预测内容不能为空'; return; }
+        if (!confirm('提交后预测将被冻结、不可修改。\n\n（可修改的预测无法用于计算准确率。）\n\n确定提交？')) return;
+        try {
+            const res = await fetch(`/api/codex/checkpoints/${id}/predict`, {
+                method: 'POST', headers: headers(),
+                body: JSON.stringify({ prediction: text })
+            });
+            const d = await res.json();
+            msg.textContent = d.message || '';
+            if (d.accepted) {
+                const box = document.getElementById('ck-detail-' + id);
+                box.dataset.loaded = '';
+                await toggleDetail(id);
+                await toggleDetail(id);
+                await loadStats();
+            }
+        } catch (e) {
+            msg.textContent = '提交失败：' + e.message;
+        }
+    }
+
+    async function runCheckpoint(id) {
+        const out = document.getElementById('ck-run-' + id);
+        out.innerHTML = '<div class="ck-pre">正在执行，请稍候…（编译类任务可能需要数分钟）</div>';
+        try {
+            const res = await fetch(`/api/codex/checkpoints/${id}/run`, {
+                method: 'POST', headers: headers()
+            });
+            const d = await res.json();
+            if (d.rejected) {
+                out.innerHTML = `<div class="ck-banner ck-banner-err" style="margin-top:0.7rem;">
+                    <strong>命令被安全闸门拒绝，未执行。</strong><br>${esc(d.rejectReason)}</div>`;
+                return;
+            }
+            if (!d.executed) {
+                out.innerHTML = `<div class="ck-banner ck-banner-warn" style="margin-top:0.7rem;">
+                    ${esc(d.error || '执行未开始')}</div>`;
+                return;
+            }
+            let h = `<div class="ck-section">
+                <div class="ck-section-title">判定结果</div>
+                <div style="font-weight:600;color:${d.passed ? '#1e7e45' : '#a33227'};">
+                    ${d.passed ? '✓ 通过' : '✗ 未通过'}
+                    <span style="font-weight:400;color:#666;font-size:0.86rem;">
+                        退出码 ${esc(d.exitCode)} · ${esc(d.durationMs)}ms
+                        ${d.timedOut ? ' · 超时被终止' : ''}</span>
+                </div>`;
+            (d.assertions || []).forEach(a => {
+                h += `<div class="ck-assert ${a.passed ? 'ck-assert-ok' : 'ck-assert-no'}">
+                    ${esc(a.kind)}：期望 ${esc(a.expected)} → ${esc(a.actual)}</div>`;
+            });
+            if (d.outputTruncated) {
+                h += `<div class="ck-banner ck-banner-warn" style="margin-top:0.6rem;">
+                    输出被截断，涉及内容匹配的断言不可靠，判定强度下降。
+                    可调大 <code>codex.verify.output-limit-bytes</code> 后重跑。</div>`;
+            }
+            h += '</div>';
+            if (d.stdout) {
+                h += `<div class="ck-section"><div class="ck-section-title">stdout</div>
+                    <div class="ck-pre">${esc(d.stdout)}</div></div>`;
+            }
+            if (d.stderr && d.stderr.trim()) {
+                h += `<div class="ck-section"><div class="ck-section-title">stderr</div>
+                    <div class="ck-pre">${esc(d.stderr)}</div></div>`;
+            }
+            if (d.blindSpotHint) {
+                h += `<div class="ck-banner ck-banner-warn" style="margin-top:0.7rem;">
+                    ${esc(d.blindSpotHint)}</div>`;
+            }
+            if (d.passed) {
+                h += `<div class="ck-banner ck-banner-info" style="margin-top:0.7rem;">
+                    通过了。<strong>接下来请回头核对你当初的预测</strong>——
+                    若结果对但预测错，那正是最该被记下来的一次学习。</div>`;
+            }
+            out.innerHTML = h;
+            await loadStats();
+            await loadList();
+        } catch (e) {
+            out.innerHTML = `<div class="ck-pre">执行失败：${esc(e.message)}</div>`;
+        }
+    }
+
+    async function grade(id, correct) {
+        const msg = document.getElementById('ck-judge-msg-' + id);
+        const div = document.getElementById('ck-div-' + id).value.trim();
+        if (!correct && !div) {
+            msg.textContent = '判定不一致时必须写清「我原以为…实际…」，否则无法复盘';
+            return;
+        }
+        try {
+            const res = await fetch(`/api/codex/checkpoints/${id}/grade`, {
+                method: 'POST', headers: headers(),
+                body: JSON.stringify({ correct, divergence: div })
+            });
+            const d = await res.json();
+            msg.textContent = d.message || '';
+            await loadStats();
+        } catch (e) {
+            msg.textContent = '记录失败：' + e.message;
+        }
+    }
+
+    document.getElementById('ck-filter-level').addEventListener('change', loadList);
+    document.getElementById('ck-filter-status').addEventListener('change', loadList);
+    document.getElementById('ck-sync').addEventListener('click', async () => {
+        const btn = document.getElementById('ck-sync');
+        const msg = document.getElementById('ck-sync-msg');
+        btn.disabled = true;
+        msg.textContent = '正在从 docs/checkpoints/ 解析…';
+        try {
+            const res = await fetch('/api/codex/checkpoints/sync', {
+                method: 'POST', headers: headers()
+            });
+            const d = await res.json();
+            if (!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+            msg.textContent = d.map(x =>
+                `${x.repo}：扫描 ${x.booksScanned} 册，解析 ${x.parsed} 条`
+                + `（${x.withCommand} 条带命令，新建 ${x.created} / 更新 ${x.updated}）`
+            ).join('；');
+            await loadStats();
+            await loadList();
+        } catch (e) {
+            msg.textContent = '失败：' + e.message;
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    loadStats();
+    loadList();
+</script>
+</body>
+</html>

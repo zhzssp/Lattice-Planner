@@ -17,6 +17,9 @@ import org.zhzssp.memorandum.feature.pkm.service.EmbeddingVectorCache;
 import org.zhzssp.memorandum.feature.codex.service.CodexMetrics;
 import org.zhzssp.memorandum.feature.codex.service.CodexSearchService;
 import org.zhzssp.memorandum.feature.codex.service.RepoRegistryService;
+import org.zhzssp.memorandum.feature.codex.verify.CheckpointService;
+import org.zhzssp.memorandum.feature.codex.verify.CommandGuard;
+import org.zhzssp.memorandum.feature.codex.verify.VerifyMetrics;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -53,6 +56,9 @@ public class ObservabilityController {
     private final CodexMetrics codexMetrics;
     private final CodexSearchService codexSearch;
     private final RepoRegistryService codexRegistry;
+    private final VerifyMetrics verifyMetrics;
+    private final CheckpointService checkpointService;
+    private final CommandGuard commandGuard;
 
     public ObservabilityController(RagServingMetrics ragMetrics,
                                    QueryResultCache queryCache,
@@ -68,7 +74,10 @@ public class ObservabilityController {
                                    ToolArgumentValidator argValidator,
                                    CodexMetrics codexMetrics,
                                    CodexSearchService codexSearch,
-                                   RepoRegistryService codexRegistry) {
+                                   RepoRegistryService codexRegistry,
+                                   VerifyMetrics verifyMetrics,
+                                   CheckpointService checkpointService,
+                                   CommandGuard commandGuard) {
         this.ragMetrics = ragMetrics;
         this.queryCache = queryCache;
         this.reranker = reranker;
@@ -84,6 +93,9 @@ public class ObservabilityController {
         this.codexMetrics = codexMetrics;
         this.codexSearch = codexSearch;
         this.codexRegistry = codexRegistry;
+        this.verifyMetrics = verifyMetrics;
+        this.checkpointService = checkpointService;
+        this.commandGuard = commandGuard;
     }
 
     /**
@@ -147,6 +159,7 @@ public class ObservabilityController {
         out.put("crag", cragSection());
         out.put("prefixCache", prefixCacheSection());
         out.put("codex", codexSection());
+        out.put("verify", verifySection());
         return out;
     }
 
@@ -154,6 +167,41 @@ public class ObservabilityController {
     @GetMapping("/api/codex/stats")
     public Map<String, Object> codexStats() {
         return codexSection();
+    }
+
+    /** 验证闭环指标（V4 P1）。 */
+    @GetMapping("/api/codex/verify/stats")
+    public Map<String, Object> verifyStats() {
+        return verifySection();
+    }
+
+    /**
+     * 验证闭环分区。
+     *
+     * <p>三个数字最值得盯：
+     * <ul>
+     *   <li>{@code blockedNoPrediction} —— 预测门禁是否在起作用（结合
+     *       {@code predictionsSubmitted} 判断：都为 0 说明功能没被用过，
+     *       只有前者为 0 而后者不为 0 才说明用户守纪律）；</li>
+     *   <li>{@code rejectedUnsafeCommands} —— 命令白名单的必要性实证。
+     *       长期为 0 说明它是冗余保险；一旦不为 0，就证明了「只做提示层不够」
+     *       （与方案 D 的 {@code bannedToolCallsBlocked} 同一立场）；</li>
+     *   <li>{@code predictionAccuracy} —— 别处拿不到的指标。预测先于结果冻结，
+     *       无法事后造假。但要注意 AI 判定会有误判，引用时须说明判定来源。</li>
+     * </ul>
+     */
+    private Map<String, Object> verifySection() {
+        Map<String, Object> section = new LinkedHashMap<>();
+
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("enabled", checkpointService.enabled());
+        config.put("requirePrediction", checkpointService.requirePrediction());
+        config.put("allowedExecutables", commandGuard.allowedExecutablesList());
+        // 没有 config 回显，predictionAccuracy 这类数字就没有解释力
+        section.put("config", config);
+
+        section.put("metrics", verifyMetrics.snapshot());
+        return section;
     }
 
     /* ---- 分区组装 ---- */

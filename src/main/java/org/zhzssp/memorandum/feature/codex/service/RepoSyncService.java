@@ -29,12 +29,25 @@ public class RepoSyncService {
     private final GitClient git;
     private final RepoIndexer indexer;
     private final RepoRegistryService registry;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
-    public RepoSyncService(GitClient git, RepoIndexer indexer, RepoRegistryService registry) {
+    public RepoSyncService(GitClient git, RepoIndexer indexer, RepoRegistryService registry,
+                           org.springframework.context.ApplicationEventPublisher events) {
         this.git = git;
         this.indexer = indexer;
         this.registry = registry;
+        this.events = events;
     }
+
+    /**
+     * 索引完成事件。
+     *
+     * <p>用事件而非直接调用 {@code CheckpointService}：索引是 codex 的基础能力，
+     * 而检验解析是它之上的可选特性（{@code codex.verify.enabled} 可独立关闭）。
+     * 事件解耦让「关掉验证闭环时索引行为完全不变」成为结构性保证，
+     * 而不是靠一个 if 判断——这与项目 core/feature 的解耦立场一致。</p>
+     */
+    public record RepoIndexedEvent(KnowledgeRepo repo, RepoIndexer.IndexReport report) {}
 
     /**
      * 同步结果。
@@ -93,6 +106,16 @@ public class RepoSyncService {
 
         // 索引始终执行：读的是工作副本当前内容，脏不脏都要如实反映
         RepoIndexer.IndexReport report = indexer.index(repo, full);
+
+        // 索引成功后广播，由验证闭环等下游特性按需接管（失败时不广播，避免在半成品索引上解析）
+        if (report.success()) {
+            try {
+                events.publishEvent(new RepoIndexedEvent(repo, report));
+            } catch (Exception e) {
+                // 下游监听器异常绝不能让同步整体失败——索引本身已经成功了
+                log.warn("[Codex] 索引后置处理异常（不影响索引结果）：{}", e.getMessage());
+            }
+        }
         return new SyncResult(pulled, dirty, head, report, warning);
     }
 
