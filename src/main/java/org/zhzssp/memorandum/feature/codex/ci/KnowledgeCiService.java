@@ -460,6 +460,16 @@ public class KnowledgeCiService {
                 }
             }
         }
+        if (scanned == 0) {
+            // ★P3 之后实体表会被「先跳过」清单填充，于是不再命中上面的空表分支。
+            // 但「没有文档声明 scope」≠「全部合规」，那只是无可校验对象。
+            // 若这里返回 OK，用户会以为止损线声明已被校验过——又一次把「没检查」当成「通过」。
+            return skipped(CheckId.SCOPE_DANGLING, t0,
+                    "知识点表已有 " + entities.size() + " 条，但没有文档在 front-matter 里声明 "
+                            + "scope.must / scope.skip，无可校验对象。"
+                            + "（注意：止损线本身已由「先跳过」清单解析进库，见知识缺口看板；"
+                            + "本项校验的是 front-matter 里的显式声明，是另一回事。）");
+        }
         return finish(CheckId.SCOPE_DANGLING, out, scanned, t0);
     }
 

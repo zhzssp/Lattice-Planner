@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title>知识缺口 · Codex</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .gp-wrap { max-width: 1120px; margin: 0 auto; padding: 1.5rem; }
+        .gp-header { display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 1.2rem; }
+        .gp-header h2 { margin: 0; }
+        .gp-back { color: #666; text-decoration: none; font-size: 0.9rem; }
+        .gp-back:hover { color: #333; }
+        .gp-card { border: 1px solid #e3e3e3; border-radius: 10px; padding: 1rem 1.2rem;
+            margin-bottom: 1rem; background: #fff; }
+        .gp-card h3 { margin: 0 0 0.7rem; font-size: 1.02rem; }
+        .gp-banner { border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 1rem;
+            font-size: 0.88rem; line-height: 1.65; background: #fff7e6;
+            border: 1px solid #ffd591; color: #874d00; }
+        .gp-stats { display: flex; gap: 1.6rem; flex-wrap: wrap; }
+        .gp-stat { min-width: 92px; }
+        .gp-stat .n { font-size: 1.5rem; font-weight: 600; }
+        .gp-stat .l { font-size: 0.78rem; color: #888; }
+        .gp-btn { border: 1px solid #d0d0d0; background: #fafafa; border-radius: 6px;
+            padding: 0.3rem 0.7rem; cursor: pointer; font-size: 0.82rem; margin-right: 0.35rem; }
+        .gp-btn:hover { background: #f0f0f0; }
+        .gp-btn.primary { background: #1677ff; border-color: #1677ff; color: #fff; }
+        .gp-btn.ghost { background: #fff; }
+        .gp-row { border-top: 1px solid #f0f0f0; padding: 0.7rem 0; }
+        .gp-row:first-child { border-top: none; }
+        .gp-q { font-size: 0.93rem; margin-bottom: 0.3rem; }
+        .gp-meta { font-size: 0.79rem; color: #888; margin-bottom: 0.4rem; }
+        .gp-tag { display: inline-block; border-radius: 4px; padding: 0.05rem 0.4rem;
+            font-size: 0.72rem; margin-right: 0.35rem; }
+        .t-CRAG { background: #f0f5ff; color: #1d39c4; border: 1px solid #adc6ff; }
+        .t-SKIP_RECALL { background: #fff7e6; color: #ad4e00; border: 1px solid #ffd591; }
+        .t-CP_FAIL { background: #fff1f0; color: #a8071a; border: 1px solid #ffa39e; }
+        .t-CP_MISPREDICT { background: #f9f0ff; color: #531dab; border: 1px solid #d3adf7; }
+        .t-MANUAL { background: #f5f5f5; color: #595959; border: 1px solid #d9d9d9; }
+        .gp-count { font-weight: 600; color: #d4380d; }
+        .gp-bar { height: 5px; background: #f0f0f0; border-radius: 3px; overflow: hidden;
+            max-width: 180px; margin-top: 0.25rem; }
+        .gp-bar > i { display: block; height: 100%; background: #ffa940; }
+        input.gp-in, select.gp-sel { border: 1px solid #d9d9d9; border-radius: 6px;
+            padding: 0.35rem 0.55rem; font-size: 0.85rem; font-family: inherit; }
+        .gp-note { font-size: 0.79rem; color: #999; line-height: 1.65; margin-top: 0.6rem; }
+        .gp-msg { font-size: 0.84rem; margin-top: 0.5rem; padding: 0.45rem 0.65rem;
+            border-radius: 6px; white-space: pre-wrap; }
+        .gp-msg.ok { background: #f6ffed; color: #237804; }
+        .gp-msg.bad { background: #fff1f0; color: #a8071a; }
+        .gp-reason { font-size: 0.78rem; color: #8c8c8c; background: #fafafa;
+            border-radius: 5px; padding: 0.35rem 0.55rem; margin-top: 0.3rem; }
+    </style>
+</head>
+<body>
+<div class="gp-wrap">
+    <div class="gp-header">
+        <h2>知识缺口 <span style="font-size:0.72em;color:#999;">Gap</span></h2>
+        <div>
+            <a href="/codex" class="gp-back" style="margin-right:1rem;">← 知识仓库</a>
+            <a href="/codex/curate" class="gp-back" style="margin-right:1rem;">知识策展</a>
+            <a href="/codex/checkpoints" class="gp-back">知识落地检验</a>
+        </div>
+    </div>
+
+    <div th:if="${!gapEnabled}" class="gp-banner">
+        <strong>缺口闭环未启用</strong>（<code>codex.gap.enabled=false</code>）。
+        默认关闭的原因不只是谨慎：缺口记录挂在检索工具的调用路径上，而<strong>评测套件也会走这些工具</strong>——
+        开启后跑一次 <code>agentEval</code> 会往台账灌进几十条来自测试用例的假缺口，
+        而缺口表是本期唯一不可从仓库重建的表，污染了洗不掉。
+    </div>
+
+    <div class="gp-card">
+        <h3>台账摘要</h3>
+        <div class="gp-stats" id="stats"></div>
+        <div class="gp-note" id="statsNote"></div>
+    </div>
+
+    <div class="gp-card">
+        <h3>缺口清单
+            <span style="font-size:0.78rem;color:#999;font-weight:normal;">按被问到次数倒序</span>
+        </h3>
+        <div style="margin-bottom:0.7rem;">
+            <select class="gp-sel" id="fStatus">
+                <option value="">待处理（OPEN + PLANNED）</option>
+                <option value="OPEN">OPEN</option>
+                <option value="PLANNED">PLANNED</option>
+                <option value="CLOSED">CLOSED</option>
+                <option value="DISMISSED">DISMISSED</option>
+            </select>
+            <select class="gp-sel" id="fSource">
+                <option value="">全部来源</option>
+                <option value="CRAG">CRAG · 问了但库里没有</option>
+                <option value="SKIP_RECALL">SKIP_RECALL · 跳过的被反复问到</option>
+                <option value="CP_FAIL">CP_FAIL · 检验没过</option>
+                <option value="CP_MISPREDICT">CP_MISPREDICT · 通过但预测错</option>
+                <option value="MANUAL">MANUAL · 手工登记</option>
+            </select>
+            <button class="gp-btn" id="btnReload">刷新</button>
+        </div>
+        <div id="gapList"></div>
+        <div id="gapMsg"></div>
+        <div class="gp-note">
+            三类来源的<strong>补法不同</strong>：CRAG 要补资料，CP_FAIL 要补动手，
+            CP_MISPREDICT 要补因果理解——「结果对但原因想错了」和「做不出来」几乎是相反的学习路径。
+        </div>
+    </div>
+
+    <div class="gp-card">
+        <h3>止损线 <span style="font-size:0.78rem;color:#999;font-weight:normal;">
+            「先跳过（遇到再学）」清单及其被遇到的次数</span></h3>
+        <div style="margin-bottom:0.7rem;">
+            <select class="gp-sel" id="repoSel" style="min-width:200px;"></select>
+            <button class="gp-btn" id="btnScope">加载</button>
+            <button class="gp-btn ghost" id="btnScopeSync">重新解析清单</button>
+        </div>
+        <div id="scopeList"></div>
+        <div id="scopeMsg"></div>
+        <div class="gp-note">
+            「遇到再学」的前提是能感知到「遇到了」，而这件事此前<strong>完全无人监测</strong>——
+            于是止损线只能单向生效，跳过的东西就永久跳过了，哪怕它后来一直挡路。
+            命中次数达到阈值即自动登记为缺口。
+        </div>
+    </div>
+
+    <div class="gp-card">
+        <h3>手工登记</h3>
+        <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+            <input class="gp-in" id="mQuestion" style="flex:1 1 460px;"
+                   placeholder="我还不明白的问题（这是你自己的判断，与自动采集的行为证据分开统计）">
+            <button class="gp-btn primary" id="btnManual">登记</button>
+        </div>
+        <div id="manualMsg"></div>
+    </div>
+</div>
+
+<!--
+  刻意不使用 th:inline="javascript"：脚本大量使用 JS 模板字符串（`${...}`），
+  与 Thymeleaf 的 JS 内联语法互相干扰。服务端状态一律由 /api/codex/** 拉取。
+-->
+<script>
+    const CSRF_TOKEN = document.querySelector('meta[name="_csrf"]')?.content;
+    const CSRF_HEADER = document.querySelector('meta[name="_csrf_header"]')?.content;
+
+    function headers() {
+        const h = { 'Content-Type': 'application/json' };
+        if (CSRF_TOKEN && CSRF_HEADER) h[CSRF_HEADER] = CSRF_TOKEN;
+        return h;
+    }
+
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function msg(el, ok, text) {
+        el.innerHTML = `<div class="gp-msg ${ok ? 'ok' : 'bad'}">${esc(text)}</div>`;
+    }
+
+    let threshold = 3;
+
+    async function init() {
+        try {
+            const cfg = await (await fetch('/api/codex/gap/config')).json();
+            threshold = cfg.skipRecallThreshold || 3;
+        } catch (e) { /* 忽略 */ }
+
+        try {
+            const repos = await (await fetch('/api/codex/repos')).json();
+            const sel = document.getElementById('repoSel');
+            sel.innerHTML = repos.map(r =>
+                `<option value="${r.id}">${esc(r.name)}</option>`).join('')
+                || '<option value="">（尚未接入仓库）</option>';
+        } catch (e) { /* 忽略 */ }
+
+        await loadGaps();
+    }
+
+    /* ============ 台账 ============ */
+
+    function renderStats(s) {
+        const items = [
+            ['open', '待处理'], ['planned', '已排计划'],
+            ['closed', '已补上'], ['dismissed', '已忽略']
+        ];
+        document.getElementById('stats').innerHTML = items.map(([k, l]) =>
+            `<div class="gp-stat"><div class="n">${s[k] ?? 0}</div><div class="l">${l}</div></div>`)
+            .join('') +
+            `<div class="gp-stat"><div class="n">${Math.round((s.closedRate ?? 0) * 100)}%</div>
+             <div class="l">补全率</div></div>`;
+
+        const by = s.bySource || {};
+        const parts = Object.keys(by).filter(k => by[k] > 0).map(k => `${k}=${by[k]}`);
+        document.getElementById('statsNote').innerHTML =
+            (parts.length ? '来源分布：' + esc(parts.join('　·　')) + '<br>' : '') +
+            '补全率的分母刻意排除「已忽略」——那是「不是我的缺口」的判断，不该算进分母。' +
+            '只涨不关的台账等于一份让人焦虑的待办清单。';
+    }
+
+    function sourceHint(src) {
+        return {
+            CRAG: '问了但库里没有',
+            SKIP_RECALL: '当初标记先跳过，现已反复被问到',
+            CP_FAIL: '落地检验没通过：做不出来',
+            CP_MISPREDICT: '通过但预测错：结果对，因果理解错',
+            MANUAL: '手工登记'
+        }[src] || src;
+    }
+
+    async function loadGaps() {
+        const st = document.getElementById('fStatus').value;
+        const sc = document.getElementById('fSource').value;
+        let url = '/api/codex/gap?';
+        if (st) url += 'status=' + encodeURIComponent(st) + '&';
+        if (sc) url += 'source=' + encodeURIComponent(sc);
+        try {
+            const d = await (await fetch(url)).json();
+            renderStats(d.summary || {});
+            const rows = d.gaps || [];
+            if (!rows.length) {
+                document.getElementById('gapList').innerHTML =
+                    '<div class="gp-note">没有符合条件的缺口。若刚启用，需要用一段时间才会积累出信号——' +
+                    '缺口来自提问与验收行为，不是凭空生成的。</div>';
+                return;
+            }
+            const max = Math.max(...rows.map(r => r.askCount || 1));
+            document.getElementById('gapList').innerHTML = rows.map(g => `
+                <div class="gp-row">
+                    <div class="gp-q">
+                        <span class="gp-tag t-${esc(g.source)}">${esc(g.source)}</span>
+                        ${g.machineJudged ? '<span class="gp-tag t-CP_FAIL">有机器判据</span>' : ''}
+                        ${esc(g.question)}
+                    </div>
+                    <div class="gp-meta">
+                        被问 <span class="gp-count">${g.askCount}</span> 次
+                        · ${esc(sourceHint(g.source))}
+                        · ${esc(g.status)}${g.priority ? ' · ' + esc(g.priority) : ''}
+                        ${g.entity ? ' · 知识点 ' + esc(g.entity) : ''}
+                        ${g.goalId ? ' · 目标 #' + g.goalId : ''}
+                        ${g.githubIssueNumber ? ' · Issue #' + g.githubIssueNumber : ''}
+                        <div class="gp-bar"><i style="width:${Math.round((g.askCount / max) * 100)}%"></i></div>
+                    </div>
+                    ${g.note ? `<div class="gp-reason">${esc(g.note)}</div>` : ''}
+                    <div style="margin-top:0.45rem;">
+                        ${g.status === 'CLOSED' || g.status === 'DISMISSED' ? '' : `
+                        <button class="gp-btn primary" onclick="toPlan(${g.id})">转学习计划</button>
+                        <button class="gp-btn" onclick="closeGap(${g.id})">标记补上</button>
+                        <button class="gp-btn" onclick="dismissGap(${g.id})">忽略</button>
+                        ${g.githubIssueNumber ? '' :
+                            `<button class="gp-btn ghost" onclick="toIssue(${g.id})">开 Issue</button>`}
+                        `}
+                    </div>
+                </div>`).join('');
+        } catch (e) {
+            msg(document.getElementById('gapMsg'), false, '加载失败：' + e.message);
+        }
+    }
+
+    document.getElementById('btnReload').onclick = loadGaps;
+    document.getElementById('fStatus').onchange = loadGaps;
+    document.getElementById('fSource').onchange = loadGaps;
+
+    async function post(url, body) {
+        const res = await fetch(url, {
+            method: 'POST', headers: headers(),
+            body: body === undefined ? '{}' : JSON.stringify(body)
+        });
+        return { ok: res.ok, data: await res.json() };
+    }
+
+    async function toPlan(id) {
+        const box = document.getElementById('gapMsg');
+        msg(box, true, '正在生成学习计划…');
+        const { data } = await post(`/api/codex/gap/${id}/plan`, { constraints: [] });
+        if (data.ok) {
+            msg(box, true, `${data.message}\n目标 #${data.goalId}\n目标陈述：${data.goalStatement}`);
+            await loadGaps();
+        } else if (data.code === 'NEEDS_CLARIFY') {
+            msg(box, false, '规划器需要更多信息：\n- ' +
+                (data.clarifyQuestions || []).join('\n- '));
+        } else {
+            msg(box, false, data.message || data.error);
+        }
+    }
+
+    async function closeGap(id) {
+        const path = prompt('补上这个缺口的文档路径（关闭必须给出证据文档）：',
+            'docs/notes/');
+        if (!path) return;
+        const { data } = await post(`/api/codex/gap/${id}/close`, { documentPath: path });
+        msg(document.getElementById('gapMsg'), !!data.ok, data.message || data.error);
+        if (data.ok) await loadGaps();
+    }
+
+    async function dismissGap(id) {
+        const reason = prompt('忽略原因（「不是我的缺口」与「我补上了」是两件事）：', '');
+        if (reason === null) return;
+        const { data } = await post(`/api/codex/gap/${id}/dismiss`, { reason });
+        msg(document.getElementById('gapMsg'), !!data.ok, data.message || data.error);
+        if (data.ok) await loadGaps();
+    }
+
+    async function toIssue(id) {
+        const { data } = await post(`/api/codex/gap/${id}/issue`);
+        msg(document.getElementById('gapMsg'), !!data.ok,
+            data.ok ? `已创建 Issue #${data.issueNumber} ${data.url || ''}`
+                    : (data.message || data.error));
+        if (data.ok) await loadGaps();
+    }
+
+    /* ============ 止损线 ============ */
+
+    async function loadScope() {
+        const id = document.getElementById('repoSel').value;
+        if (!id) return;
+        try {
+            const d = await (await fetch('/api/codex/scope/skipped?repoId=' + id)).json();
+            threshold = d.threshold || threshold;
+            const list = d.skipped || [];
+            if (!list.length) {
+                document.getElementById('scopeList').innerHTML =
+                    '<div class="gp-note">未解析到任何「先跳过」条目。' +
+                    '检查小节标题是否含「先跳过 / 可推迟 / 可以跳过」等措辞，' +
+                    '或点「重新解析清单」。</div>';
+                return;
+            }
+            document.getElementById('scopeList').innerHTML = list.map(s => {
+                const pct = Math.min(100, Math.round((s.hitCount / threshold) * 100));
+                const hot = s.hitCount >= threshold;
+                return `
+                <div class="gp-row">
+                    <div class="gp-q">
+                        <code>${esc(s.term)}</code>
+                        ${hot ? '<span class="gp-tag t-SKIP_RECALL">已达阈值 · 建议补上</span>' : ''}
+                    </div>
+                    <div class="gp-meta">
+                        被遇到 <span class="gp-count">${s.hitCount}</span> / ${threshold} 次
+                        <div class="gp-bar"><i style="width:${pct}%"></i></div>
+                    </div>
+                    ${s.reason ? `<div class="gp-reason">止损线出处：${esc(s.reason)}</div>` : ''}
+                    <div style="margin-top:0.4rem;">
+                        <button class="gp-btn" onclick="setScope(${s.entityId},'MUST')">改为必学</button>
+                        <button class="gp-btn ghost" onclick="setScope(${s.entityId},'DROPPED')">明确不学</button>
+                    </div>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            msg(document.getElementById('scopeMsg'), false, '加载失败：' + e.message);
+        }
+    }
+
+    async function setScope(entityId, decision) {
+        const { data } = await post('/api/codex/scope/decision', { entityId, decision });
+        msg(document.getElementById('scopeMsg'), !!data.ok,
+            data.ok ? `已把「${data.term}」改判为 ${data.decision}`
+                    : (data.message || data.error));
+        if (data.ok) await loadScope();
+    }
+
+    document.getElementById('btnScope').onclick = loadScope;
+
+    document.getElementById('btnScopeSync').onclick = async (ev) => {
+        const id = document.getElementById('repoSel').value;
+        if (!id) return;
+        ev.target.disabled = true;
+        try {
+            const { data } = await post('/api/codex/scope/sync?repoId=' + id);
+            msg(document.getElementById('scopeMsg'), !data.warning,
+                `扫描 ${data.documentsScanned} 篇，术语 ${data.termsFound} 个，`
+                + `新建 ${data.entitiesCreated} 个知识点 / ${data.decisionsCreated} 条决策，`
+                + `保留既有决策 ${data.decisionsKept} 条（命中次数不会被重置）。`
+                + (data.warning ? '\n' + data.warning : ''));
+            await loadScope();
+        } finally {
+            ev.target.disabled = false;
+        }
+    };
+
+    /* ============ 手工登记 ============ */
+
+    document.getElementById('btnManual').onclick = async () => {
+        const q = document.getElementById('mQuestion').value;
+        if (!q.trim()) return;
+        const { data } = await post('/api/codex/gap', { question: q });
+        const box = document.getElementById('manualMsg');
+        if (data.id) {
+            msg(box, true, '已登记（source=MANUAL）');
+            document.getElementById('mQuestion').value = '';
+            await loadGaps();
+        } else {
+            msg(box, false, data.message || data.error || '登记失败');
+        }
+    };
+
+    init();
+</script>
+</body>
+</html>

@@ -20,13 +20,16 @@ public class CodexViewController {
     private final RepoRegistryService registry;
     private final CheckpointService checkpointService;
     private final org.zhzssp.memorandum.feature.codex.sediment.DocWriteGuard writeGuard;
+    private final org.zhzssp.memorandum.feature.codex.gap.GapService gapService;
 
     public CodexViewController(RepoRegistryService registry,
                                CheckpointService checkpointService,
-                               org.zhzssp.memorandum.feature.codex.sediment.DocWriteGuard writeGuard) {
+                               org.zhzssp.memorandum.feature.codex.sediment.DocWriteGuard writeGuard,
+                               org.zhzssp.memorandum.feature.codex.gap.GapService gapService) {
         this.registry = registry;
         this.checkpointService = checkpointService;
         this.writeGuard = writeGuard;
+        this.gapService = gapService;
     }
 
     @GetMapping("/codex")
@@ -54,5 +57,13 @@ public class CodexViewController {
         // 不解释清楚用户会以为整个页面坏了
         model.addAttribute("writeEnabled", writeGuard.enabled());
         return "curate";
+    }
+
+    /** 知识缺口看板（P3）：三源合流 + 止损线召回。 */
+    @GetMapping("/codex/gaps")
+    public String gaps(@AuthenticationPrincipal UserDetails principal, Model model) {
+        model.addAttribute("codexEnabled", registry.enabled());
+        model.addAttribute("gapEnabled", gapService.enabled());
+        return "gap";
     }
 }

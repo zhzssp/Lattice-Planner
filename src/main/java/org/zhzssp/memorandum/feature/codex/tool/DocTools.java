@@ -50,6 +50,7 @@ public class DocTools {
     private final KbSectionRepository sectionRepo;
     private final KbLinkRepository linkRepo;
     private final org.zhzssp.memorandum.feature.codex.service.CodexMetrics metrics;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     @Value("${codex.enabled:false}")
     private boolean codexEnabled;
@@ -59,13 +60,15 @@ public class DocTools {
                     KbDocumentRepository docRepo,
                     KbSectionRepository sectionRepo,
                     KbLinkRepository linkRepo,
-                    org.zhzssp.memorandum.feature.codex.service.CodexMetrics metrics) {
+                    org.zhzssp.memorandum.feature.codex.service.CodexMetrics metrics,
+                    org.springframework.context.ApplicationEventPublisher events) {
         this.search = search;
         this.registry = registry;
         this.docRepo = docRepo;
         this.sectionRepo = sectionRepo;
         this.linkRepo = linkRepo;
         this.metrics = metrics;
+        this.events = events;
     }
 
     @AgentTool(name = "doc.search", tags = {"codex", "read"},
@@ -88,6 +91,21 @@ public class DocTools {
                     "message", "知识仓库检索未启用（pkm.rag.git.enabled=false）。"));
         }
         List<CodexSearchService.GitHit> hits = search.search(u.getId(), query, topK);
+
+        // 广播检索事实（P3 缺口三源之一）。知识仓库通路的「一条都没搜到」
+        // 比笔记通路更有说服力：仓库是用户刻意整理过的体系，
+        // 在体系里都查不到，基本可以断定是真实盲区而非措辞问题。
+        try {
+            events.publishEvent(new org.zhzssp.memorandum.feature.pkm.crag
+                    .RetrievalDegradedEvent(u.getId(), query, "N/A", hits.isEmpty(),
+                    hits.size(),
+                    org.zhzssp.memorandum.feature.pkm.crag
+                            .RetrievalDegradedEvent.CHANNEL_GIT_DOC,
+                    hits.isEmpty() ? null : hits.get(0).repoId()));
+        } catch (Exception ignored) {
+            // 附加信号失败绝不影响检索结果
+        }
+
         if (hits.isEmpty()) {
             return List.of(Map.of("_meta", "codex",
                     "hitCount", 0,

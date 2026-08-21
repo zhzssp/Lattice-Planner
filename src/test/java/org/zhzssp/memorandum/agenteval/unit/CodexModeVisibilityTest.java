@@ -67,7 +67,12 @@ class CodexModeVisibilityTest {
                 def("doc.insert_backref", "codex", "doc", "write"),
                 def("repo.commit", "codex", "git", "write"),
                 def("repo.open_pr", "codex", "git", "write"),
-                def("ci.run_local", "codex", "read")
+                def("ci.run_local", "codex", "read"),
+                // ---- P3 缺口闭环 ----
+                def("gap.list", "codex", "read"),
+                def("gap.to_learning_plan", "codex", "write"),
+                def("scope.skipped", "codex", "read"),
+                def("scope.set", "codex", "write")
         );
         when(registry.all()).thenReturn(tools);
         when(registry.mcpToolsAll()).thenReturn(List.of());
@@ -150,7 +155,8 @@ class CodexModeVisibilityTest {
             for (String mode : List.of("plan", "reflect", "learn")) {
                 ToolView view = resolver.resolveMode(mode);
                 for (String tool : List.of("doc.search", "repo.list", "repo.sync",
-                        "doc.write", "repo.commit", "ci.run_local", "checkpoint.run")) {
+                        "doc.write", "repo.commit", "ci.run_local", "checkpoint.run",
+                        "gap.list", "gap.to_learning_plan", "scope.skipped", "scope.set")) {
                     assertFalse(view.contains(tool),
                             mode + " 模式不应看到 " + tool + "（会改变工具 schema 字节）");
                 }
@@ -216,6 +222,16 @@ class CodexModeVisibilityTest {
             assertFalse(view.contains("task.create"));
             assertFalse(view.contains("task.search"));
             assertFalse(view.contains("goal.create"));
+        }
+
+        @Test
+        @DisplayName("可看缺口台账但不可改：研读时问「我还有哪些盲区」不该需要切模式")
+        void seesGapReadOnly() {
+            ToolView view = resolver.resolveMode("study");
+            assertTrue(view.contains("gap.list"));
+            assertTrue(view.contains("scope.skipped"));
+            assertFalse(view.contains("gap.to_learning_plan"), "转计划会落库，属写操作");
+            assertFalse(view.contains("scope.set"), "改判止损线属写操作");
         }
     }
 

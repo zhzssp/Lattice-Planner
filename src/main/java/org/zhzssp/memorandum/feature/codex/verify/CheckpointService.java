@@ -55,6 +55,7 @@ public class CheckpointService {
     private final RepoRegistryService registry;
     private final VerifyMetrics metrics;
     private final ObjectMapper om;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     @Value("${codex.verify.enabled:false}")
     private boolean verifyEnabled;
@@ -70,7 +71,8 @@ public class CheckpointService {
                              CheckpointRunner runner,
                              RepoRegistryService registry,
                              VerifyMetrics metrics,
-                             ObjectMapper om) {
+                             ObjectMapper om,
+                             org.springframework.context.ApplicationEventPublisher events) {
         this.cpRepo = cpRepo;
         this.runRepo = runRepo;
         this.docRepo = docRepo;
@@ -80,6 +82,7 @@ public class CheckpointService {
         this.registry = registry;
         this.metrics = metrics;
         this.om = om;
+        this.events = events;
     }
 
     public boolean enabled() {
@@ -329,12 +332,33 @@ public class CheckpointService {
         cpRepo.save(cp);
 
         metrics.recordRun(verdict.passed(), exec.timedOut(), cp.getLevel().name());
+        publishJudged(cp);
 
         String hint = verdict.passed() ? null : blindSpotHint(cp);
         return new RunResult(true, null, null, verdict.passed(), exec.exitCode(),
                 exec.durationMs(), exec.timedOut(), exec.truncated(),
                 rec.getCmdExecuted(), verdict.details(),
                 exec.stdout(), exec.stderr(), hint);
+    }
+
+    /**
+     * 广播判定事实（P3 缺口三源之三）。
+     *
+     * <p>用事件而非直接调 GapService：验证闭环是基础能力，缺口台账是它之上
+     * 可独立关闭的特性。事件解耦让「关掉缺口闭环时验证行为完全不变」
+     * 成为结构性保证，而不是靠散落在这里的一个 if。</p>
+     *
+     * <p>异常一律吞掉：验收已经跑完并落库了，绝不能因为一个附加信号
+     * 发布失败而让用户看到「运行失败」。</p>
+     */
+    private void publishJudged(KbCheckpoint cp) {
+        try {
+            events.publishEvent(new CheckpointJudgedEvent(
+                    cp.getUserId(), cp.getRepoId(), cp.getId(), cp.getCode(), cp.getTitle(),
+                    cp.getStatus(), cp.getPredictionCorrect(), cp.getDivergence()));
+        } catch (Exception e) {
+            log.debug("[Codex] 判定事件发布失败（不影响验收结果）：{}", e.getMessage());
+        }
     }
 
     /* ================= 预测一致性判定 ================= */
@@ -377,6 +401,7 @@ public class CheckpointService {
         cpRepo.save(cp);
 
         metrics.recordPredictionJudged(Boolean.TRUE.equals(correct));
+        publishJudged(cp);
 
         String msg;
         if (Boolean.FALSE.equals(correct)) {

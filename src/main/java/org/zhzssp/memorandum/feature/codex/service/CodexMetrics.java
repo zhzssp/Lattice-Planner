@@ -72,6 +72,41 @@ public class CodexMetrics {
         ciWarnsFound.addAndGet(Math.max(0, warns));
     }
 
+    // ---- P3 缺口闭环 ----
+    private final AtomicLong gapCreated = new AtomicLong();
+    private final AtomicLong gapTouched = new AtomicLong();
+    private final AtomicLong gapPlanned = new AtomicLong();
+    private final AtomicLong gapClosed = new AtomicLong();
+    private final AtomicLong gapDismissed = new AtomicLong();
+    private final Map<String, AtomicLong> gapBySource = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * 记录一次缺口登记。
+     *
+     * <p>按来源分开计数是必要的：三个信号源的质量差别很大。
+     * 若 {@code CRAG} 占了 95%，说明多半是检索质量问题而非真实盲区，
+     * 该去调检索而不是排学习计划——这个判断只有分来源统计才能做出来。</p>
+     */
+    public void recordGapTouched(String source, boolean created) {
+        gapTouched.incrementAndGet();
+        if (created) {
+            gapCreated.incrementAndGet();
+            gapBySource.computeIfAbsent(source, k -> new AtomicLong()).incrementAndGet();
+        }
+    }
+
+    public void recordGapPlanned() {
+        gapPlanned.incrementAndGet();
+    }
+
+    public void recordGapClosed() {
+        gapClosed.incrementAndGet();
+    }
+
+    public void recordGapDismissed() {
+        gapDismissed.incrementAndGet();
+    }
+
     public void recordSearch(int hitCount, boolean degraded) {
         searchCount.incrementAndGet();
         searchHits.addAndGet(Math.max(0, hitCount));
@@ -135,6 +170,21 @@ public class CodexMetrics {
         ci.put("errorsFound", ciErrorsFound.get());
         ci.put("warnsFound", ciWarnsFound.get());
         m.put("ci", ci);
+
+        Map<String, Object> gap = new LinkedHashMap<>();
+        gap.put("created", gapCreated.get());
+        gap.put("touched", gapTouched.get());
+        gap.put("planned", gapPlanned.get());
+        gap.put("closed", gapClosed.get());
+        gap.put("dismissed", gapDismissed.get());
+        Map<String, Object> bySrc = new LinkedHashMap<>();
+        gapBySource.forEach((k, v) -> bySrc.put(k, v.get()));
+        gap.put("createdBySource", bySrc);
+        // 复发率：同一缺口被反复问到说明它确实挡路（touched 远大于 created 才有意义）
+        long created = gapCreated.get();
+        gap.put("avgAsksPerGap", created == 0 ? 0.0
+                : round3((double) gapTouched.get() / created));
+        m.put("gap", gap);
         return m;
     }
 

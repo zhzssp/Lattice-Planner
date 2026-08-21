@@ -200,6 +200,108 @@ public class GitHubPrClient {
         }
     }
 
+    /* ==================== Issue（P3 缺口外化） ==================== */
+
+    /** Issue 操作结果。 */
+    public record IssueResult(boolean ok, String code, String message,
+                              Integer number, String url) {
+
+        public static IssueResult fail(String code, String message) {
+            return new IssueResult(false, code, message, null, null);
+        }
+    }
+
+    /**
+     * 创建 Issue，用于把知识缺口外化到远端。
+     *
+     * <p>为什么值得外化：Issue 可讨论、可 label、可挂 Milestone（对应学习阶段），
+     * 还能被 PR 的 {@code Closes #N} 原生联动关闭。
+     * 这些是自建一张表不可能白拿到的能力。</p>
+     *
+     * <p>但它<strong>只是外化视图</strong>——本地台账才是权威。
+     * 远端不可用时缺口闭环照样完整运行，这与 PR 的处理方式一致。</p>
+     */
+    public IssueResult createIssue(String remoteUrl, String tokenRef,
+                                   String title, String body, java.util.List<String> labels) {
+        String token = resolveToken(tokenRef);
+        if (token == null) {
+            return IssueResult.fail("NO_TOKEN",
+                    "未配置 GitHub token，无法创建 Issue。缺口已记在本地台账，功能不受影响。");
+        }
+        Slug slug = parseSlug(remoteUrl);
+        if (slug == null) {
+            return IssueResult.fail("BAD_REMOTE", "无法解析 owner/repo：" + remoteUrl);
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("title", title);
+        if (body != null && !body.isBlank()) payload.put("body", body);
+        if (labels != null && !labels.isEmpty()) payload.put("labels", labels);
+
+        try {
+            HttpRequest req = baseRequest(
+                    apiBase + "/repos/" + slug.owner() + "/" + slug.repo() + "/issues", token)
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            om.writeValueAsString(payload), StandardCharsets.UTF_8))
+                    .build();
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 201) {
+                JsonNode n = om.readTree(resp.body());
+                int number = n.path("number").asInt();
+                log.info("[Codex] 已创建缺口 Issue #{}", number);
+                return new IssueResult(true, "CREATED", "Issue 已创建",
+                        number, n.path("html_url").asText(null));
+            }
+            return IssueResult.fail("HTTP_" + resp.statusCode(),
+                    "GitHub 返回 " + resp.statusCode() + "：" + extractMessage(resp.body()));
+        } catch (Exception e) {
+            return IssueResult.fail("REQUEST_FAILED",
+                    "调用 GitHub API 失败：" + e.getMessage() + "。缺口已记在本地台账。");
+        }
+    }
+
+    /**
+     * 关闭 Issue。
+     *
+     * <p>失败不视为整体失败：本地台账已经标记关闭，Issue 状态不同步
+     * 只是远端视图滞后，用户可手动关。把它升级成错误会让「我明明补完了」的动作报红。</p>
+     */
+    public IssueResult closeIssue(String remoteUrl, String tokenRef, int number) {
+        String token = resolveToken(tokenRef);
+        if (token == null) {
+            return IssueResult.fail("NO_TOKEN", "未配置 token，未同步关闭远端 Issue。");
+        }
+        Slug slug = parseSlug(remoteUrl);
+        if (slug == null) {
+            return IssueResult.fail("BAD_REMOTE", "无法解析 owner/repo");
+        }
+        try {
+            String json = om.writeValueAsString(Map.of("state", "closed"));
+            HttpRequest req = baseRequest(apiBase + "/repos/" + slug.owner() + "/"
+                    + slug.repo() + "/issues/" + number, token)
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
+                    .build();
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200) {
+                return new IssueResult(true, "CLOSED", "Issue 已关闭", number, null);
+            }
+            return IssueResult.fail("HTTP_" + resp.statusCode(), extractMessage(resp.body()));
+        } catch (Exception e) {
+            return IssueResult.fail("REQUEST_FAILED", e.getMessage());
+        }
+    }
+
+    /** 统一请求头，避免三处重复且漏配 API 版本。 */
+    private HttpRequest.Builder baseRequest(String uri, String token) {
+        return HttpRequest.newBuilder()
+                .uri(URI.create(uri))
+                .timeout(Duration.ofSeconds(Math.max(5, timeoutSeconds)))
+                .header("Authorization", "Bearer " + token)
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", API_VERSION)
+                .header("Content-Type", "application/json; charset=utf-8");
+    }
+
     private String extractMessage(String body) {
         if (body == null || body.isBlank()) return "(无响应内容)";
         try {

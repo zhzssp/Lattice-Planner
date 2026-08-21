@@ -6,7 +6,9 @@ import org.zhzssp.memorandum.entity.User;
 import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
 import org.zhzssp.memorandum.feature.agent.tool.AgentTool;
 import org.zhzssp.memorandum.feature.agent.tool.ToolParam;
+import org.springframework.context.ApplicationEventPublisher;
 import org.zhzssp.memorandum.feature.pkm.crag.CorrectiveRetriever;
+import org.zhzssp.memorandum.feature.pkm.crag.RetrievalDegradedEvent;
 import org.zhzssp.memorandum.feature.pkm.crag.RetrievalEvaluator;
 import org.zhzssp.memorandum.feature.pkm.service.RagSearchService;
 import org.zhzssp.memorandum.repository.LinkRepository;
@@ -41,15 +43,18 @@ public class KnowledgeTools {
     private final NoteRepository noteRepository;
     private final NoteEmbeddingRepository embeddingRepository;
     private final LinkRepository linkRepository;
+    private final ApplicationEventPublisher events;
 
     public KnowledgeTools(CorrectiveRetriever correctiveRetriever,
                           NoteRepository noteRepository,
                           NoteEmbeddingRepository embeddingRepository,
-                          LinkRepository linkRepository) {
+                          LinkRepository linkRepository,
+                          ApplicationEventPublisher events) {
         this.correctiveRetriever = correctiveRetriever;
         this.noteRepository = noteRepository;
         this.embeddingRepository = embeddingRepository;
         this.linkRepository = linkRepository;
+        this.events = events;
     }
 
     @AgentTool(name = "kb.semantic_search", tags = {"kb", "read"},
@@ -99,6 +104,22 @@ public class KnowledgeTools {
         meta.put("usedQueries", cr.usedQueries());
         meta.put("message", cragMessage(cr.grade(), cr.degraded(), hits.isEmpty()));
         out.add(0, meta);
+
+        // 把「问了但库里答不上来」这个事实广播出去（P3 缺口三源之一）。
+        //
+        // 为什么在工具层发而不是在 CorrectiveRetriever 里发：只有走到这里的检索
+        // 才是「用户在对话里真的问了」。后台批量检索与评测套件同样会经过
+        // CorrectiveRetriever，在那里埋点会让一次 agentEval 往缺口台账灌进
+        // 几十条来自测试用例的假缺口——而缺口表是唯一不可重建的表。
+        //
+        // 事件本身只陈述事实，不含「该拿它做什么」的判断；订阅方可有可无。
+        try {
+            events.publishEvent(new RetrievalDegradedEvent(
+                    u.getId(), query, cr.grade().name(), cr.degraded(), hits.size(),
+                    RetrievalDegradedEvent.CHANNEL_NOTE, null));
+        } catch (Exception ignored) {
+            // 检索结果已经算出来了，绝不能因为一个附加信号发布失败而丢掉它
+        }
         return out;
     }
 

@@ -205,6 +205,15 @@ public class PromptBuilder {
                 - ci.run_local 的结果里 status=SKIPPED 表示「没检查」而非「通过」，总结时必须明示，
                   不可把「9 项有 7 项 OK」说成知识库健康。
 
+                【知识缺口原则】（study/curate 模式可用）
+                - 用户问「我还有哪些没搞懂的/我的盲区/该学什么」时，调用 gap.list 而不要凭印象猜。
+                - 三类来源的补法完全不同，必须分别说明：
+                  CRAG=补资料（库里确实没有）、CP_FAIL=补动手（做不出来）、
+                  CP_MISPREDICT=补因果理解（结果对但原因想错了）、SKIP_RECALL=当初主动跳过、现已挡路。
+                - 缺口来自行为证据，不要主动替用户「发现」缺口——
+                  「你可能还需要了解 X」这类猜测会淹没真正有证据的信号。
+                - 关闭缺口必须给出补上它的文档路径；若判定不该补，用 gap.dismiss 而非 gap.close。
+
                 【用户长期记忆（来自历史 Agent 会话归档）】
                 %s
                 """.formatted(dateBucket, toolsJson, memoSection);
