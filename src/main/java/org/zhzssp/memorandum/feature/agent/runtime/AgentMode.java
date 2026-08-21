@@ -28,22 +28,36 @@ public enum AgentMode {
      * <p>用 deny 显式排除后，CHAT 的 schema 与 V3 逐字节一致。
      * 这也是产品上正确的：知识仓库操作应在专用模式下进行，避免通用对话里误触。</p>
      */
-    CHAT("chat", Set.of(), Set.of("codex", "exec", "checkpoint")),
+    CHAT("chat", Set.of(), Tags.CODEX_FAMILY),
 
-    /** 规划：任务/目标/规划/读写 + kb 读 + 子代理 + MCP。 */
+    /**
+     * 规划：任务/目标/规划/读写 + kb 读 + 子代理 + MCP。
+     *
+     * <p><strong>V4 P2 修正</strong>：原先认为「新工具不带旧 tag，所以对旧模式天然不可见」，
+     * 这个判断是<strong>错的</strong>。tag 过滤是 OR 语义，而 Codex 工具为了参与
+     * {@code write}/{@code read} 的统一治理必须带这两个 tag——
+     * {@code repo.sync} 带 {@code write}、{@code doc.search} 带 {@code read}，
+     * 于是它们全部命中 PLAN 的 allow 而变得可见，PLAN 的工具 schema 随之改变，
+     * 方案 A 的 cassette 会静默失效。</p>
+     *
+     * <p>修法与 CHAT 一致：<strong>只加 deny，不动 allow</strong>。
+     * 因为没有任何 V3 工具携带 {@code Tags.CODEX_FAMILY} 里的 tag
+     * （V3 工具的 tag 只有 task/goal/planner/note/kb/insight/subagent/read/write/local/mcp），
+     * 加 deny 对旧工具列表是逐字节无影响的。</p>
+     */
     PLAN("plan",
             Set.of("task", "goal", "planner", "kb", "read", "write", "subagent", "mcp"),
-            Set.of()),
+            Tags.CODEX_FAMILY),
 
     /** 复盘：只读（任务/目标/insight/笔记/kb 读 + 子代理 + MCP），禁写。 */
     REFLECT("reflect",
             Set.of("task", "goal", "insight", "note", "kb", "read", "subagent", "mcp"),
-            Set.of("write")),
+            Tags.plus("write")),
 
     /** 学习：纯检索问答（kb/note 读 + 子代理 + MCP），禁写。 */
     LEARN("learn",
             Set.of("kb", "note", "read", "subagent", "mcp"),
-            Set.of("write")),
+            Tags.plus("write")),
 
     /**
      * 研读（V4）：面向知识仓库的纯检索问答。
@@ -76,6 +90,34 @@ public enum AgentMode {
     VERIFY("verify",
             Set.of("codex", "checkpoint", "lab", "exec", "read"),
             Set.of("write", "task", "goal"));
+
+    /**
+     * V4 tag 常量持有类。
+     *
+     * <p>为什么要单独一个嵌套类：Java 禁止枚举常量的构造参数引用<em>本枚举</em>的静态字段
+     * （前向引用），放到嵌套类里才能被常量列表引用。</p>
+     */
+    private static final class Tags {
+
+        /**
+         * V4 新增的全部 tag 族。
+         *
+         * <p>凡不打算暴露 Codex 能力的模式，都应 deny 这一整族而非逐个列举——
+         * 将来新增 Codex 工具时只要沿用族内 tag，就不会再次泄漏到旧模式。
+         * 「忘记同步 deny 列表」是这类治理最典型的失效方式。</p>
+         */
+        static final Set<String> CODEX_FAMILY =
+                Set.of("codex", "doc", "git", "checkpoint", "lab", "exec");
+
+        /** CODEX_FAMILY 加上若干额外 deny tag。 */
+        static Set<String> plus(String... extra) {
+            java.util.Set<String> s = new java.util.LinkedHashSet<>(CODEX_FAMILY);
+            s.addAll(java.util.List.of(extra));
+            return java.util.Collections.unmodifiableSet(s);
+        }
+
+        private Tags() {}
+    }
 
     private final String label;
     private final Set<String> allowTags;

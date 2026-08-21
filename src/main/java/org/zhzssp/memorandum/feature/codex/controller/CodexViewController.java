@@ -19,11 +19,14 @@ public class CodexViewController {
 
     private final RepoRegistryService registry;
     private final CheckpointService checkpointService;
+    private final org.zhzssp.memorandum.feature.codex.sediment.DocWriteGuard writeGuard;
 
     public CodexViewController(RepoRegistryService registry,
-                               CheckpointService checkpointService) {
+                               CheckpointService checkpointService,
+                               org.zhzssp.memorandum.feature.codex.sediment.DocWriteGuard writeGuard) {
         this.registry = registry;
         this.checkpointService = checkpointService;
+        this.writeGuard = writeGuard;
     }
 
     @GetMapping("/codex")
@@ -41,5 +44,15 @@ public class CodexViewController {
         model.addAttribute("verifyEnabled", checkpointService.enabled());
         model.addAttribute("requirePrediction", checkpointService.requirePrediction());
         return "checkpoint";
+    }
+
+    /** 知识策展面板（P2）：CI 报告 + 沉淀 + 分支审阅。 */
+    @GetMapping("/codex/curate")
+    public String curate(@AuthenticationPrincipal UserDetails principal, Model model) {
+        model.addAttribute("codexEnabled", registry.enabled());
+        // 写入开关单独回显：CI 只读可用而沉淀不可用是完全正常的状态，
+        // 不解释清楚用户会以为整个页面坏了
+        model.addAttribute("writeEnabled", writeGuard.enabled());
+        return "curate";
     }
 }

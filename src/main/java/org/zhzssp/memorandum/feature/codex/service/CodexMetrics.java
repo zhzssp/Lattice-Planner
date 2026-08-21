@@ -34,6 +34,44 @@ public class CodexMetrics {
     private final AtomicLong docsSkipped = new AtomicLong();
     private final AtomicLong docsReindexed = new AtomicLong();
 
+    // ---- P2 沉淀与 CI ----
+    private final AtomicLong sedimentAttempts = new AtomicLong();
+    private final AtomicLong sedimentSuccess = new AtomicLong();
+    private final AtomicLong exampleGateRejections = new AtomicLong();
+    private final AtomicLong backrefsInserted = new AtomicLong();
+    private final AtomicLong ciRuns = new AtomicLong();
+    private final AtomicLong ciErrorsFound = new AtomicLong();
+    private final AtomicLong ciWarnsFound = new AtomicLong();
+
+    public void recordSedimentAttempt() {
+        sedimentAttempts.incrementAndGet();
+    }
+
+    public void recordSedimentSuccess() {
+        sedimentSuccess.incrementAndGet();
+    }
+
+    /**
+     * 示例入库门禁触发一次拒绝。
+     *
+     * <p>这个计数器是「执行层强制是否必要」的实证。若长期为 0，说明模型本来就会照做，
+     * 门禁属冗余保险；一旦不为 0，就直接证明了<strong>只靠 prompt 提醒是不够的</strong>
+     * ——与方案 D 的 bannedToolCallsBlocked 同一判读方式。</p>
+     */
+    public void recordExampleGateRejection() {
+        exampleGateRejections.incrementAndGet();
+    }
+
+    public void recordBackrefInserted() {
+        backrefsInserted.incrementAndGet();
+    }
+
+    public void recordCiRun(int errors, int warns) {
+        ciRuns.incrementAndGet();
+        ciErrorsFound.addAndGet(Math.max(0, errors));
+        ciWarnsFound.addAndGet(Math.max(0, warns));
+    }
+
     public void recordSearch(int hitCount, boolean degraded) {
         searchCount.incrementAndGet();
         searchHits.addAndGet(Math.max(0, hitCount));
@@ -80,6 +118,23 @@ public class CodexMetrics {
         idx.put("embedCalls", embedCalls.get());
         idx.put("truncatedDocs", truncationWarned.get());
         m.put("index", idx);
+
+        Map<String, Object> sed = new LinkedHashMap<>();
+        long attempts = sedimentAttempts.get();
+        sed.put("attempts", attempts);
+        sed.put("succeeded", sedimentSuccess.get());
+        sed.put("backrefsInserted", backrefsInserted.get());
+        // 门禁拒绝率：证明「示例必须入库」不是靠自觉守住的
+        sed.put("exampleGateRejections", exampleGateRejections.get());
+        sed.put("exampleGateRejectRate", attempts == 0 ? 0.0
+                : round3((double) exampleGateRejections.get() / attempts));
+        m.put("sediment", sed);
+
+        Map<String, Object> ci = new LinkedHashMap<>();
+        ci.put("runs", ciRuns.get());
+        ci.put("errorsFound", ciErrorsFound.get());
+        ci.put("warnsFound", ciWarnsFound.get());
+        m.put("ci", ci);
         return m;
     }
 

@@ -61,7 +61,13 @@ class CodexModeVisibilityTest {
                 def("doc.backlinks", "codex", "read"),
                 // ---- 受限执行（P1 预留 tag，用于验证隔离已生效）----
                 def("checkpoint.list", "checkpoint", "read"),
-                def("checkpoint.run", "checkpoint", "exec")
+                def("checkpoint.run", "checkpoint", "exec"),
+                // ---- P2 沉淀与 Git 写入 ----
+                def("doc.write", "codex", "doc", "write"),
+                def("doc.insert_backref", "codex", "doc", "write"),
+                def("repo.commit", "codex", "git", "write"),
+                def("repo.open_pr", "codex", "git", "write"),
+                def("ci.run_local", "codex", "read")
         );
         when(registry.all()).thenReturn(tools);
         when(registry.mcpToolsAll()).thenReturn(List.of());
@@ -125,16 +131,47 @@ class CodexModeVisibilityTest {
                     "CHAT 必须保持「不收窄」语义，靠 deny 排除新工具");
         }
 
+        /**
+         * ★ P2 修正的回归测试。
+         *
+         * <p>P0/P1 曾假设「新工具不带旧 tag，所以旧模式天然看不到」。这个假设是<strong>错的</strong>：
+         * tag 过滤是 OR 语义，而 Codex 工具为参与统一治理必须带 {@code read}/{@code write}——
+         * {@code doc.search} 带 {@code read} 会命中 plan/reflect/learn 的 allow，
+         * {@code repo.sync} 带 {@code write} 会命中 plan 的 allow。
+         * 于是三个旧模式的工具 schema 都被悄悄改变，cassette 会静默失效。</p>
+         *
+         * <p>本测试同时覆盖两件事：结果正确（看不到），以及<strong>机制正确</strong>
+         * （是被 deny 剔除的，而不是碰巧没命中 allow）。后者才能防止将来
+         * 有人「顺手」给某个 Codex 工具去掉 write tag 时重新出现泄漏。</p>
+         */
         @Test
-        @DisplayName("plan/reflect/learn 也看不到 codex 工具（未放行该 tag）")
-        void legacyModesExcludeCodexNaturally() {
+        @DisplayName("plan/reflect/learn 看不到 codex 工具，且必须是被 deny 剔除的")
+        void legacyModesExcludeCodexByDeny() {
             for (String mode : List.of("plan", "reflect", "learn")) {
                 ToolView view = resolver.resolveMode(mode);
-                assertFalse(view.contains("doc.search"),
-                        mode + " 模式不应看到 codex 工具");
-                assertFalse(view.contains("checkpoint.run"),
-                        mode + " 模式不应看到 exec 工具");
+                for (String tool : List.of("doc.search", "repo.list", "repo.sync",
+                        "doc.write", "repo.commit", "ci.run_local", "checkpoint.run")) {
+                    assertFalse(view.contains(tool),
+                            mode + " 模式不应看到 " + tool + "（会改变工具 schema 字节）");
+                }
+                // 机制校验：doc.search 带 read tag，命中了 allow，只能靠 deny 剔除
+                assertTrue(view.reasonOf("doc.search").contains("deny"),
+                        mode + " 排除 doc.search 必须是 deny 生效，而非未命中 allow；"
+                                + "实际原因：" + view.reasonOf("doc.search"));
             }
+        }
+
+        @Test
+        @DisplayName("旧模式仍能看到全部既有工具（allow 未动，deny 只针对 V4 tag）")
+        void legacyModesKeepLegacyTools() {
+            ToolView plan = resolver.resolveMode("plan");
+            assertTrue(plan.contains("task.create"));
+            assertTrue(plan.contains("goal.create"));
+            assertTrue(plan.contains("kb.semantic_search"));
+
+            ToolView learn = resolver.resolveMode("learn");
+            assertTrue(learn.contains("kb.semantic_search"));
+            assertFalse(learn.contains("note.create"), "learn 仍应禁写（V3 行为）");
         }
     }
 
@@ -211,6 +248,24 @@ class CodexModeVisibilityTest {
         void deniesExec() {
             ToolView view = resolver.resolveMode("curate");
             assertFalse(view.contains("checkpoint.run"));
+        }
+
+        @Test
+        @DisplayName("P2 沉淀与 Git 写入工具仅在 curate 可见")
+        void ownsSedimentTools() {
+            ToolView curate = resolver.resolveMode("curate");
+            assertTrue(curate.contains("doc.write"));
+            assertTrue(curate.contains("doc.insert_backref"));
+            assertTrue(curate.contains("repo.commit"));
+            assertTrue(curate.contains("repo.open_pr"));
+            assertTrue(curate.contains("ci.run_local"));
+
+            // 其余任何模式都不得出现写仓库的能力
+            for (String mode : List.of("chat", "plan", "reflect", "learn", "study", "verify")) {
+                ToolView v = resolver.resolveMode(mode);
+                assertFalse(v.contains("doc.write"), mode + " 不应能写知识仓库文件");
+                assertFalse(v.contains("repo.commit"), mode + " 不应能提交 git");
+            }
         }
     }
 

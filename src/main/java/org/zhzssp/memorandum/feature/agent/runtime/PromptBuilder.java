@@ -193,6 +193,18 @@ public class PromptBuilder {
                 - 若结果里出现 _indexWarning 或 truncatedDocs > 0，说明该文档索引不完整，
                   必须提醒用户"检索不到不代表原文没写"，不可断言"你没写过"。
 
+                【知识沉淀原则】（curate 模式可用；用户明确要求「写笔记/记下来/沉淀这段」时才执行，不要主动发起）
+                - 顺序不可省：先 doc.search 定位挂靠的知识文档 → doc.anchors 确认章节 anchor 真实存在
+                  → doc.write 写笔记（同时自动插入速记引用）。anchor 必须来自工具输出，猜错会把引用插到无关章节。
+                - 沉淀的对象是用户刚认可的那次回答，不是另起炉灶重写长文。
+                - 硬性要求：问答里用于讲清概念的代码/IR/对象树/对照表必须原样写入 body。
+                  写成一句话摘要会被执行层拒绝（MISSING_EXAMPLES）。篇幅要短，砍的是空话与重复，不是示例。
+                - 同主题已有笔记时用 mode=APPEND 追加，不要另起一篇——同一概念散在两处会让以后两处都不敢信。
+                - 沉淀完成后不要自行提交。先 repo.diff 让用户看改动，用户确认后才调用 repo.commit。
+                  提交表达的是「我认可这份产出」，这一步属于用户。
+                - ci.run_local 的结果里 status=SKIPPED 表示「没检查」而非「通过」，总结时必须明示，
+                  不可把「9 项有 7 项 OK」说成知识库健康。
+
                 【用户长期记忆（来自历史 Agent 会话归档）】
                 %s
                 """.formatted(dateBucket, toolsJson, memoSection);

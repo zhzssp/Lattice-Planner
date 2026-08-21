@@ -81,4 +81,71 @@ public interface GitClient {
 
     /** {@code git clone}。 */
     void clone(String remoteUrl, Path targetDir);
+
+    /* ==================== 写操作（P2） ==================== */
+
+    /**
+     * 本地分支名列表（不含远端跟踪分支）。
+     */
+    List<String> listBranches(Path repo);
+
+    boolean branchExists(Path repo, String branch);
+
+    /**
+     * 从 {@code fromRef} 创建并切到新分支（{@code git checkout -b}）。
+     *
+     * <p>刻意要求显式传 {@code fromRef}：从「当前分支」拉新分支在多次沉淀后会
+     * 形成串行链（第二篇沉淀基于第一篇），一旦第一个 PR 被否，第二个也连带作废。
+     * 每次都从默认分支拉，才能让每次沉淀彼此独立、可单独合并或丢弃。</p>
+     */
+    void createBranch(Path repo, String branch, String fromRef);
+
+    void checkout(Path repo, String ref);
+
+    /**
+     * 删除本地分支（{@code git branch -D}）。
+     *
+     * <p>调用方必须先确认分支名前缀属于本软件创建的命名空间——
+     * 这个方法本身不做前缀判断，判断放在服务层是为了让规则集中在一处。</p>
+     */
+    void deleteBranch(Path repo, String branch);
+
+    /**
+     * {@code git add <paths>}——<strong>精确到文件</strong>。
+     *
+     * <p>永不提供 {@code addAll}。理由是真实的：知识仓库同时是动手实验目录，
+     * 用户本机常有未 ignore 的编译产物、临时脚本、调试用的大文件。
+     * 一次 {@code git add -A} 就可能把它们提交上去，而这在 PR 里很难被注意到。</p>
+     */
+    void add(Path repo, List<String> relativePaths);
+
+    /** 已暂存的文件列表（{@code git diff --cached --name-only}）——提交前自校验用。 */
+    List<String> stagedFiles(Path repo);
+
+    /**
+     * 提交已暂存内容。多行 message 通过 stdin 传入，避免参数引号与换行的跨平台差异。
+     *
+     * @return 新提交的信息
+     */
+    CommitInfo commit(Path repo, String message);
+
+    /** {@code git push}（可选 {@code -u}）。 */
+    void push(Path repo, String remote, String branch, boolean setUpstream);
+
+    /** 两个 ref 之间的变更文件列表。 */
+    List<String> changedFiles(Path repo, String fromRef, String toRef);
+
+    /**
+     * 两个 ref 之间的 patch 文本，超出 {@code maxChars} 截断。
+     *
+     * <p>截断处会追加显式标记——审阅时必须知道自己没看全，
+     * 否则「看过 diff 才合并」这道人工闸门就是假的。</p>
+     */
+    String diff(Path repo, String fromRef, String toRef, int maxChars);
+
+    /** 工作副本相对 HEAD 的未提交改动 patch（审阅本地未提交的沉淀结果）。 */
+    String diffWorkingTree(Path repo, int maxChars);
+
+    /** 远端地址（{@code origin}）；未配置返回 null。 */
+    String remoteUrl(Path repo);
 }

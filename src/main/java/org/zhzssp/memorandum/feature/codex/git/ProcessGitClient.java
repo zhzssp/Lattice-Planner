@@ -292,6 +292,199 @@ public class ProcessGitClient implements GitClient {
         mustExec(parent, cloneTimeoutSeconds, "clone", remoteUrl, targetDir.toAbsolutePath().toString());
     }
 
+    /* ---------------- 写操作（P2） ---------------- */
+
+    @Override
+    public List<String> listBranches(Path repo) {
+        try {
+            Result r = exec(repo, timeoutSeconds,
+                    "for-each-ref", "--format=%(refname:short)", "refs/heads");
+            if (r.exitCode() != 0) return List.of();
+            List<String> out = new ArrayList<>();
+            for (String line : r.stdout().split("\\R")) {
+                if (line != null && !line.isBlank()) out.add(line.trim());
+            }
+            return out;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    @Override
+    public boolean branchExists(Path repo, String branch) {
+        if (branch == null || branch.isBlank()) return false;
+        try {
+            // --verify + refs/heads/ 前缀：避免与同名 tag 或远端分支混淆
+            Result r = exec(repo, timeoutSeconds,
+                    "rev-parse", "--verify", "--quiet", "refs/heads/" + branch);
+            return r.exitCode() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public void createBranch(Path repo, String branch, String fromRef) {
+        if (branch == null || branch.isBlank()) {
+            throw new GitCommandException("分支名为空", 1, null);
+        }
+        if (fromRef == null || fromRef.isBlank()) {
+            mustExec(repo, timeoutSeconds, "checkout", "-b", branch);
+        } else {
+            mustExec(repo, timeoutSeconds, "checkout", "-b", branch, fromRef);
+        }
+        log.info("[Codex] 创建并切到分支 {}（起点 {}）", branch, fromRef == null ? "HEAD" : fromRef);
+    }
+
+    @Override
+    public void checkout(Path repo, String ref) {
+        mustExec(repo, timeoutSeconds, "checkout", ref);
+    }
+
+    @Override
+    public void deleteBranch(Path repo, String branch) {
+        mustExec(repo, timeoutSeconds, "branch", "-D", branch);
+        log.info("[Codex] 删除本地分支 {}", branch);
+    }
+
+    @Override
+    public void add(Path repo, List<String> relativePaths) {
+        if (relativePaths == null || relativePaths.isEmpty()) return;
+        List<String> args = new ArrayList<>(relativePaths.size() + 3);
+        args.add("add");
+        args.add("--");                       // 显式终止选项解析，路径永不被当作 flag
+        args.addAll(relativePaths);
+        mustExec(repo, timeoutSeconds, args.toArray(new String[0]));
+    }
+
+    @Override
+    public List<String> stagedFiles(Path repo) {
+        try {
+            Result r = exec(repo, timeoutSeconds, "diff", "--cached", "--name-only");
+            if (r.exitCode() != 0) return List.of();
+            List<String> out = new ArrayList<>();
+            for (String line : r.stdout().split("\\R")) {
+                if (line != null && !line.isBlank()) out.add(line.trim());
+            }
+            return out;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    @Override
+    public CommitInfo commit(Path repo, String message) {
+        if (message == null || message.isBlank()) {
+            throw new GitCommandException("提交信息为空", 1, null);
+        }
+        try {
+            // -F -：从 stdin 读 message。用 -m 拼多行会遇到 Windows 下的引号与换行差异，
+            // 而提交信息里恰恰要带 Session / Co-authored-by 这类多行 trailer。
+            Result r = exec(repo, timeoutSeconds, message, "commit", "-F", "-");
+            if (r.exitCode() != 0) {
+                String err = (r.stderr() + r.stdout()).toLowerCase();
+                if (err.contains("please tell me who you are") || err.contains("user.email")) {
+                    throw new GitCommandException(
+                            "git 未配置提交身份（user.name / user.email），无法提交。"
+                                    + "请在该仓库执行 git config user.name / user.email 后重试。"
+                                    + "本软件刻意不代改 git 配置。",
+                            r.exitCode(), r.stderr());
+                }
+                throw new GitCommandException("git commit 失败", r.exitCode(),
+                        r.stderr().isBlank() ? r.stdout() : r.stderr());
+            }
+        } catch (GitCommandException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GitCommandException("git commit 异常", e);
+        }
+        CommitInfo info = lastCommitHead(repo);
+        log.info("[Codex] 提交成功 {}", info == null ? "?" : info.sha());
+        return info;
+    }
+
+    private CommitInfo lastCommitHead(Path repo) {
+        try {
+            Result r = exec(repo, timeoutSeconds, "log", "-1", "--format=" + LOG_FORMAT);
+            return r.exitCode() == 0 ? parseLogLine(r.stdout().trim()) : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public void push(Path repo, String remote, String branch, boolean setUpstream) {
+        String rmt = (remote == null || remote.isBlank()) ? "origin" : remote;
+        if (setUpstream) {
+            mustExec(repo, cloneTimeoutSeconds, "push", "-u", rmt, branch);
+        } else {
+            mustExec(repo, cloneTimeoutSeconds, "push", rmt, branch);
+        }
+        log.info("[Codex] 已推送 {} -> {}", branch, rmt);
+    }
+
+    @Override
+    public List<String> changedFiles(Path repo, String fromRef, String toRef) {
+        try {
+            // 三点语法：以两者的 merge-base 为基准，只看本分支引入的改动，
+            // 否则默认分支上后来的提交也会被算成"本次变更"
+            Result r = exec(repo, timeoutSeconds, "diff", "--name-only",
+                    fromRef + "..." + toRef);
+            if (r.exitCode() != 0) return List.of();
+            List<String> out = new ArrayList<>();
+            for (String line : r.stdout().split("\\R")) {
+                if (line != null && !line.isBlank()) out.add(line.trim());
+            }
+            return out;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    @Override
+    public String diff(Path repo, String fromRef, String toRef, int maxChars) {
+        try {
+            Result r = exec(repo, timeoutSeconds, "diff", fromRef + "..." + toRef);
+            return clipPatch(r.exitCode() == 0 ? r.stdout() : r.stderr(), maxChars);
+        } catch (Exception e) {
+            return "(取 diff 失败：" + e.getMessage() + ")";
+        }
+    }
+
+    @Override
+    public String diffWorkingTree(Path repo, int maxChars) {
+        try {
+            // 同时含已暂存与未暂存改动：审阅者关心的是"文件现在长什么样"，
+            // 而不是它处于 git 的哪个暂存态
+            Result r = exec(repo, timeoutSeconds, "diff", "HEAD");
+            return clipPatch(r.exitCode() == 0 ? r.stdout() : r.stderr(), maxChars);
+        } catch (Exception e) {
+            return "(取 diff 失败：" + e.getMessage() + ")";
+        }
+    }
+
+    private String clipPatch(String patch, int maxChars) {
+        if (patch == null) return "";
+        int limit = Math.max(1000, maxChars);
+        if (patch.length() <= limit) return patch;
+        // 截断必须自报：审阅者若不知道自己没看全，"看过 diff 才合并"这道闸门就是假的
+        return patch.substring(0, limit)
+                + "\n\n... [diff 过长已截断，共 " + patch.length() + " 字符，"
+                + "剩余部分未显示。请在终端或 IDE 中查看完整 diff 后再合并] ...";
+    }
+
+    @Override
+    public String remoteUrl(Path repo) {
+        try {
+            Result r = exec(repo, timeoutSeconds, "remote", "get-url", "origin");
+            if (r.exitCode() != 0) return null;
+            String url = r.stdout().trim();
+            return url.isEmpty() ? null : url;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /* ---------------- 进程执行 ---------------- */
 
     private record Result(int exitCode, String stdout, String stderr) {}

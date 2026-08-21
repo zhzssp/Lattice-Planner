@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title>知识策展 · Codex</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .cu-wrap { max-width: 1180px; margin: 0 auto; padding: 1.5rem; }
+        .cu-header { display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 1.2rem; }
+        .cu-header h2 { margin: 0; }
+        .cu-back { color: #666; text-decoration: none; font-size: 0.9rem; }
+        .cu-back:hover { color: #333; }
+        .cu-card { border: 1px solid #e3e3e3; border-radius: 10px; padding: 1rem 1.2rem;
+            margin-bottom: 1rem; background: #fff; }
+        .cu-card h3 { margin: 0 0 0.6rem; font-size: 1.02rem; }
+        .cu-banner { border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 1rem;
+            font-size: 0.9rem; line-height: 1.6; }
+        .cu-banner.off { background: #fff7e6; border: 1px solid #ffd591; color: #874d00; }
+        .cu-banner.ok { background: #f6ffed; border: 1px solid #b7eb8f; color: #237804; }
+        .cu-btn { border: 1px solid #d0d0d0; background: #fafafa; border-radius: 6px;
+            padding: 0.42rem 0.85rem; cursor: pointer; font-size: 0.87rem; margin-right: 0.4rem; }
+        .cu-btn:hover { background: #f0f0f0; }
+        .cu-btn.primary { background: #1677ff; border-color: #1677ff; color: #fff; }
+        .cu-btn.danger { background: #fff1f0; border-color: #ffa39e; color: #a8071a; }
+        .cu-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .cu-kv { font-size: 0.85rem; color: #666; margin: 0.2rem 0; }
+        .cu-row { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap;
+            margin-bottom: 0.6rem; }
+        label.cu-lbl { font-size: 0.83rem; color: #555; display: block; margin: 0.5rem 0 0.2rem; }
+        input.cu-in, select.cu-sel, textarea.cu-ta { width: 100%; box-sizing: border-box;
+            border: 1px solid #d9d9d9; border-radius: 6px; padding: 0.42rem 0.6rem;
+            font-size: 0.88rem; font-family: inherit; }
+        textarea.cu-ta { min-height: 150px; font-family: ui-monospace, Consolas, monospace;
+            font-size: 0.82rem; }
+        .cu-check { border-top: 1px solid #f0f0f0; padding: 0.55rem 0; }
+        .cu-check:first-child { border-top: none; }
+        .cu-badge { display: inline-block; border-radius: 4px; padding: 0.05rem 0.4rem;
+            font-size: 0.73rem; margin-left: 0.4rem; vertical-align: middle; }
+        .b-ok { background: #f6ffed; color: #237804; border: 1px solid #b7eb8f; }
+        .b-err { background: #fff1f0; color: #a8071a; border: 1px solid #ffa39e; }
+        .b-warn { background: #fffbe6; color: #ad6800; border: 1px solid #ffe58f; }
+        .b-skip { background: #f5f5f5; color: #666; border: 1px solid #d9d9d9; }
+        .cu-find { font-size: 0.82rem; margin: 0.3rem 0 0.3rem 1rem; padding-left: 0.6rem;
+            border-left: 3px solid #eee; }
+        .cu-find.sev-ERROR { border-left-color: #ff4d4f; }
+        .cu-find.sev-WARN { border-left-color: #faad14; }
+        .cu-find.sev-INFO { border-left-color: #bfbfbf; }
+        .cu-loc { font-family: ui-monospace, Consolas, monospace; color: #1677ff; }
+        .cu-hint { color: #888; font-size: 0.78rem; margin-top: 0.15rem; }
+        .cu-skip-reason { font-size: 0.8rem; color: #8c6d1f; background: #fffbe6;
+            border-radius: 5px; padding: 0.35rem 0.6rem; margin: 0.3rem 0 0 1rem; }
+        pre.cu-diff { background: #0d1117; color: #c9d1d9; border-radius: 8px;
+            padding: 0.8rem; overflow: auto; max-height: 420px; font-size: 0.78rem;
+            line-height: 1.45; }
+        pre.cu-diff .add { color: #7ee787; }
+        pre.cu-diff .del { color: #ff7b72; }
+        pre.cu-diff .hunk { color: #79c0ff; }
+        .cu-note { font-size: 0.8rem; color: #888; line-height: 1.65; margin-top: 0.5rem; }
+        .cu-msg { font-size: 0.85rem; margin-top: 0.6rem; padding: 0.5rem 0.7rem;
+            border-radius: 6px; }
+        .cu-msg.ok { background: #f6ffed; color: #237804; }
+        .cu-msg.bad { background: #fff1f0; color: #a8071a; }
+    </style>
+</head>
+<body>
+<div class="cu-wrap">
+    <div class="cu-header">
+        <h2>知识策展 <span style="font-size:0.72em;color:#999;">Curate</span></h2>
+        <div>
+            <a href="/codex" class="cu-back" style="margin-right:1rem;">← 知识仓库</a>
+            <a href="/codex/checkpoints" class="cu-back">知识落地检验 →</a>
+        </div>
+    </div>
+
+    <div th:if="${!codexEnabled}" class="cu-banner off">
+        <strong>知识仓库未启用</strong>：请设置 <code>codex.enabled=true</code> 后重启。
+    </div>
+    <div th:if="${codexEnabled and !writeEnabled}" class="cu-banner off">
+        <strong>写入未启用</strong>：<code>codex.write.enabled=false</code>。
+        知识 CI（只读）仍可正常使用；沉淀与提交会被拒绝。
+        写入会真实修改你的 git 工作副本，因此默认关闭。
+    </div>
+
+    <div class="cu-card">
+        <div class="cu-row">
+            <label class="cu-lbl" style="margin:0;">仓库</label>
+            <select id="repoSel" class="cu-sel" style="width:260px;"></select>
+            <span id="repoInfo" class="cu-kv"></span>
+        </div>
+        <div class="cu-kv" id="writePaths"></div>
+    </div>
+
+    <!-- ============ 知识 CI ============ -->
+    <div class="cu-card">
+        <h3>知识 CI <span style="font-size:0.78rem;color:#999;font-weight:normal;">
+            九项只读检查，绝不修改文件</span></h3>
+        <div class="cu-row">
+            <button class="cu-btn primary" id="btnCi">跑一轮检查</button>
+            <button class="cu-btn" id="btnCiLast">看上一轮结果</button>
+            <span id="ciSummary" class="cu-kv"></span>
+        </div>
+        <div id="ciBody"></div>
+        <div class="cu-note">
+            <code>SKIPPED</code> 表示<strong>没检查</strong>，不是通过。把「没检查」显示成
+            「通过」会让人以为已经验过了，那比不做这项检查更有害。
+        </div>
+    </div>
+
+    <!-- ============ 沉淀 ============ -->
+    <div class="cu-card">
+        <h3>沉淀一篇笔记</h3>
+        <div class="cu-note" style="margin-top:0;">
+            正文里必须保留问答中的代码 / IR / 对照表。删成一句话摘要会被<strong>拒绝写入</strong>
+            （<code>MISSING_EXAMPLES</code>）——示例正是让你半年后重新看懂的部分。
+        </div>
+
+        <label class="cu-lbl">标题</label>
+        <input class="cu-in" id="sTitle" placeholder="如：LLVM IR 中的 Phi">
+
+        <div class="cu-row" style="margin-top:0.6rem;">
+            <div style="flex:1 1 380px;">
+                <label class="cu-lbl">挂靠的知识文档</label>
+                <select class="cu-sel" id="sGuide"></select>
+            </div>
+            <div style="flex:1 1 300px;">
+                <label class="cu-lbl">插入位置（章节 anchor）</label>
+                <select class="cu-sel" id="sAnchor"></select>
+            </div>
+            <div style="flex:0 0 120px;">
+                <label class="cu-lbl">章节号</label>
+                <input class="cu-in" id="sSection" placeholder="2.3">
+            </div>
+        </div>
+
+        <label class="cu-lbl">速记摘要（一句话，让扫读者决定是否点开）</label>
+        <input class="cu-in" id="sSummary" placeholder="汇合选值、两条规则、与 MLIR block argument 的对应">
+
+        <label class="cu-lbl">笔记正文（不含 H1 与来源行）</label>
+        <textarea class="cu-ta" id="sBody" placeholder="## 是什么&#10;&#10;...&#10;&#10;## 示例&#10;&#10;```llvm&#10;%r = phi i32 [ %a, %then ], [ %b, %else ]&#10;```"></textarea>
+
+        <label class="cu-lbl">被沉淀的原文（用于校验示例是否保留；从对话里粘贴）</label>
+        <textarea class="cu-ta" id="sSource" style="min-height:90px;"></textarea>
+
+        <div class="cu-row" style="margin-top:0.7rem;">
+            <select class="cu-sel" id="sMode" style="width:180px;">
+                <option value="CREATE">CREATE（新建）</option>
+                <option value="APPEND">APPEND（追加到既有）</option>
+                <option value="REPLACE">REPLACE（覆盖）</option>
+            </select>
+            <button class="cu-btn primary" id="btnSediment">沉淀（写文件，不提交）</button>
+        </div>
+        <div id="sedMsg"></div>
+    </div>
+
+    <!-- ============ 分支与审阅 ============ -->
+    <div class="cu-card">
+        <h3>工作分支与审阅</h3>
+        <div class="cu-row">
+            <select class="cu-sel" id="branchSel" style="width:320px;"></select>
+            <button class="cu-btn" id="btnDiff">查看 diff</button>
+            <button class="cu-btn danger" id="btnDiscard">丢弃分支</button>
+        </div>
+        <div id="diffFiles" class="cu-kv"></div>
+        <pre class="cu-diff" id="diffBox">（点「查看 diff」）</pre>
+
+        <label class="cu-lbl">提交标题</label>
+        <input class="cu-in" id="cSubject" placeholder="docs(notes): 沉淀 LLVM phi">
+        <div class="cu-row" style="margin-top:0.6rem;">
+            <button class="cu-btn primary" id="btnCommit">提交列出的文件</button>
+            <button class="cu-btn" id="btnPr">推送并开 PR</button>
+        </div>
+        <div id="gitMsg"></div>
+        <div class="cu-note">
+            提交只包含上方 diff 里列出的文件——不存在「提交全部」的选项。
+            知识仓库同时是动手实验目录，一次 <code>git add -A</code> 就可能把编译产物提交上去。
+        </div>
+    </div>
+</div>
+
+<!--
+  刻意不使用 th:inline="javascript"：本脚本大量使用 JS 模板字符串（`${...}`），
+  与 Thymeleaf 的 JS 内联语法容易互相干扰。服务端状态一律由 /api/codex/** 拉取。
+-->
+<script>
+    const CSRF_TOKEN = document.querySelector('meta[name="_csrf"]')?.content;
+    const CSRF_HEADER = document.querySelector('meta[name="_csrf_header"]')?.content;
+
+    function headers() {
+        const h = { 'Content-Type': 'application/json' };
+        if (CSRF_TOKEN && CSRF_HEADER) h[CSRF_HEADER] = CSRF_TOKEN;
+        return h;
+    }
+
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function msg(el, ok, text) {
+        el.innerHTML = `<div class="cu-msg ${ok ? 'ok' : 'bad'}">${esc(text)}</div>`;
+    }
+
+    let repos = [];
+    let docs = [];
+    let currentFiles = [];
+
+    async function init() {
+        try {
+            const cfg = await (await fetch('/api/codex/curate/config')).json();
+            document.getElementById('writePaths').textContent =
+                '可写路径：' + (cfg.allowedWritePaths || []).join('、')
+                + '　·　分支前缀：' + cfg.branchPrefix
+                + '　·　既有 guide 只能插入一行速记引用，不可整体改写';
+        } catch (e) { /* 配置拉不到不影响主流程 */ }
+
+        try {
+            repos = await (await fetch('/api/codex/repos')).json();
+        } catch (e) { repos = []; }
+
+        const sel = document.getElementById('repoSel');
+        sel.innerHTML = repos.map(r =>
+            `<option value="${r.id}">${esc(r.name)}</option>`).join('')
+            || '<option value="">（尚未接入仓库）</option>';
+        sel.onchange = onRepoChange;
+        if (repos.length) await onRepoChange();
+    }
+
+    function repoId() {
+        const v = document.getElementById('repoSel').value;
+        return v ? Number(v) : null;
+    }
+
+    function currentRepo() {
+        return repos.find(r => r.id === repoId());
+    }
+
+    async function onRepoChange() {
+        const r = currentRepo();
+        document.getElementById('repoInfo').textContent = r
+            ? `${r.branch} · ${r.provider} · ${r.health?.documents ?? 0} 篇文档` : '';
+        await loadDocs();
+        await loadBranches();
+        await loadCi(true);
+    }
+
+    async function loadDocs() {
+        const id = repoId();
+        if (!id) return;
+        const sel = document.getElementById('sGuide');
+        try {
+            docs = await (await fetch(`/api/codex/repos/${id}/documents`)).json();
+        } catch (e) { docs = []; }
+        // 只允许从索引里真实存在的文档中选：手打路径的报错发生在流程末尾，很难归因
+        sel.innerHTML = docs
+            .filter(d => d.kind !== 'SOURCE')
+            .map(d => `<option value="${esc(d.path)}">${esc(d.path)}`
+                + ` (${d.sections} 节)</option>`).join('')
+            || '<option value="">（索引为空，请先同步）</option>';
+        sel.onchange = loadAnchors;
+        await loadAnchors();
+    }
+
+    async function loadAnchors() {
+        const path = document.getElementById('sGuide').value;
+        const sel = document.getElementById('sAnchor');
+        if (!path) { sel.innerHTML = ''; return; }
+        try {
+            const res = await fetch('/api/codex/doc/anchors?repoId=' + repoId()
+                + '&path=' + encodeURIComponent(path));
+            const d = await res.json();
+            sel.innerHTML = (d.anchors || []).map(a =>
+                `<option value="${esc(a.anchor)}">`
+                + `${'　'.repeat(Math.max(0, a.level - 1))}${esc(a.heading)}</option>`).join('')
+                || '<option value="">（该文档无章节标题）</option>';
+        } catch (e) {
+            sel.innerHTML = '<option value="">（读取章节失败）</option>';
+        }
+    }
+
+    /* ============ CI ============ */
+
+    function badge(status, errors, warns) {
+        if (status === 'SKIPPED') return '<span class="cu-badge b-skip">SKIPPED · 未检查</span>';
+        if (status === 'FAILED') return '<span class="cu-badge b-err">检查自身异常</span>';
+        if (errors > 0) return `<span class="cu-badge b-err">${errors} ERROR</span>`;
+        if (warns > 0) return `<span class="cu-badge b-warn">${warns} WARN</span>`;
+        return '<span class="cu-badge b-ok">OK</span>';
+    }
+
+    function renderCi(rep) {
+        document.getElementById('ciSummary').textContent =
+            `ERROR ${rep.errors} · WARN ${rep.warns} · INFO ${rep.infos} · ${rep.durationMs}ms`
+            + (rep.passed ? ' · 放行' : ' · 有阻塞项');
+
+        document.getElementById('ciBody').innerHTML = (rep.checks || []).map(c => {
+            const findings = (c.findings || []).map(f => `
+                <div class="cu-find sev-${esc(f.severity)}">
+                    <span class="cu-loc">${esc(f.locator)}</span> — ${esc(f.message)}
+                    ${f.hint ? `<div class="cu-hint">${esc(f.hint)}</div>` : ''}
+                </div>`).join('');
+            return `
+            <div class="cu-check">
+                <strong>${esc(c.label)}</strong>
+                ${badge(c.status, c.errors, c.warns)}
+                <span class="cu-kv" style="display:inline;margin-left:0.5rem;">
+                    ${esc(c.description)}${c.scanned ? '（扫描 ' + c.scanned + ' 项）' : ''}
+                </span>
+                ${c.skipReason ? `<div class="cu-skip-reason">${esc(c.skipReason)}</div>` : ''}
+                ${findings}
+            </div>`;
+        }).join('');
+    }
+
+    async function loadCi(quiet) {
+        const id = repoId();
+        if (!id) return;
+        try {
+            const d = await (await fetch('/api/codex/ci/last?repoId=' + id)).json();
+            if (d.hasReport) renderCi(d);
+            else if (!quiet) document.getElementById('ciBody').innerHTML =
+                '<div class="cu-kv">尚未跑过检查。</div>';
+            else document.getElementById('ciBody').innerHTML = '';
+        } catch (e) { /* 忽略 */ }
+    }
+
+    document.getElementById('btnCi').onclick = async (ev) => {
+        const id = repoId();
+        if (!id) return;
+        ev.target.disabled = true;
+        ev.target.textContent = '检查中…';
+        try {
+            const res = await fetch('/api/codex/ci/run?repoId=' + id,
+                { method: 'POST', headers: headers() });
+            renderCi(await res.json());
+        } catch (e) {
+            document.getElementById('ciBody').innerHTML =
+                `<div class="cu-msg bad">检查失败：${esc(e.message)}</div>`;
+        } finally {
+            ev.target.disabled = false;
+            ev.target.textContent = '跑一轮检查';
+        }
+    };
+    document.getElementById('btnCiLast').onclick = () => loadCi(false);
+
+    /* ============ 沉淀 ============ */
+
+    document.getElementById('btnSediment').onclick = async (ev) => {
+        const box = document.getElementById('sedMsg');
+        const payload = {
+            repoName: currentRepo()?.name,
+            title: document.getElementById('sTitle').value,
+            body: document.getElementById('sBody').value,
+            summary: document.getElementById('sSummary').value,
+            guidePath: document.getElementById('sGuide').value,
+            anchor: document.getElementById('sAnchor').value,
+            sectionLabel: document.getElementById('sSection').value,
+            sourceExcerpt: document.getElementById('sSource').value,
+            mode: document.getElementById('sMode').value,
+            createBranch: true,
+            insertBackref: true
+        };
+        ev.target.disabled = true;
+        try {
+            const res = await fetch('/api/codex/sediment',
+                { method: 'POST', headers: headers(), body: JSON.stringify(payload) });
+            const d = await res.json();
+            if (d.ok) {
+                let text = d.message + '\n' + (d.reindex || '') + '\n' + (d.nextStep || '');
+                msg(box, true, text);
+                currentFiles = d.changedFiles || [];
+                document.getElementById('cSubject').value =
+                    'docs(notes): 沉淀 ' + (payload.title || '');
+                await loadBranches();
+                await doDiff();
+            } else {
+                let text = d.message || d.error;
+                if (d.availableAnchors?.length) {
+                    text += '\n可用 anchor：' + d.availableAnchors.slice(0, 15).join(', ');
+                }
+                msg(box, false, text);
+            }
+        } catch (e) {
+            msg(box, false, '请求失败：' + e.message);
+        } finally {
+            ev.target.disabled = false;
+        }
+    };
+
+    /* ============ 分支 / diff / 提交 ============ */
+
+    async function loadBranches() {
+        const id = repoId();
+        if (!id) return;
+        try {
+            const d = await (await fetch('/api/codex/git/branches?repoId=' + id)).json();
+            const sel = document.getElementById('branchSel');
+            const list = d.branches || [];
+            sel.innerHTML = list.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('')
+                || `<option value="">（没有 ${esc(d.prefix)} 分支）</option>`;
+        } catch (e) { /* 忽略 */ }
+    }
+
+    function colorize(patch) {
+        return esc(patch).split('\n').map(l => {
+            if (l.startsWith('+++') || l.startsWith('---')) return l;
+            if (l.startsWith('+')) return `<span class="add">${l}</span>`;
+            if (l.startsWith('-')) return `<span class="del">${l}</span>`;
+            if (l.startsWith('@@')) return `<span class="hunk">${l}</span>`;
+            return l;
+        }).join('\n');
+    }
+
+    async function doDiff() {
+        const id = repoId();
+        if (!id) return;
+        const branch = document.getElementById('branchSel').value;
+        try {
+            const d = await (await fetch('/api/codex/git/diff?repoId=' + id
+                + (branch ? '&branch=' + encodeURIComponent(branch) : ''))).json();
+            currentFiles = d.files || [];
+            document.getElementById('diffFiles').textContent =
+                `${d.uncommitted ? '未提交改动' : '相对 ' + d.base}　·　`
+                + (currentFiles.length ? currentFiles.join('、') : '无变更');
+            document.getElementById('diffBox').innerHTML =
+                colorize(d.patch || '（无 diff）');
+        } catch (e) {
+            document.getElementById('diffBox').textContent = '取 diff 失败：' + e.message;
+        }
+    }
+
+    document.getElementById('btnDiff').onclick = doDiff;
+
+    document.getElementById('btnCommit').onclick = async (ev) => {
+        const box = document.getElementById('gitMsg');
+        if (!currentFiles.length) {
+            msg(box, false, '没有可提交的文件。请先「查看 diff」确认改动。');
+            return;
+        }
+        ev.target.disabled = true;
+        try {
+            const res = await fetch('/api/codex/git/commit', {
+                method: 'POST', headers: headers(),
+                body: JSON.stringify({
+                    repoId: repoId(), paths: currentFiles,
+                    subject: document.getElementById('cSubject').value
+                })
+            });
+            const d = await res.json();
+            msg(box, d.ok, (d.message || d.error) + (d.sha ? '（' + d.sha.slice(0, 8) + '）' : ''));
+            if (d.ok) await doDiff();
+        } catch (e) {
+            msg(box, false, '提交失败：' + e.message);
+        } finally {
+            ev.target.disabled = false;
+        }
+    };
+
+    document.getElementById('btnPr').onclick = async (ev) => {
+        const box = document.getElementById('gitMsg');
+        ev.target.disabled = true;
+        try {
+            const res = await fetch('/api/codex/git/pr', {
+                method: 'POST', headers: headers(),
+                body: JSON.stringify({
+                    repoId: repoId(),
+                    branch: document.getElementById('branchSel').value,
+                    title: document.getElementById('cSubject').value,
+                    body: '由 Lattice Codex 在 curate 模式下产出，请逐行审阅。'
+                })
+            });
+            const d = await res.json();
+            msg(box, d.ok, (d.message || d.error) + (d.prUrl ? '\n' + d.prUrl : ''));
+        } catch (e) {
+            msg(box, false, '开 PR 失败：' + e.message);
+        } finally {
+            ev.target.disabled = false;
+        }
+    };
+
+    document.getElementById('btnDiscard').onclick = async (ev) => {
+        const branch = document.getElementById('branchSel').value;
+        if (!branch) return;
+        if (!confirm('丢弃分支 ' + branch + '？该分支上已提交的内容将无法恢复。')) return;
+        const box = document.getElementById('gitMsg');
+        ev.target.disabled = true;
+        try {
+            const res = await fetch('/api/codex/git/discard', {
+                method: 'POST', headers: headers(),
+                body: JSON.stringify({ repoId: repoId(), branch })
+            });
+            const d = await res.json();
+            msg(box, d.ok, d.message || d.error);
+            await loadBranches();
+        } catch (e) {
+            msg(box, false, '丢弃失败：' + e.message);
+        } finally {
+            ev.target.disabled = false;
+        }
+    };
+
+    init();
+</script>
+</body>
+</html>
