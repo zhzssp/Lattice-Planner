@@ -17,8 +17,18 @@ import java.util.Set;
  */
 public enum AgentMode {
 
-    /** 通用对话：全部工具，无限制。 */
-    CHAT("chat", Set.of(), Set.of()),
+    /**
+     * 通用对话：全部工具，无限制。
+     *
+     * <p><strong>V4 新增 denyTags 的技术原因</strong>：CHAT 的 {@code allowTags} 为空集
+     * 表示「不收窄」，因此新增的 Codex 工具会自动出现在它的工具列表里。
+     * 这会改变 {@code exportSchemas} 的输出字节，从而让方案 A 的评测录制
+     * （cassette 按 messages_hash 命中）全部失效——那是本项目最有价值的工程资产。</p>
+     *
+     * <p>用 deny 显式排除后，CHAT 的 schema 与 V3 逐字节一致。
+     * 这也是产品上正确的：知识仓库操作应在专用模式下进行，避免通用对话里误触。</p>
+     */
+    CHAT("chat", Set.of(), Set.of("codex", "exec", "checkpoint")),
 
     /** 规划：任务/目标/规划/读写 + kb 读 + 子代理 + MCP。 */
     PLAN("plan",
@@ -33,7 +43,39 @@ public enum AgentMode {
     /** 学习：纯检索问答（kb/note 读 + 子代理 + MCP），禁写。 */
     LEARN("learn",
             Set.of("kb", "note", "read", "subagent", "mcp"),
-            Set.of("write"));
+            Set.of("write")),
+
+    /**
+     * 研读（V4）：面向知识仓库的纯检索问答。
+     *
+     * <p>与 {@link #LEARN} 的区别：LEARN 查的是随手写的笔记（{@code kb} / {@code note}），
+     * STUDY 还能查 Git 管理的知识仓库（{@code codex}）。禁一切写与执行。</p>
+     */
+    STUDY("study",
+            Set.of("codex", "kb", "note", "read", "subagent", "mcp"),
+            Set.of("write", "task", "goal", "exec")),
+
+    /**
+     * 策展（V4）：整理知识仓库（挂域、补引用、修死链、开 PR）。
+     *
+     * <p>刻意 deny {@code task} / {@code goal}：整理知识时不该动任务体系，
+     * 避免「让它整理笔记，结果顺手改了我的任务」这类越界。</p>
+     */
+    CURATE("curate",
+            Set.of("codex", "kb", "read", "write", "subagent"),
+            Set.of("task", "goal", "insight", "exec")),
+
+    /**
+     * 验证（V4）：跑知识落地检验（checkpoint）。
+     *
+     * <p><strong>这是唯一开放受限执行（{@code exec} tag）的模式。</strong>
+     * 把「能执行命令」收窄到单一模式，是权限治理的正确做法——
+     * 配合方案 K 的执行层强制，其余模式下调用 exec 类工具会被短路拦截，
+     * 而不是仅仅从 prompt 里隐藏（提示层约束模型完全可能无视）。</p>
+     */
+    VERIFY("verify",
+            Set.of("codex", "checkpoint", "lab", "exec", "read"),
+            Set.of("write", "task", "goal"));
 
     private final String label;
     private final Set<String> allowTags;

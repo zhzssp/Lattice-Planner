@@ -20,10 +20,13 @@ import java.util.Set;
 
 /**
  * 系统 Prompt + 历史拼接器。按 mode 选择工具子集：
- *  chat    -> 全部
+ *  chat    -> 全部（V4 起显式排除 codex/exec/checkpoint，保护评测录制的字节稳定）
  *  plan    -> 任务/目标/规划/读+写（+ kb 读，便于规划时引用历史笔记）
  *  reflect -> 任务/目标/insight/笔记/读（+ kb 读，复盘时检索过往）
  *  learn   -> kb/note/read（"我以前学过 X 吗"等纯检索问答）
+ *  study   -> V4：知识仓库检索问答（codex + kb），禁写禁执行
+ *  curate  -> V4：整理知识仓库（codex 读写），禁任务/目标/执行
+ *  verify  -> V4：跑知识落地检验，唯一开放 exec 的模式
  *
  * P1 重构（Prefix Caching）：拆 buildPrefix / assemble，支持前缀缓存复用。
  */
@@ -119,12 +122,22 @@ public class PromptBuilder {
                 .writeValueAsString(registry.exportSchemas(tagFilter));
     }
 
-    /** 旧 tag 过滤（降级路径）。 */
+    /**
+     * 旧 tag 过滤（降级路径）。
+     *
+     * <p>V4 新增 study/curate/verify 三个模式。注意 {@code default} 分支（含 chat）
+     * 返回 null 表示「不过滤」——这在可见性开关关闭时会让 Codex 工具在 chat 下可见。
+     * 这是降级路径的已知取舍：{@code agent.tool.visibility.enabled=true} 是默认值，
+     * 走 {@link AgentMode} 的 deny 语义；只有显式关掉可见性时才会落到这里。</p>
+     */
     private Set<String> resolveTagFilter(String mode) {
         return switch (mode == null ? "chat" : mode) {
             case "plan" -> Set.of("task", "goal", "planner", "kb", "read", "write", "subagent", "mcp");
             case "reflect" -> Set.of("task", "goal", "insight", "note", "kb", "read", "subagent", "mcp");
             case "learn" -> Set.of("kb", "note", "read", "subagent", "mcp");
+            case "study" -> Set.of("codex", "kb", "note", "read", "subagent", "mcp");
+            case "curate" -> Set.of("codex", "kb", "read", "write", "subagent");
+            case "verify" -> Set.of("codex", "checkpoint", "lab", "exec", "read");
             default -> null;
         };
     }
@@ -170,6 +183,15 @@ public class PromptBuilder {
                   不要尝试调用 kb.ingest 等写入/摄取操作。
                 - 严禁调用任何不含 mcp. 前缀的 local.* 工具（旧的 Electron 桥接工具已下线，
                   调用会失败并误导用户）。
+
+                【知识仓库原则】（涉及用户 Git 知识体系时执行，仅 study/curate/verify 模式可用）
+                - 涉及"我的知识库/知识仓库/学习资料/学习路线/我整理过的文档"时，
+                  先调用 doc.search 检索知识仓库（与 kb.semantic_search 分工：本工具查仓库文档，后者查随手笔记）。
+                - 引用命中内容时必须给出出处，格式为「文档标题 §章节」，并可附 locator 供用户跳转。
+                - doc.search 返回 hitCount=0 时，须明示"未在知识仓库中找到，以下基于通用知识"。
+                - 长文档不要直接 doc.read 全文：先 doc.outline 看目录，再用 anchor 精读所需章节。
+                - 若结果里出现 _indexWarning 或 truncatedDocs > 0，说明该文档索引不完整，
+                  必须提醒用户"检索不到不代表原文没写"，不可断言"你没写过"。
 
                 【用户长期记忆（来自历史 Agent 会话归档）】
                 %s

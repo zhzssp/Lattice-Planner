@@ -121,8 +121,10 @@ public class NoteIndexService {
         embeddingRepository.deleteByNoteId(noteId);
 
         // 2) 切片
-        List<String> chunks = chunk(note.getTitle(), note.getContent());
+        ChunkResult cr = chunk(note.getTitle(), note.getContent(), MAX_CHUNKS_PER_NOTE);
+        List<String> chunks = cr.chunks();
         if (chunks.isEmpty()) return;
+        warnIfTruncated("笔记 #" + noteId, cr);
 
         // 3) 调用 embedding（失败降级：仅记录，不抛——业务保存已成功）
         List<float[]> vecs;
@@ -171,8 +173,10 @@ public class NoteIndexService {
     @Transactional
     public int rebuildForLocalDoc(Long userId, String path, String content) {
         embeddingRepository.deleteByLocalPath(userId, path);
-        List<String> chunks = chunk(path, content);
+        ChunkResult cr = chunk(path, content, MAX_CHUNKS_PER_NOTE);
+        List<String> chunks = cr.chunks();
         if (chunks.isEmpty()) return 0;
+        warnIfTruncated("本地文档 " + path, cr);
         List<float[]> vecs;
         try {
             vecs = embeddingClient.embed(chunks);
@@ -190,9 +194,23 @@ public class NoteIndexService {
         return chunks.size();
     }
 
+    /**
+     * 切片触顶告警（P0a）。
+     *
+     * <p>为什么必须记日志：截断意味着<strong>后半部分内容永远不会被检索到</strong>，
+     * 而 Agent 仍会声称「已检索知识库」。静默截断会让用户误判「库里没有」，
+     * 比检索失败更具误导性。</p>
+     */
+    private void warnIfTruncated(String label, ChunkResult cr) {
+        if (!cr.truncated()) return;
+        log.warn("[PKM] {} 切片触顶：共 {} 字符，仅索引 {} 字符（约丢失 {}%），chunk={} 已达上限。"
+                        + "该内容的后半部分将无法被检索到。",
+                label, cr.charsTotal(), cr.charsUsed(),
+                Math.round(cr.lossRatio() * 100), cr.chunks().size());
+    }
+
     private void saveEmbedding(Long uid, Long nid, String src, String path,
-                               int idx, String content, float[] v) {
-        NoteEmbedding e = new NoteEmbedding();
+                               int idx, String content, float[] v) {        NoteEmbedding e = new NoteEmbedding();
         e.setUserId(uid);
         e.setNoteId(nid);
         e.setSource(src);
@@ -206,7 +224,42 @@ public class NoteIndexService {
     }
 
     /**
-     * 段落优先 + 滚动切片，带 overlap，单笔记上限 MAX_CHUNKS_PER_NOTE。
+     * 段落优先 + 滚动切片，带 overlap，单笔记上限 {@link #MAX_CHUNKS_PER_NOTE}。
+     *
+     * <p>保留 2 参签名，行为与改造前<strong>逐字节一致</strong>（笔记路径不受 P0a 影响）。</p>
+     *
+     * 包级访问以便单测覆盖。
+     */
+    static List<String> chunk(String title, String content) {
+        return chunk(title, content, MAX_CHUNKS_PER_NOTE).chunks();
+    }
+
+    /**
+     * 切片结果：内容 + <strong>是否触顶被截断</strong>。
+     *
+     * <p>P0a 修复的核心：原实现触顶时直接 {@code return out}，
+     * 调用方与 LLM 都<strong>无从得知内容已丢失</strong>。
+     * 一篇 107K 字符的文档在 64 chunk 上限下只有前 36% 被索引，
+     * 检索时表现为「库里没有」——比完全没有检索更具误导性。</p>
+     *
+     * <p>延续项目既有的「截断不可静默」原则（同方案 L 的粘性降级标记）：
+     * 截断事实必须能被上层观察到并明示。</p>
+     *
+     * @param chunks     切片内容
+     * @param truncated  是否因触达 maxChunks 上限而丢弃了后续内容
+     * @param charsTotal 输入总字符数（用于估算丢失比例）
+     * @param charsUsed  实际被切片覆盖的字符数
+     */
+    record ChunkResult(List<String> chunks, boolean truncated, int charsTotal, int charsUsed) {
+        /** 被丢弃内容的字符占比（0.0 = 完整）。 */
+        double lossRatio() {
+            if (charsTotal <= 0) return 0.0;
+            return Math.max(0.0, 1.0 - (double) charsUsed / charsTotal);
+        }
+    }
+
+    /**
+     * 段落优先 + 滚动切片，带 overlap，上限由调用方指定。
      *
      * 切片策略：
      *  - 以连续 2 个换行视为段落分隔；
@@ -214,14 +267,17 @@ public class NoteIndexService {
      *  - 单段落本身超过 CHUNK_SIZE 时按 (CHUNK_SIZE - CHUNK_OVERLAP) 步长滑窗切；
      *  - 标题作为 "[标题] xxx" 注入正文头，避免短笔记切出空 chunk 同时让向量更紧贴主题。
      *
-     * 包级访问以便单测覆盖。
+     * @param maxChunks chunk 数上限；笔记传 {@link #MAX_CHUNKS_PER_NOTE}，
+     *                  Git 文档传 {@code codex.index.max-chunks-per-document}（默认 400）
      */
-    static List<String> chunk(String title, String content) {
+    static ChunkResult chunk(String title, String content, int maxChunks) {
         if (content == null) content = "";
         String header = (title == null || title.isBlank()) ? "" : "[标题] " + title + "\n";
         String text = (header + content).trim();
-        if (text.isEmpty()) return List.of();
+        if (text.isEmpty()) return new ChunkResult(List.of(), false, 0, 0);
 
+        int limit = Math.max(1, maxChunks);
+        int charsTotal = text.length();
         String[] paras = text.split("\\n{2,}");
         List<String> out = new ArrayList<>();
         StringBuilder buf = new StringBuilder();
@@ -238,7 +294,7 @@ public class NoteIndexService {
                 if (buf.length() > 0) {
                     out.add(buf.toString());
                     buf.setLength(0);
-                    if (out.size() >= MAX_CHUNKS_PER_NOTE) return out;
+                    if (out.size() >= limit) return truncatedResult(out, charsTotal);
                 }
                 if (para.length() <= CHUNK_SIZE) {
                     buf.append(para);
@@ -246,13 +302,23 @@ public class NoteIndexService {
                     int step = CHUNK_SIZE - CHUNK_OVERLAP;
                     for (int i = 0; i < para.length(); i += step) {
                         out.add(para.substring(i, Math.min(para.length(), i + CHUNK_SIZE)));
-                        if (out.size() >= MAX_CHUNKS_PER_NOTE) return out;
+                        if (out.size() >= limit) return truncatedResult(out, charsTotal);
                     }
                 }
             }
-            if (out.size() >= MAX_CHUNKS_PER_NOTE) return out;
+            if (out.size() >= limit) return truncatedResult(out, charsTotal);
         }
         if (buf.length() > 0) out.add(buf.toString());
-        return out.size() > MAX_CHUNKS_PER_NOTE ? out.subList(0, MAX_CHUNKS_PER_NOTE) : out;
+        if (out.size() > limit) {
+            return truncatedResult(new ArrayList<>(out.subList(0, limit)), charsTotal);
+        }
+        return new ChunkResult(out, false, charsTotal, charsTotal);
+    }
+
+    /** 触顶收尾：标记 truncated 并统计已覆盖字符数。 */
+    private static ChunkResult truncatedResult(List<String> out, int charsTotal) {
+        int used = 0;
+        for (String c : out) used += c.length();
+        return new ChunkResult(out, true, charsTotal, Math.min(used, charsTotal));
     }
 }

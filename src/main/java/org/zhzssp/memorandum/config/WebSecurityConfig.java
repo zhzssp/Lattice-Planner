@@ -36,7 +36,9 @@ public class WebSecurityConfig {
                                 "/sse",
                                 "/mcp/**",
                                 "/api/mcp/**",
-                                "/api/mcp/client/**"
+                                "/api/mcp/client/**",
+                                // V4 Codex：仓库管理 API 走 fetch 调用，与 /api/agent/** 同策略
+                                "/api/codex/**"
                         )
                 )
                 .authorizeHttpRequests(auth -> auth
@@ -47,6 +49,8 @@ public class WebSecurityConfig {
                         .requestMatchers("/sse", "/mcp/**").permitAll()
                         // MCP Token 管理 API & Client API & 设置页需登录
                         .requestMatchers("/api/mcp/**", "/mcp/**").authenticated()
+                        // V4 Codex：知识仓库 API 与页面需登录（用户级数据隔离依赖此处）
+                        .requestMatchers("/api/codex/**", "/codex/**").authenticated()
                         // /ws/agent/** 需要登录 -> 由 JSESSIONID 携带 Principal
                         .anyRequest().authenticated()
                 )

@@ -14,6 +14,9 @@ import org.zhzssp.memorandum.feature.pkm.serving.QueryResultCache;
 import org.zhzssp.memorandum.feature.pkm.serving.RagServingMetrics;
 import org.zhzssp.memorandum.feature.pkm.serving.Reranker;
 import org.zhzssp.memorandum.feature.pkm.service.EmbeddingVectorCache;
+import org.zhzssp.memorandum.feature.codex.service.CodexMetrics;
+import org.zhzssp.memorandum.feature.codex.service.CodexSearchService;
+import org.zhzssp.memorandum.feature.codex.service.RepoRegistryService;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -47,6 +50,9 @@ public class ObservabilityController {
     private final AgentTraceMetrics traceMetrics;
     private final ReflexionAdvisor reflexionAdvisor;
     private final ToolArgumentValidator argValidator;
+    private final CodexMetrics codexMetrics;
+    private final CodexSearchService codexSearch;
+    private final RepoRegistryService codexRegistry;
 
     public ObservabilityController(RagServingMetrics ragMetrics,
                                    QueryResultCache queryCache,
@@ -59,7 +65,10 @@ public class ObservabilityController {
                                    PrefixCacheMetrics prefixMetrics,
                                    AgentTraceMetrics traceMetrics,
                                    ReflexionAdvisor reflexionAdvisor,
-                                   ToolArgumentValidator argValidator) {
+                                   ToolArgumentValidator argValidator,
+                                   CodexMetrics codexMetrics,
+                                   CodexSearchService codexSearch,
+                                   RepoRegistryService codexRegistry) {
         this.ragMetrics = ragMetrics;
         this.queryCache = queryCache;
         this.reranker = reranker;
@@ -72,6 +81,9 @@ public class ObservabilityController {
         this.traceMetrics = traceMetrics;
         this.reflexionAdvisor = reflexionAdvisor;
         this.argValidator = argValidator;
+        this.codexMetrics = codexMetrics;
+        this.codexSearch = codexSearch;
+        this.codexRegistry = codexRegistry;
     }
 
     /**
@@ -134,7 +146,14 @@ public class ObservabilityController {
         out.put("ragServing", ragServingSection());
         out.put("crag", cragSection());
         out.put("prefixCache", prefixCacheSection());
+        out.put("codex", codexSection());
         return out;
+    }
+
+    /** Codex 知识仓库指标（V4）。 */
+    @GetMapping("/api/codex/stats")
+    public Map<String, Object> codexStats() {
+        return codexSection();
     }
 
     /* ---- 分区组装 ---- */
@@ -185,8 +204,31 @@ public class ObservabilityController {
         return section;
     }
 
-    private Map<String, Object> prefixCacheSection() {
+    /**
+     * Codex 分区（V4）。
+     *
+     * <p>三个数字最值得盯：
+     * <ul>
+     *   <li>{@code index.skipRate} —— 长期为 0 说明增量索引失效（多为 blobHash 计算问题）；</li>
+     *   <li>{@code index.truncatedDocs} —— &gt; 0 说明有文档只被部分索引，检索会漏；</li>
+     *   <li>{@code notFoundRate} —— 随知识体系变完整应当下降，是「体系在长」的量化信号。</li>
+     * </ul>
+     */
+    private Map<String, Object> codexSection() {
         Map<String, Object> section = new LinkedHashMap<>();
+
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("enabled", codexRegistry.enabled());
+        config.put("operational", codexRegistry.operational());
+        config.put("gitSearchEnabled", codexSearch.enabled());
+        config.put("gitVersion", codexRegistry.gitVersion());
+        section.put("config", config);
+
+        section.put("metrics", codexMetrics.snapshot());
+        return section;
+    }
+
+    private Map<String, Object> prefixCacheSection() {        Map<String, Object> section = new LinkedHashMap<>();
 
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("enabled", prefixCache.enabled());
