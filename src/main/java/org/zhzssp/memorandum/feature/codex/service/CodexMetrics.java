@@ -107,6 +107,63 @@ public class CodexMetrics {
         gapDismissed.incrementAndGet();
     }
 
+    // ---- P4 蒸馏与出题 ----
+    private final AtomicLong distillAttempts = new AtomicLong();
+    private final AtomicLong distillWritten = new AtomicLong();
+    private final AtomicLong distillSkipTerms = new AtomicLong();
+    private final Map<String, AtomicLong> distillRejects = new java.util.concurrent.ConcurrentHashMap<>();
+    private final AtomicLong examAttempts = new AtomicLong();
+    private final AtomicLong examDrafted = new AtomicLong();
+    private final AtomicLong examDiscardedBadPath = new AtomicLong();
+    private final AtomicLong examDiscardedNoCommand = new AtomicLong();
+
+    public void recordDistillAttempt() {
+        distillAttempts.incrementAndGet();
+    }
+
+    /**
+     * 蒸馏被拒一次。
+     *
+     * <p>按原因码分开计数的用处很具体：若 {@code SOURCE_LIKELY_SCANNED} 占多数，
+     * 该做的是提示用户先 OCR，而不是调 prompt；若 {@code SKIP_UNPARSEABLE} 占多数，
+     * 说明 prompt 里关于止损线的要求写得不够硬。两种结论对应完全不同的下一步动作，
+     * 只有分原因统计才能区分。</p>
+     */
+    public void recordDistillRejected(String code) {
+        distillRejects.computeIfAbsent(code == null ? "UNKNOWN" : code,
+                k -> new AtomicLong()).incrementAndGet();
+    }
+
+    public void recordDistillWritten(int skipTerms) {
+        distillWritten.incrementAndGet();
+        distillSkipTerms.addAndGet(Math.max(0, skipTerms));
+    }
+
+    public void recordExamAttempt() {
+        examAttempts.incrementAndGet();
+    }
+
+    public void recordExamDrafted(int count) {
+        examDrafted.addAndGet(Math.max(0, count));
+    }
+
+    /**
+     * 一道机器出的题因为引用了不存在的路径而被丢弃。
+     *
+     * <p>这个计数器守的是本产品最核心的那个指标：checkpoint 通过率。
+     * 一道验收命令指向不存在脚本的题，跑起来必然失败，而失败原因是「文件没有」
+     * 而非「知识没掌握」——它会把「无法造假的通过率」污染成一个没有意义的数字。
+     * 所以这类题是<strong>丢弃</strong>而非降级，且必须被计数：
+     * 若这个数长期远高于 {@code examDrafted}，说明出题这件事在当前语料上还不成立。</p>
+     */
+    public void recordExamDiscardedBadPath() {
+        examDiscardedBadPath.incrementAndGet();
+    }
+
+    public void recordExamDiscardedNoCommand() {
+        examDiscardedNoCommand.incrementAndGet();
+    }
+
     public void recordSearch(int hitCount, boolean degraded) {
         searchCount.incrementAndGet();
         searchHits.addAndGet(Math.max(0, hitCount));
@@ -185,6 +242,28 @@ public class CodexMetrics {
         gap.put("avgAsksPerGap", created == 0 ? 0.0
                 : round3((double) gapTouched.get() / created));
         m.put("gap", gap);
+
+        Map<String, Object> dis = new LinkedHashMap<>();
+        long dAtt = distillAttempts.get();
+        dis.put("attempts", dAtt);
+        dis.put("written", distillWritten.get());
+        dis.put("skipTermsHarvested", distillSkipTerms.get());
+        Map<String, Object> rej = new LinkedHashMap<>();
+        distillRejects.forEach((k, v) -> rej.put(k, v.get()));
+        dis.put("rejectsByReason", rej);
+        m.put("distill", dis);
+
+        Map<String, Object> exam = new LinkedHashMap<>();
+        exam.put("attempts", examAttempts.get());
+        exam.put("drafted", examDrafted.get());
+        exam.put("discardedBadPath", examDiscardedBadPath.get());
+        exam.put("discardedNoCommand", examDiscardedNoCommand.get());
+        long produced = examDrafted.get();
+        long discarded = examDiscardedBadPath.get() + examDiscardedNoCommand.get();
+        // 丢弃率：偏高说明出题在当前语料上还不成立，该停用而非继续调 prompt
+        exam.put("discardRate", (produced + discarded) == 0 ? 0.0
+                : round3((double) discarded / (produced + discarded)));
+        m.put("exam", exam);
         return m;
     }
 

@@ -65,7 +65,19 @@ public class KbCheckpoint {
         /** 从既有 Markdown 解析推断，判据较弱（退出码 + 关键词）。 */
         PARSED,
         /** front-matter 显式声明，判据精确。 */
-        DECLARED
+        DECLARED,
+        /**
+         * ★机器出的题（P4 EXAMINER 起草），判据<strong>完全未经人验证</strong>。
+         *
+         * <p>为什么必须与 {@link #PARSED} 分开：PARSED 的题是<em>人写的</em>，
+         * 只是判据由机器从自然语言里推断，题目本身承载了人的判断；
+         * AGENT_DRAFT 从题目到判据全是机器产生的。</p>
+         *
+         * <p>不区分的后果很具体：「12 条检验通过 9 条」这个数字是本产品
+         * 号称无法造假的核心证据，若其中 5 条是机器自己出题自己判过，
+         * 这个数字就失去了意义。指标口径必须能把两者分开统计。</p>
+         */
+        AGENT_DRAFT
     }
 
     public enum Status {

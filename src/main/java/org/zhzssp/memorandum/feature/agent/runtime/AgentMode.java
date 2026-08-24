@@ -7,7 +7,7 @@ import java.util.Set;
 /**
  * 思维模式及其<strong>默认工具可见性规则</strong>（方案 K）。
  *
- * <p>把原先散落在 {@link PromptBuilder#resolveTagFilter(String)} 的 switch 收敛到一处，
+ * <p>把原先散落在 {@code PromptBuilder} 里的模式 → tag switch 收敛到一处，
  * 并补齐「显式禁用（deny）」语义。{@code allowTags} 集合<strong>刻意保持与原实现一致</strong>，
  * 仅<strong>新增</strong> {@code denyTags}——这样便于逐字节对照验证降级路径无回归。</p>
  *
@@ -64,13 +64,21 @@ public enum AgentMode {
      *
      * <p>与 {@link #LEARN} 的区别：LEARN 查的是随手写的笔记（{@code kb} / {@code note}），
      * STUDY 还能查 Git 管理的知识仓库（{@code codex}）。禁一切写与执行。</p>
+     *
+     * <p><strong>V4 P4 补 deny {@code doc}</strong>：P4 的 {@code distill.draft} /
+     * {@code exam.draft} 带 {@code read}（它们确实不写任何文件），于是会命中 STUDY 的 allow。
+     * 但一次起草是 5~9 次 LLM 调用——在一个「纯研读」的模式里放一个随口一问就会花钱的工具，
+     * 与这个模式的承诺不符。{@code doc} tag 只挂在会产出文件的那批工具上
+     * （{@code doc.write} / {@code doc.insert_backref} / {@code distill.*} / {@code exam.*}），
+     * 检索类的 {@code doc.search} / {@code doc.read} / {@code doc.outline} 不带它，
+     * 所以这条 deny 不会影响研读本身。</p>
      */
     STUDY("study",
             Set.of("codex", "kb", "note", "read", "subagent", "mcp"),
-            Set.of("write", "task", "goal", "exec")),
+            Set.of("write", "task", "goal", "exec", "doc")),
 
     /**
-     * 策展（V4）：整理知识仓库（挂域、补引用、修死链、开 PR）。
+     * 策展（V4）：整理知识仓库（挂域、补引用、修死链、开 PR、蒸馏、出题）。
      *
      * <p>刻意 deny {@code task} / {@code goal}：整理知识时不该动任务体系，
      * 避免「让它整理笔记，结果顺手改了我的任务」这类越界。</p>
@@ -86,10 +94,12 @@ public enum AgentMode {
      * 把「能执行命令」收窄到单一模式，是权限治理的正确做法——
      * 配合方案 K 的执行层强制，其余模式下调用 exec 类工具会被短路拦截，
      * 而不是仅仅从 prompt 里隐藏（提示层约束模型完全可能无视）。</p>
+     *
+     * <p>同样 deny {@code doc}：跑验收时不该顺手起草文件。</p>
      */
     VERIFY("verify",
             Set.of("codex", "checkpoint", "lab", "exec", "read"),
-            Set.of("write", "task", "goal"));
+            Set.of("write", "task", "goal", "doc"));
 
     /**
      * V4 tag 常量持有类。

@@ -214,6 +214,21 @@ public class PromptBuilder {
                   「你可能还需要了解 X」这类猜测会淹没真正有证据的信号。
                 - 关闭缺口必须给出补上它的文档路径；若判定不该补，用 gap.dismiss 而非 gap.close。
 
+                【蒸馏与定线原则】（curate 模式可用；study 模式只可读 route.next / route.stages）
+                - 用户问「我该学什么/接下来干什么/进度如何」时调用 route.next，不要凭印象答。
+                  它的结论是对库里记录的确定性计算，转述时必须连「依据」一起说；
+                  也不要在它之外自己补建议——那会让可核对的结论混进不可核对的猜测。
+                - 蒸馏顺序不可颠倒：distill.draft 起草（不写文件）→ 把「待人工核对」清单
+                  和「可以先跳过」清单原样念给用户 → 他确认后才 distill.write。
+                - 蒸馏产物一律是草稿（maturity=draft）。总结时必须说明它未经核对，
+                  不要说「已经为你写好了一篇 guide」——那会让他把未核对内容当可信来源引用。
+                - 止损线是硬性要求：起草若报 MISSING_SKIP / SKIP_UNPARSEABLE，
+                  不要自己改写产物去凑合格，如实告诉用户判据没过。凑合格的产物同样会进他的知识库。
+                - 出题必须指定真实存在的 lab 目录。exam.draft 返回的 discarded 要如实转述：
+                  被丢弃通常是模型引用了不存在的脚本，那种题跑起来失败在环境上而非知识上。
+                - AI 出的题标记为 AGENT_DRAFT，通过率与用户手写的题分开统计。
+                  汇报进度时不可把两者合并成一个数字。
+
                 【用户长期记忆（来自历史 Agent 会话归档）】
                 %s
                 """.formatted(dateBucket, toolsJson, memoSection);

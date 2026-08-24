@@ -49,7 +49,12 @@ class DocWriteGuardTest {
         repoRoot = tmp.resolve("kb");
         Files.createDirectories(repoRoot.resolve("docs/notes"));
         Files.createDirectories(repoRoot.resolve("docs/learning-guides"));
+        Files.createDirectories(repoRoot.resolve("docs/paper-notes"));
+        Files.createDirectories(repoRoot.resolve("docs/checkpoints"));
         Files.writeString(repoRoot.resolve("docs/learning-guides/g.md"), "# G\n");
+        // 模拟用户手写的既有产物：机器绝不能覆盖它们
+        Files.writeString(repoRoot.resolve("docs/paper-notes/existing.md"), "# 我手写的\n");
+        Files.writeString(repoRoot.resolve("docs/checkpoints/01-mlir.md"), "# 检验册\n");
 
         repo = new KnowledgeRepo();
         repo.setId(1L);
@@ -71,8 +76,11 @@ class DocWriteGuardTest {
         guard = new DocWriteGuard(registry, git);
         ReflectionTestUtils.setField(guard, "writeEnabled", true);
         ReflectionTestUtils.setField(guard, "allowedPathsRaw", "docs/notes/**/*.md");
+        ReflectionTestUtils.setField(guard, "createOnlyPathsRaw",
+                "docs/paper-notes/**/*.md,docs/checkpoints/**/*.md");
         ReflectionTestUtils.setField(guard, "branchPrefix", "lattice/");
         ReflectionTestUtils.setField(guard, "maxNoteChars", 20000);
+        ReflectionTestUtils.setField(guard, "maxGuideChars", 80000);
         ReflectionTestUtils.setField(guard, "allowOnDefaultBranch", false);
     }
 
@@ -267,6 +275,84 @@ class DocWriteGuardTest {
         }
     }
 
+    /* ================= create-only（★P4） ================= */
+
+    /**
+     * 「只准新建」白名单。
+     *
+     * <h3>这组守的是 P4 引入新目录之后，P2 那条保证有没有被稀释</h3>
+     * <p>P4 必须能往 {@code docs/paper-notes/} 与 {@code docs/checkpoints/} 写文件，
+     * 而那两个目录里已有用户手写的 9 册检验、86 条题。
+     * 若只是把它们加进可覆盖白名单，「Agent 不可能弄坏语料」这条结构性保证会当场作废。</p>
+     *
+     * <p>最后两条测的是<strong>路径合法性与覆盖权必须分开判</strong>：
+     * 合成一个方法的话，{@code commit} 在校验自己刚写好的文件时会被自己拒掉。</p>
+     */
+    @Nested
+    @DisplayName("create-only：可新建，但绝不覆盖既有文件")
+    class CreateOnly {
+
+        @Test
+        @DisplayName("在 create-only 目录下新建放行")
+        void allowsNewFile() {
+            assertTrue(guard.checkPath(repo, "docs/paper-notes/flashattention.md").allowed());
+            assertTrue(guard.checkCreatable(repo, "docs/paper-notes/flashattention.md", false)
+                    .allowed());
+        }
+
+        @Test
+        @DisplayName("★既有的手写论文精读不可被覆盖")
+        void refusesExistingPaperNote() {
+            DocWriteGuard.Decision d =
+                    guard.checkCreatable(repo, "docs/paper-notes/existing.md", false);
+            assertFalse(d.allowed(), "机器覆盖手写内容是不可逆损失");
+            assertEquals("FILE_EXISTS_PROTECTED", d.code());
+        }
+
+        @Test
+        @DisplayName("★既有检验册不可被覆盖（86 条手写题目在里面）")
+        void refusesExistingCheckpointBook() {
+            DocWriteGuard.Decision d =
+                    guard.checkCreatable(repo, "docs/checkpoints/01-mlir.md", false);
+            assertFalse(d.allowed());
+            assertEquals("FILE_EXISTS_PROTECTED", d.code());
+        }
+
+        @Test
+        @DisplayName("★即使文件不存在，声明要覆盖/追加也一律拒绝")
+        void refusesOverwriteIntent() {
+            DocWriteGuard.Decision d =
+                    guard.checkCreatable(repo, "docs/paper-notes/brand-new.md", true);
+            assertFalse(d.allowed(),
+                    "APPEND 同样是在改既有文件，不能因为这次目标恰好不存在就放行意图");
+            assertEquals("OVERWRITE_FORBIDDEN", d.code());
+        }
+
+        @Test
+        @DisplayName("learning-guides 仍完全不可写——P2 的断言逐字未变")
+        void guidesStillFullyForbidden() {
+            DocWriteGuard.Decision d = guard.checkPath(repo, "docs/learning-guides/g.md");
+            assertFalse(d.allowed(),
+                    "白名单能不加就不加：加了它，就要回头复核所有只做路径校验的写入路径");
+            assertEquals("PATH_NOT_ALLOWED", d.code());
+        }
+
+        @Test
+        @DisplayName("普通白名单路径不受 create-only 约束（笔记仍可追加与覆盖）")
+        void normalWhitelistUnaffected() {
+            assertTrue(guard.checkCreatable(repo, "docs/notes/x.md", true).allowed(),
+                    "笔记的 APPEND 是既有能力，不能被新规则误伤");
+        }
+
+        @Test
+        @DisplayName("★覆盖权与路径合法性分开判：commit 校验既有文件时不该被拒")
+        void pathCheckStaysPermissiveForCommit() {
+            // commit 只调 checkPath；此刻文件当然已经存在
+            assertTrue(guard.checkPath(repo, "docs/paper-notes/existing.md").allowed(),
+                    "若 checkPath 把「已存在」也判成不合法，提交流程会拒绝自己刚写的文件");
+        }
+    }
+
     /* ================= 总开关 ================= */
 
     @Test
@@ -286,5 +372,14 @@ class DocWriteGuardTest {
         assertFalse(d.allowed());
         assertEquals("CONTENT_TOO_LARGE", d.code());
         assertTrue(guard.checkSize("## 是什么\n\n短内容\n").allowed());
+    }
+
+    @Test
+    @DisplayName("guide 用独立的上限：笔记的 2 万字符会让蒸馏在最后一步被自己拒掉")
+    void guideHasOwnSizeLimit() {
+        String big = "x".repeat(50000);
+        assertFalse(guard.checkSize(big).allowed(), "按笔记口径应超限");
+        assertTrue(guard.checkSize(big, guard.maxGuideChars()).allowed(),
+                "按 guide 口径应放行——用户既有 guide 单篇 4~8 万字符");
     }
 }

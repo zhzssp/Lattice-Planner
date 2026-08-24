@@ -37,6 +37,17 @@ import java.util.regex.Pattern;
  * <p>SKILL.md 把「问答里的示例必须一并写入笔记」列为硬性约束。
  * 靠 prompt 提醒是不够的——模型天然倾向于把内容压缩得更"整洁"，
  * 而被压掉的恰恰是让人半年后还能重新看懂的那部分。所以这里做成拒绝写入。</p>
+ *
+ * <h3>★P4 新增：「只准新建」白名单（create-only）</h3>
+ * <p>P4 的蒸馏与出题必须能写 {@code docs/paper-notes/} 与 {@code docs/checkpoints/}。
+ * 但这两个目录里<strong>已有用户手写的高质量内容</strong>（9 册检验、86 条题目）。
+ * 若简单把它们加进上面那份白名单，「Agent 不可能弄坏语料」这条结构性保证会
+ * <strong>当场作废</strong>——{@code REPLACE} 模式立刻就能整体改写它们。</p>
+ *
+ * <p>所以引入第二类白名单：<strong>路径允许写，但仅当目标文件不存在</strong>。
+ * 于是「新建一篇蒸馏草稿」可行，「改写一册既有检验」在结构上不可能。
+ * 判断放在闸门里而不是各个服务里：服务会有多条写入路径，闸门只有一处，
+ * 而这种规则一旦有一条路径漏判就等于没有。</p>
  */
 @Component
 public class DocWriteGuard {
@@ -76,16 +87,43 @@ public class DocWriteGuard {
     @Value("${codex.write.allowed-paths:docs/notes/**/*.md}")
     private String allowedPathsRaw;
 
+    /**
+     * ★只准新建的路径（P4）。
+     *
+     * <p>默认只含蒸馏产物与检验册两个目录。它们<strong>不在</strong>
+     * {@link #allowedPathsRaw} 里，所以既有文件永远无法被覆盖或追加。</p>
+     *
+     * <p>刻意<strong>不含</strong> {@code docs/learning-guides/}，尽管蒸馏官方文档时
+     * 放那里更自然。理由是白名单能不加就不加：多一个目录，就多一批
+     * 「只调了 {@code checkPath} 没调 {@code checkCreatable}」的写入路径需要逐个复核，
+     * 而 P2 那句「既有 guide 一律不可写」的断言也就不再是逐字成立的了。
+     * 蒸馏产物先落在 paper-notes，用户想挪到 learning-guides 时在 IDE 里移动一下——
+     * 那本来就该是他的决定。</p>
+     */
+    @Value("${codex.write.create-only-paths:docs/paper-notes/**/*.md,docs/checkpoints/**/*.md}")
+    private String createOnlyPathsRaw;
+
     @Value("${codex.write.branch-prefix:lattice/}")
     private String branchPrefix;
 
     @Value("${codex.write.max-note-chars:20000}")
     private int maxNoteChars;
 
+    /**
+     * 蒸馏产物的体积上限。
+     *
+     * <p>比笔记宽松得多：一篇 guide 本就该长（用户既有 guide 单篇 4 万~8 万字符）。
+     * 用同一个上限会让蒸馏在最后一步被自己的门禁拒掉——那种失败最令人困惑，
+     * 因为前面每一步都成功了。</p>
+     */
+    @Value("${codex.write.max-guide-chars:80000}")
+    private int maxGuideChars;
+
     @Value("${codex.write.allow-on-default-branch:false}")
     private boolean allowOnDefaultBranch;
 
     private volatile List<Pattern> allowedPatterns;
+    private volatile List<Pattern> createOnlyPatterns;
 
     public DocWriteGuard(RepoRegistryService registry, GitClient git) {
         this.registry = registry;
@@ -102,6 +140,14 @@ public class DocWriteGuard {
 
     public List<String> allowedPaths() {
         return splitGlobs();
+    }
+
+    public List<String> createOnlyPaths() {
+        return splitCreateOnlyGlobs();
+    }
+
+    public int maxGuideChars() {
+        return maxGuideChars;
     }
 
     /* ==================== 闸门 1：总开关 ==================== */
@@ -158,10 +204,11 @@ public class DocWriteGuard {
             return Decision.deny("PATH_NOT_MARKDOWN", "只允许写 Markdown 文件：" + normalized,
                     "知识资产的权威形态是 Markdown；其他格式请手动放入仓库。");
         }
-        if (!matchesAllowed(normalized)) {
+        if (!matchesAllowed(normalized) && !matchesCreateOnly(normalized)) {
             return Decision.deny("PATH_NOT_ALLOWED",
                     "路径不在写入白名单内：" + normalized,
-                    "允许的路径：" + String.join("、", splitGlobs())
+                    "可覆盖写入：" + String.join("、", splitGlobs())
+                            + "；仅可新建：" + String.join("、", splitCreateOnlyGlobs())
                             + "。既有 guide 只能通过 doc.insert_backref 插入一行速记引用，"
                             + "不允许整体改写——数十万字的语料一次幻觉就可能不可逆损失。");
         }
@@ -185,6 +232,16 @@ public class DocWriteGuard {
     }
 
     public Decision checkSize(String content) {
+        return checkSize(content, maxNoteChars);
+    }
+
+    /**
+     * 体积校验（指定上限）。
+     *
+     * <p>笔记与 guide 用不同上限：把 guide 卡在笔记的 2 万字符上，
+     * 会让蒸馏在最后一步被自己的门禁拒掉。</p>
+     */
+    public Decision checkSize(String content, int maxChars) {
         if (content == null) {
             return Decision.deny("CONTENT_EMPTY", "内容为空。", null);
         }
@@ -192,11 +249,55 @@ public class DocWriteGuard {
             return Decision.deny("CONTENT_EMPTY", "内容为空。",
                     "空文件不是有效的知识资产。");
         }
-        if (content.length() > maxNoteChars) {
+        if (content.length() > maxChars) {
             return Decision.deny("CONTENT_TOO_LARGE",
-                    "内容 " + content.length() + " 字符，超过上限 " + maxNoteChars,
+                    "内容 " + content.length() + " 字符，超过上限 " + maxChars,
                     "笔记应当短：砍的是空话与重复，不是示例。"
                             + "若确实需要长文，它更可能是一篇 guide 而非笔记，请手动创建。");
+        }
+        return Decision.ok();
+    }
+
+    /* ============ 闸门 2b：只准新建的路径不得覆盖既有文件（★P4） ============ */
+
+    /**
+     * 校验「这次写入是否被允许落在这个已存在/不存在的文件上」。
+     *
+     * <p>与 {@link #checkPath} 的分工是刻意的：{@code checkPath} 只判路径本身合法
+     * （提交流程需要它，而提交时文件当然已经存在），本方法判<strong>覆盖权</strong>。
+     * 把两件事塞进一个方法，会让 {@code commit} 在校验自己刚写好的文件时被拒。</p>
+     *
+     * @param overwrite 本次写入是否会改动既有内容（APPEND 也算——它同样在改既有文件）
+     */
+    public Decision checkCreatable(KnowledgeRepo repo, String relPath, boolean overwrite) {
+        String normalized = RepoIndexer.normalizeSlashes(
+                relPath == null ? "" : relPath.replace('\\', '/').strip());
+        if (normalized.isEmpty()) {
+            return Decision.deny("PATH_EMPTY", "路径为空。", null);
+        }
+        boolean createOnly = matchesCreateOnly(normalized) && !matchesAllowed(normalized);
+        if (!createOnly) return Decision.ok();
+
+        if (overwrite) {
+            return Decision.deny("OVERWRITE_FORBIDDEN",
+                    "该路径只允许新建，不允许覆盖或追加：" + normalized,
+                    "蒸馏产物与检验册目录里已有你手写的内容。"
+                            + "让机器有能力改写它们，收益是省几分钟排版，"
+                            + "风险是一次幻觉造成不可逆损失。"
+                            + "要修订既有文件请在 IDE 里手动改。");
+        }
+        try {
+            Path target = registry.rootOf(repo).resolve(normalized);
+            if (Files.exists(target)) {
+                return Decision.deny("FILE_EXISTS_PROTECTED",
+                        "文件已存在且该路径只允许新建：" + normalized,
+                        "换一个文件名（例如加上论文年份或版本），"
+                            + "或在 IDE 里手动把新内容并入既有文件——"
+                            + "由你决定怎么合并，比机器替你决定安全。");
+            }
+        } catch (Exception e) {
+            return Decision.deny("PATH_RESOLVE_FAILED",
+                    "无法判断文件是否存在：" + e.getMessage(), null);
         }
         return Decision.ok();
     }
@@ -323,6 +424,13 @@ public class DocWriteGuard {
         return false;
     }
 
+    private boolean matchesCreateOnly(String normalized) {
+        for (Pattern p : createOnlyPatternList()) {
+            if (p.matcher(normalized).matches()) return true;
+        }
+        return false;
+    }
+
     private List<Pattern> patterns() {
         List<Pattern> cached = allowedPatterns;
         if (cached != null) return cached;
@@ -334,12 +442,32 @@ public class DocWriteGuard {
         return built;
     }
 
+    private List<Pattern> createOnlyPatternList() {
+        List<Pattern> cached = createOnlyPatterns;
+        if (cached != null) return cached;
+        List<Pattern> built = new ArrayList<>();
+        for (String glob : splitCreateOnlyGlobs()) {
+            built.add(RepoLayout.globToPattern(glob));
+        }
+        createOnlyPatterns = built;
+        return built;
+    }
+
     private List<String> splitGlobs() {
-        String raw = (allowedPathsRaw == null || allowedPathsRaw.isBlank())
-                ? "docs/notes/**/*.md" : allowedPathsRaw;
+        return splitRaw(allowedPathsRaw, "docs/notes/**/*.md");
+    }
+
+    private List<String> splitCreateOnlyGlobs() {
+        // 留空是有意义的配置：表示「关掉蒸馏写入」，而不是回落到默认值
+        if (createOnlyPathsRaw == null || createOnlyPathsRaw.isBlank()) return List.of();
+        return splitRaw(createOnlyPathsRaw, "");
+    }
+
+    private List<String> splitRaw(String raw, String fallback) {
+        String s = (raw == null || raw.isBlank()) ? fallback : raw;
         Set<String> out = new LinkedHashSet<>();
-        for (String s : Arrays.asList(raw.split(","))) {
-            String g = s.strip();
+        for (String part : Arrays.asList(s.split(","))) {
+            String g = part.strip();
             if (!g.isEmpty()) out.add(g);
         }
         return new ArrayList<>(out);

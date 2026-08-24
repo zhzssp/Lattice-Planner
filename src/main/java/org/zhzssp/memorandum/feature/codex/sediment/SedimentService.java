@@ -231,6 +231,22 @@ public class SedimentService {
                             + "请用 mode=APPEND 追加，或 mode=REPLACE 覆盖。");
         }
 
+        // ★P4 引入 create-only 白名单后必须补的一道校验。
+        //
+        // checkPath 现在也会放行 create-only 路径（docs/paper-notes、docs/checkpoints），
+        // 而本方法随后是用 TRUNCATE_EXISTING 写盘的。若只靠 checkPath，
+        // 一次 doc.write(path=docs/paper-notes/已有文件.md, mode=REPLACE) 就能
+        // 覆盖掉用户手写的论文精读——这正是 create-only 要防的事，
+        // 却会从这条更早存在的路径漏过去。
+        //
+        // 教训是通用的：放宽一处白名单，必须回头把所有只做过路径校验的写入路径都补上覆盖权校验。
+        DocWriteGuard.Decision creatable = guard.checkCreatable(
+                repo, notePath, mode != WriteMode.CREATE || noteExists);
+        if (!creatable.allowed()) {
+            return Result.fail(creatable.code(),
+                    creatable.message() + " " + nullSafe(creatable.hint()));
+        }
+
         // ---- 分支（切分支会改动工作副本，必须在读取 guide 之前完成）----
         String branch = null;
         if (!Boolean.FALSE.equals(req.createBranch())) {

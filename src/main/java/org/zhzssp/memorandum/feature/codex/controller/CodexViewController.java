@@ -21,15 +21,21 @@ public class CodexViewController {
     private final CheckpointService checkpointService;
     private final org.zhzssp.memorandum.feature.codex.sediment.DocWriteGuard writeGuard;
     private final org.zhzssp.memorandum.feature.codex.gap.GapService gapService;
+    private final org.zhzssp.memorandum.feature.codex.distill.DistillService distillService;
+    private final org.zhzssp.memorandum.feature.codex.distill.ExamService examService;
 
     public CodexViewController(RepoRegistryService registry,
                                CheckpointService checkpointService,
                                org.zhzssp.memorandum.feature.codex.sediment.DocWriteGuard writeGuard,
-                               org.zhzssp.memorandum.feature.codex.gap.GapService gapService) {
+                               org.zhzssp.memorandum.feature.codex.gap.GapService gapService,
+                               org.zhzssp.memorandum.feature.codex.distill.DistillService distillService,
+                               org.zhzssp.memorandum.feature.codex.distill.ExamService examService) {
         this.registry = registry;
         this.checkpointService = checkpointService;
         this.writeGuard = writeGuard;
         this.gapService = gapService;
+        this.distillService = distillService;
+        this.examService = examService;
     }
 
     @GetMapping("/codex")
@@ -65,5 +71,20 @@ public class CodexViewController {
         model.addAttribute("codexEnabled", registry.enabled());
         model.addAttribute("gapEnabled", gapService.enabled());
         return "gap";
+    }
+
+    /**
+     * 蒸馏与定线（P4）：原料→Guide 草稿、Guide→检验题、以及「我现在该干什么」。
+     *
+     * <p>三个开关分别回显：起草可用而落盘不可用是刻意的中间状态
+     * （先看产物质量，再给写权限），不解释清楚用户会以为页面坏了。</p>
+     */
+    @GetMapping("/codex/distill")
+    public String distill(@AuthenticationPrincipal UserDetails principal, Model model) {
+        model.addAttribute("codexEnabled", registry.enabled());
+        model.addAttribute("distillEnabled", distillService.enabled());
+        model.addAttribute("examEnabled", examService.enabled());
+        model.addAttribute("writeEnabled", writeGuard.enabled());
+        return "distill";
     }
 }

@@ -58,6 +58,18 @@ public class CheckpointParser {
     /** 耗时：1.5h / 半天 / 2h（含…） */
     private static final Pattern HOURS = Pattern.compile("([0-9]+(?:\\.[0-9]+)?)\\s*h");
 
+    /**
+     * 机器出题标记（P4）。
+     *
+     * <p>册头的 {@code authored_by: lattice-agent}（front-matter）或条目里的
+     * 「本条由 Lattice Agent 起草」都算。两处都认是刻意的：
+     * 用户可能把机器出的题剪贴到自己手写的册子里，那时 front-matter 就不在了，
+     * 只有条目内那行标记跟着走。<strong>标记跟着内容走，才不会在搬动中丢失。</strong></p>
+     */
+    private static final Pattern AGENT_MARK = Pattern.compile(
+            "authored_by\\s*[：:]\\s*lattice-agent|由\\s*Lattice\\s*Agent\\s*起草",
+            Pattern.CASE_INSENSITIVE);
+
     private final ObjectMapper om;
 
     public CheckpointParser(ObjectMapper om) {
@@ -76,7 +88,8 @@ public class CheckpointParser {
                          String passCriteria,
                          String blindSpots,
                          String verifyJson,
-                         boolean hasCommand) {}
+                         boolean hasCommand,
+                         KbCheckpoint.VerifySource verifySource) {}
 
     /**
      * 解析一册检验册。
@@ -89,6 +102,9 @@ public class CheckpointParser {
         if (content == null || content.isBlank()) return out;
 
         String lab = (labHint != null && !labHint.isBlank()) ? labHint : detectLab(content);
+
+        // 册头里的机器出题标记对整册生效（条目内的标记会再单独覆盖一次）
+        boolean bookAuthoredByAgent = AGENT_MARK.matcher(headOf(content)).find();
 
         // 先定位全部条目标题的位置与分组值。
         // Matcher 是有状态的，分组值必须在 find() 循环内即时取出。
@@ -130,9 +146,18 @@ public class CheckpointParser {
                     trimTo(blocks.get("通过标准"), 4000),
                     trimTo(findBlindSpots(blocks), 4000),
                     verifyJson,
-                    cmd != null && !cmd.isBlank()));
+                    cmd != null && !cmd.isBlank(),
+                    (bookAuthoredByAgent || AGENT_MARK.matcher(body).find())
+                            ? KbCheckpoint.VerifySource.AGENT_DRAFT
+                            : KbCheckpoint.VerifySource.PARSED));
         }
         return out;
+    }
+
+    /** 册头：首个条目标题之前的部分。 */
+    private String headOf(String content) {
+        Matcher m = ENTRY.matcher(content);
+        return m.find() ? content.substring(0, m.start()) : content;
     }
 
     /* ---------------- 字段解析 ---------------- */

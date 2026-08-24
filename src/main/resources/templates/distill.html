@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title>蒸馏与定线 · Codex</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <style>
+        .ds-wrap { max-width: 1180px; margin: 0 auto; padding: 1.5rem; }
+        .ds-header { display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 1.2rem; }
+        .ds-header h2 { margin: 0; }
+        .ds-back { color: #666; text-decoration: none; font-size: 0.9rem; }
+        .ds-back:hover { color: #333; }
+        .ds-card { border: 1px solid #e3e3e3; border-radius: 10px; padding: 1rem 1.2rem;
+            margin-bottom: 1rem; background: #fff; }
+        .ds-card h3 { margin: 0 0 0.7rem; font-size: 1.02rem; }
+        .ds-banner { border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 1rem;
+            font-size: 0.88rem; line-height: 1.65; background: #fff7e6;
+            border: 1px solid #ffd591; color: #874d00; }
+        .ds-banner.info { background: #f0f5ff; border-color: #adc6ff; color: #1d39c4; }
+        .ds-btn { border: 1px solid #d0d0d0; background: #fafafa; border-radius: 6px;
+            padding: 0.32rem 0.75rem; cursor: pointer; font-size: 0.82rem; margin-right: 0.35rem; }
+        .ds-btn:hover { background: #f0f0f0; }
+        .ds-btn.primary { background: #1677ff; border-color: #1677ff; color: #fff; }
+        .ds-btn.warn { background: #fa8c16; border-color: #fa8c16; color: #fff; }
+        .ds-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        input.ds-in, select.ds-sel { border: 1px solid #d9d9d9; border-radius: 6px;
+            padding: 0.35rem 0.55rem; font-size: 0.85rem; font-family: inherit; min-width: 190px; }
+        .ds-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 900px) { .ds-grid { grid-template-columns: 1fr; } }
+        .ds-field { margin-bottom: 0.6rem; }
+        .ds-field label { display: block; font-size: 0.78rem; color: #888; margin-bottom: 0.2rem; }
+        .ds-act { border-top: 1px solid #f0f0f0; padding: 0.7rem 0; }
+        .ds-act:first-child { border-top: none; }
+        .ds-what { font-size: 0.94rem; font-weight: 500; margin-bottom: 0.25rem; }
+        .ds-why { font-size: 0.8rem; color: #8c8c8c; line-height: 1.7;
+            background: #fafafa; border-radius: 5px; padding: 0.4rem 0.6rem; }
+        .ds-kind { display: inline-block; border-radius: 4px; padding: 0.05rem 0.4rem;
+            font-size: 0.71rem; margin-right: 0.4rem; vertical-align: 1px; }
+        .k-REVIEW_DRAFT { background: #fff1f0; color: #a8071a; border: 1px solid #ffa39e; }
+        .k-RUN_PREDICTED { background: #f0f5ff; color: #1d39c4; border: 1px solid #adc6ff; }
+        .k-SEDIMENT_DIVERGENCE { background: #f9f0ff; color: #531dab; border: 1px solid #d3adf7; }
+        .k-FIX_FAILED { background: #fff7e6; color: #ad4e00; border: 1px solid #ffd591; }
+        .k-CLOSE_GAP { background: #e6fffb; color: #006d75; border: 1px solid #87e8de; }
+        .k-NEEDS_CHECKPOINT, .k-PREDICT, .k-IDLE {
+            background: #f5f5f5; color: #595959; border: 1px solid #d9d9d9; }
+        table.ds-tb { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+        table.ds-tb th, table.ds-tb td { text-align: left; padding: 0.4rem 0.5rem;
+            border-bottom: 1px solid #f0f0f0; }
+        table.ds-tb th { color: #888; font-weight: 500; font-size: 0.77rem; }
+        .ds-no { color: #cf1322; }
+        .ds-yes { color: #389e0d; }
+        .ds-pre { font-family: ui-monospace, Consolas, monospace; font-size: 0.76rem;
+            white-space: pre-wrap; background: #fafafa; border: 1px solid #f0f0f0;
+            border-radius: 6px; padding: 0.6rem 0.7rem; max-height: 420px; overflow: auto; }
+        .ds-msg { font-size: 0.84rem; margin-top: 0.55rem; padding: 0.45rem 0.65rem;
+            border-radius: 6px; white-space: pre-wrap; line-height: 1.7; }
+        .ds-msg.ok { background: #f6ffed; color: #237804; }
+        .ds-msg.bad { background: #fff1f0; color: #a8071a; }
+        .ds-note { font-size: 0.79rem; color: #999; line-height: 1.7; margin-top: 0.6rem; }
+        .ds-chip { display: inline-block; background: #f0f5ff; color: #1d39c4;
+            border: 1px solid #adc6ff; border-radius: 4px; padding: 0.05rem 0.4rem;
+            font-size: 0.74rem; margin: 0.12rem 0.25rem 0.12rem 0; }
+        .ds-find { font-size: 0.81rem; line-height: 1.7; padding: 0.35rem 0;
+            border-bottom: 1px dashed #f0f0f0; }
+        .ds-find b { color: #a8071a; }
+        .ds-find.warn b { color: #ad4e00; }
+    </style>
+</head>
+<body>
+<div class="ds-wrap">
+    <div class="ds-header">
+        <h2>蒸馏与定线 <span style="font-size:0.72em;color:#999;">Distill · Route</span></h2>
+        <div>
+            <a href="/codex/gaps" class="ds-back" style="margin-right:1rem;">知识缺口 →</a>
+            <a href="/codex/curate" class="ds-back" style="margin-right:1rem;">知识策展 →</a>
+            <a href="/codex" class="ds-back">← 返回仓库</a>
+        </div>
+    </div>
+
+    <div id="cfgBanner"></div>
+
+    <!-- ============ 我现在该干什么 ============ -->
+    <div class="ds-card">
+        <h3>我现在该干什么
+            <span style="font-size:0.78rem;color:#999;font-weight:400;">
+                — 确定性计算，不调用 LLM，每条都附依据</span>
+        </h3>
+        <div>
+            <button class="ds-btn primary" onclick="loadRoute()">重新计算</button>
+            <span id="routeSummary" style="font-size:0.82rem;color:#888;margin-left:0.5rem;"></span>
+        </div>
+        <div id="routeActions" style="margin-top:0.8rem;"></div>
+        <div id="routeCaveats" class="ds-note"></div>
+    </div>
+
+    <!-- ============ 阶段表 ============ -->
+    <div class="ds-card">
+        <h3>读 → 做 → 验（阶段表）</h3>
+        <div id="stageTable"></div>
+        <div class="ds-note">
+            L2 是主判据：新增一个 op / pass / pattern 并补测试才算掌握，L0 只是跑通既有脚本。
+            「有 lab」为否的主题现在无法出可执行的题——不是软件不肯出，
+            是没有动手项目时任何验收命令都只能是编的。
+        </div>
+    </div>
+
+    <div class="ds-grid">
+        <!-- ============ 蒸馏 ============ -->
+        <div class="ds-card">
+            <h3>① 蒸馏：原料 → Guide 草稿</h3>
+            <div class="ds-field">
+                <label>原料（仓库内的 PDF / md / docx）</label>
+                <select class="ds-sel" id="dSource" style="width:100%;"></select>
+            </div>
+            <div class="ds-field">
+                <label>标题（留空则用文件名）</label>
+                <input class="ds-in" id="dTitle" style="width:100%;" placeholder="FlashAttention">
+            </div>
+            <div class="ds-field">
+                <label>所属域（可选，写进 front-matter）</label>
+                <input class="ds-in" id="dDomain" style="width:100%;" placeholder="ai-infra">
+            </div>
+            <button class="ds-btn primary" id="dDraftBtn" onclick="draftGuide()">起草（不写文件）</button>
+            <button class="ds-btn warn" id="dWriteBtn" onclick="writeGuide()" disabled>写入仓库</button>
+            <div id="dMsg"></div>
+            <div id="dCheck" style="margin-top:0.6rem;"></div>
+            <div id="dPreview" style="margin-top:0.6rem;"></div>
+        </div>
+
+        <!-- ============ 出题 ============ -->
+        <div class="ds-card">
+            <h3>② 出题：Guide → 落地检验</h3>
+            <div class="ds-field">
+                <label>知识文档</label>
+                <select class="ds-sel" id="eGuide" style="width:100%;" onchange="syncLabs()"></select>
+            </div>
+            <div class="ds-field">
+                <label>对应动手项目目录（★必须真实存在）</label>
+                <select class="ds-sel" id="eLab" style="width:100%;"></select>
+            </div>
+            <div class="ds-field">
+                <label>题数</label>
+                <input class="ds-in" id="eCount" type="number" value="3" min="1" max="4"
+                       style="width:90px;">
+            </div>
+            <button class="ds-btn primary" id="eDraftBtn" onclick="draftExam()">起草（不写文件）</button>
+            <button class="ds-btn warn" id="eWriteBtn" onclick="writeExam()" disabled>写入并载入检验表</button>
+            <div id="eMsg"></div>
+            <div id="eDiscard" style="margin-top:0.6rem;"></div>
+            <div id="ePreview" style="margin-top:0.6rem;"></div>
+        </div>
+    </div>
+</div>
+
+<script th:inline="none">
+    const CSRF = document.querySelector('meta[name="_csrf"]')?.content;
+    const CSRF_H = document.querySelector('meta[name="_csrf_header"]')?.content;
+
+    let cfg = {}, targets = [], gDraftKey = null, eDraftKey = null;
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g,
+            c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    }
+
+    async function post(url, body) {
+        const h = {'Content-Type': 'application/json'};
+        if (CSRF && CSRF_H) h[CSRF_H] = CSRF;
+        const res = await fetch(url, {method: 'POST', headers: h, body: JSON.stringify(body || {})});
+        return res.json();
+    }
+
+    function msg(id, text, ok) {
+        document.getElementById(id).innerHTML =
+            `<div class="ds-msg ${ok ? 'ok' : 'bad'}">${esc(text)}</div>`;
+    }
+
+    /* ---------- 配置 ---------- */
+    async function loadConfig() {
+        try { cfg = await (await fetch('/api/codex/distill/config')).json(); } catch (e) { cfg = {}; }
+        const off = [];
+        if (!cfg.distillEnabled) off.push('蒸馏（codex.distill.enabled）');
+        if (!cfg.examEnabled) off.push('出题（codex.exam.enabled）');
+        const el = document.getElementById('cfgBanner');
+        let html = '';
+        if (off.length) {
+            html += `<div class="ds-banner">以下能力未启用：${esc(off.join('、'))}。
+                     起草会对原料做多次 LLM 调用，成本不低，故默认关闭。</div>`;
+        }
+        if (!cfg.writeEnabled) {
+            html += `<div class="ds-banner info">写入未启用（codex.write.enabled=false）——
+                     可以起草并查看产物，但不能落盘。这是刻意的顺序：
+                     先看几篇产物的质量，再决定给不给它写文件的权限。</div>`;
+        } else {
+            html += `<div class="ds-banner info">写入已启用。蒸馏与出题只能<b>新建</b>文件
+                     （${esc((cfg.createOnlyPaths || []).join('、'))}），
+                     既有的 guide 与检验册永远不会被机器覆盖或追加。</div>`;
+        }
+        el.innerHTML = html;
+        document.getElementById('dDraftBtn').disabled = !cfg.distillEnabled;
+        document.getElementById('eDraftBtn').disabled = !cfg.examEnabled;
+    }
+
+    /* ---------- 定线 ---------- */
+    async function loadRoute() {
+        const box = document.getElementById('routeActions');
+        box.innerHTML = '计算中…';
+        let r;
+        try { r = await (await fetch('/api/codex/route')).json(); }
+        catch (e) { box.innerHTML = '<div class="ds-msg bad">读取失败</div>'; return; }
+
+        const s = r.summary || {};
+        document.getElementById('routeSummary').textContent =
+            `${s.guides || 0} 篇文档 · ${s.guidesVerifiable || 0} 篇有检验 · `
+            + `${s.drafts || 0} 篇待核对草稿 · 人写题通过率 `
+            + (s.passRateHumanAuthored == null ? '—' : (s.passRateHumanAuthored * 100).toFixed(0) + '%');
+
+        box.innerHTML = (r.actions || []).map(a => `
+            <div class="ds-act">
+                <div class="ds-what">
+                    <span class="ds-kind k-${esc(a.kind)}">${esc(a.kind)}</span>
+                    ${a.href ? `<a href="${esc(a.href)}" style="color:inherit;">${esc(a.what)}</a>`
+                             : esc(a.what)}
+                </div>
+                <div class="ds-why">依据：${esc(a.why)}</div>
+            </div>`).join('') || '<div class="ds-note">无待办。</div>';
+
+        document.getElementById('routeCaveats').innerHTML =
+            (r.caveats || []).map(c => '· ' + esc(c)).join('<br>');
+
+        renderStages(r.stages || []);
+    }
+
+    function renderStages(stages) {
+        if (!stages.length) {
+            document.getElementById('stageTable').innerHTML =
+                '<div class="ds-note">还没有 kind=GUIDE 的文档。可先在仓库页同步索引。</div>';
+            return;
+        }
+        document.getElementById('stageTable').innerHTML = `
+            <table class="ds-tb">
+                <tr><th>主题</th><th>成熟度</th><th>有 lab</th><th>检验</th>
+                    <th>通过</th><th>L2 通过</th><th>失败</th><th>待办</th></tr>
+                ${stages.map(s => `
+                <tr>
+                    <td>${esc(s.topic)}
+                        ${s.agentDrafted ? '<span class="ds-chip">含 AI 出题</span>' : ''}</td>
+                    <td>${s.maturity === 'draft'
+                        ? '<span class="ds-no">draft 待核对</span>' : esc(s.maturity || '—')}</td>
+                    <td>${s.labExists
+                        ? `<span class="ds-yes">${esc(s.labDir)}</span>`
+                        : '<span class="ds-no">无</span>'}</td>
+                    <td>${s.checkpointTotal}</td>
+                    <td>${s.passed}</td>
+                    <td>${s.l2Passed}</td>
+                    <td>${s.failed ? `<span class="ds-no">${s.failed}</span>` : 0}</td>
+                    <td>${s.todo}</td>
+                </tr>`).join('')}
+            </table>`;
+    }
+
+    /* ---------- 原料与出题目标 ---------- */
+    async function loadSources() {
+        let d;
+        try { d = await (await fetch('/api/codex/distill/sources')).json(); }
+        catch (e) { d = {sources: []}; }
+        const sel = document.getElementById('dSource');
+        sel.innerHTML = (d.sources || []).map(x =>
+            `<option value="${esc(x.path)}">${esc(x.path)} (${x.sizeKb}KB)</option>`).join('')
+            || '<option value="">（仓库内没有可蒸馏的原料）</option>';
+        if (d.localHint) {
+            document.getElementById('cfgBanner').innerHTML +=
+                `<div class="ds-banner info">${esc(d.localHint)}</div>`;
+        }
+    }
+
+    async function loadTargets() {
+        try { targets = await (await fetch('/api/codex/exam/targets')).json(); }
+        catch (e) { targets = []; }
+        const sel = document.getElementById('eGuide');
+        sel.innerHTML = targets.map(t =>
+            `<option value="${esc(t.path)}">${esc(t.path)}</option>`).join('')
+            || '<option value="">（索引里没有 GUIDE 文档）</option>';
+        syncLabs();
+    }
+
+    function syncLabs() {
+        const path = document.getElementById('eGuide').value;
+        const t = targets.find(x => x.path === path);
+        const sel = document.getElementById('eLab');
+        const labs = (t && t.labCandidates) || [];
+        // 只列出真实存在的目录：返回一个猜测值会让用户选中它、然后在最后一步被拒
+        sel.innerHTML = labs.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('')
+            || '<option value="">（没有找到真实存在的 lab 目录）</option>';
+        document.getElementById('eDraftBtn').disabled = !cfg.examEnabled || labs.length === 0;
+    }
+
+    /* ---------- 蒸馏 ---------- */
+    async function draftGuide() {
+        const btn = document.getElementById('dDraftBtn');
+        btn.disabled = true;
+        msg('dMsg', '起草中（会做多次 LLM 调用，可能需要一两分钟）…', true);
+        document.getElementById('dCheck').innerHTML = '';
+        document.getElementById('dPreview').innerHTML = '';
+        gDraftKey = null;
+        document.getElementById('dWriteBtn').disabled = true;
+
+        let r;
+        try {
+            r = await post('/api/codex/distill/draft', {
+                sourcePath: document.getElementById('dSource').value,
+                title: document.getElementById('dTitle').value,
+                domain: document.getElementById('dDomain').value
+            });
+        } catch (e) {
+            msg('dMsg', '请求失败：' + e, false);
+            btn.disabled = false;
+            return;
+        }
+        btn.disabled = false;
+
+        const src = r.source
+            ? `原料 ${r.source.pages} 页 / ${r.source.chars} 字符（每页 ${r.source.charsPerPage}），`
+              + `切 ${r.source.chunks} 段；LLM 调用 ${r.llmCalls} 次，耗时 ${r.elapsedMs}ms。`
+            : '';
+        msg('dMsg', `${r.message || ''}\n${src}`, !!r.ok);
+
+        if (r.structureCheck) renderCheck(r.structureCheck);
+        if (r.content) {
+            document.getElementById('dPreview').innerHTML =
+                `<div class="ds-note">产物预览（${r.content.length} 字符，目标路径 `
+                + `${esc(r.targetPath || '—')}）</div>`
+                + `<div class="ds-pre">${esc(r.content)}</div>`;
+        }
+        if (r.ok && r.draftKey) {
+            gDraftKey = r.draftKey;
+            document.getElementById('dWriteBtn').disabled = !cfg.writeEnabled;
+        }
+    }
+
+    function renderCheck(c) {
+        let html = `<div class="ds-note"><b>结构校验</b>：${esc(c.summary)}</div>`;
+        if ((c.skipTerms || []).length) {
+            html += '<div style="margin:0.3rem 0;">止损线抽出：'
+                + c.skipTerms.map(t => `<span class="ds-chip">${esc(t)}</span>`).join('')
+                + '</div>';
+        }
+        for (const f of (c.errors || [])) {
+            html += `<div class="ds-find"><b>${esc(f.code)}</b> ${esc(f.message)}
+                     <br><span style="color:#8c8c8c;">${esc(f.hint || '')}</span></div>`;
+        }
+        for (const f of (c.warns || [])) {
+            html += `<div class="ds-find warn"><b>${esc(f.code)}</b> ${esc(f.message)}
+                     <br><span style="color:#8c8c8c;">${esc(f.hint || '')}</span></div>`;
+        }
+        document.getElementById('dCheck').innerHTML = html;
+    }
+
+    async function writeGuide() {
+        if (!gDraftKey) return;
+        const btn = document.getElementById('dWriteBtn');
+        btn.disabled = true;
+        const r = await post('/api/codex/distill/write', {draftKey: gDraftKey});
+        let text = r.message || '';
+        if (r.ok) {
+            text += `\n分支：${r.branch}\n${r.reindex || ''}\n\n${r.nextStep || ''}`;
+            if ((r.skipTerms || []).length) {
+                text += `\n\n已登记止损线术语：${r.skipTerms.join('、')}`
+                    + '\n（这些将来被反复问到会触发 skip 召回，请确认它们真的该跳过）';
+            }
+        } else {
+            btn.disabled = false;
+        }
+        msg('dMsg', text, !!r.ok);
+        if (r.ok) loadRoute();
+    }
+
+    /* ---------- 出题 ---------- */
+    async function draftExam() {
+        const btn = document.getElementById('eDraftBtn');
+        btn.disabled = true;
+        msg('eMsg', '起草中…', true);
+        document.getElementById('eDiscard').innerHTML = '';
+        document.getElementById('ePreview').innerHTML = '';
+        eDraftKey = null;
+        document.getElementById('eWriteBtn').disabled = true;
+
+        const r = await post('/api/codex/exam/draft', {
+            guidePath: document.getElementById('eGuide').value,
+            labDir: document.getElementById('eLab').value,
+            count: parseInt(document.getElementById('eCount').value || '3', 10)
+        });
+        btn.disabled = false;
+        msg('eMsg', r.message || '', !!r.ok);
+
+        if ((r.discarded || []).length) {
+            document.getElementById('eDiscard').innerHTML =
+                '<div class="ds-note"><b>被丢弃的题</b>（丢弃是刻意的：'
+                + '引用了不存在脚本的题跑起来会失败在环境上而非知识上，会污染通过率）</div>'
+                + r.discarded.map(d =>
+                    `<div class="ds-find"><b>${esc(d.code || '?')}</b> ${esc(d.reason)}</div>`).join('');
+        }
+        if (r.content) {
+            document.getElementById('ePreview').innerHTML =
+                `<div class="ds-note">产物预览（目标路径 ${esc(r.targetPath || '—')}）</div>`
+                + `<div class="ds-pre">${esc(r.content)}</div>`;
+        }
+        if (r.ok && r.draftKey) {
+            eDraftKey = r.draftKey;
+            document.getElementById('eWriteBtn').disabled = !cfg.writeEnabled;
+        }
+    }
+
+    async function writeExam() {
+        if (!eDraftKey) return;
+        const btn = document.getElementById('eWriteBtn');
+        btn.disabled = true;
+        const r = await post('/api/codex/exam/write', {draftKey: eDraftKey});
+        let text = r.message || '';
+        if (r.ok) text += `\n分支：${r.branch}\n\n${r.nextStep || ''}`;
+        else btn.disabled = false;
+        msg('eMsg', text, !!r.ok);
+        if (r.ok) loadRoute();
+    }
+
+    (async function init() {
+        await loadConfig();
+        await Promise.all([loadSources(), loadTargets()]);
+        await loadRoute();
+    })();
+</script>
+</body>
+</html>

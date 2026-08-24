@@ -150,7 +150,10 @@ public class CheckpointService {
                 cp.setPassCriteria(p.passCriteria());
                 cp.setBlindSpots(p.blindSpots());
                 cp.setVerifyJson(p.verifyJson());
-                cp.setVerifySource(KbCheckpoint.VerifySource.PARSED);
+                // ★不再无条件写 PARSED：机器出的题必须与人写的题分开标注，
+                // 否则「12 条通过 9 条」这个核心证据里会混进机器自己出自己判的条目
+                cp.setVerifySource(p.verifySource() == null
+                        ? KbCheckpoint.VerifySource.PARSED : p.verifySource());
                 cp.setPredictRequired(true);
                 cp.setUpdatedAt(LocalDateTime.now());
                 cpRepo.save(cp);

@@ -72,7 +72,15 @@ class CodexModeVisibilityTest {
                 def("gap.list", "codex", "read"),
                 def("gap.to_learning_plan", "codex", "write"),
                 def("scope.skipped", "codex", "read"),
-                def("scope.set", "codex", "write")
+                def("scope.set", "codex", "write"),
+                // ---- P4 蒸馏与定线 ----
+                def("distill.draft", "codex", "doc", "read"),
+                def("distill.write", "codex", "doc", "write"),
+                def("exam.draft", "codex", "doc", "read"),
+                def("exam.write", "codex", "doc", "write"),
+                def("route.next", "codex", "read"),
+                def("route.stages", "codex", "read"),
+                def("doc.anchors", "codex", "read")
         );
         when(registry.all()).thenReturn(tools);
         when(registry.mcpToolsAll()).thenReturn(List.of());
@@ -156,7 +164,9 @@ class CodexModeVisibilityTest {
                 ToolView view = resolver.resolveMode(mode);
                 for (String tool : List.of("doc.search", "repo.list", "repo.sync",
                         "doc.write", "repo.commit", "ci.run_local", "checkpoint.run",
-                        "gap.list", "gap.to_learning_plan", "scope.skipped", "scope.set")) {
+                        "gap.list", "gap.to_learning_plan", "scope.skipped", "scope.set",
+                        "distill.draft", "distill.write", "exam.draft", "exam.write",
+                        "route.next", "route.stages")) {
                     assertFalse(view.contains(tool),
                             mode + " 模式不应看到 " + tool + "（会改变工具 schema 字节）");
                 }
@@ -233,6 +243,35 @@ class CodexModeVisibilityTest {
             assertFalse(view.contains("gap.to_learning_plan"), "转计划会落库，属写操作");
             assertFalse(view.contains("scope.set"), "改判止损线属写操作");
         }
+
+        /**
+         * ★P4 补的一条隔离。
+         *
+         * <p>{@code distill.draft} 与 {@code exam.draft} 确实<strong>不写任何文件</strong>，
+         * 所以它们带的是 {@code read} tag，于是天然命中 STUDY 的 allow。
+         * 但一次起草是 5~9 次 LLM 调用——在一个「纯研读」的模式里放一个
+         * 随口一问就会花钱的工具，与这个模式的承诺不符。</p>
+         *
+         * <p>处置是给 STUDY deny {@code doc} tag，而不是给这两个工具去掉 {@code read}：
+         * 后者是用 tag 调可见性，而 tag 表达的是工具属于哪个能力域。
+         * 一旦开始用 tag 当旋钮，可见性规则就再也读不懂了。</p>
+         */
+        @Test
+        @DisplayName("★看得到定线，但看不到蒸馏与出题（起草会花钱，不该出现在纯研读模式）")
+        void seesRouteButNotDistill() {
+            ToolView view = resolver.resolveMode("study");
+            assertTrue(view.contains("route.next"), "「我该学什么」是研读时最常问的问题");
+            assertTrue(view.contains("route.stages"));
+            assertFalse(view.contains("distill.draft"),
+                    "一次起草是 5~9 次 LLM 调用，纯研读模式不该能触发");
+            assertFalse(view.contains("exam.draft"));
+            assertFalse(view.contains("distill.write"));
+
+            // 检索类 doc 工具不带 doc tag，所以这条 deny 不会伤到研读本身
+            assertTrue(view.contains("doc.search"), "deny doc 不应影响检索");
+            assertTrue(view.contains("doc.outline"));
+            assertTrue(view.contains("doc.anchors"));
+        }
     }
 
     /* ================= curate：可写仓库，不动任务 ================= */
@@ -281,7 +320,20 @@ class CodexModeVisibilityTest {
                 ToolView v = resolver.resolveMode(mode);
                 assertFalse(v.contains("doc.write"), mode + " 不应能写知识仓库文件");
                 assertFalse(v.contains("repo.commit"), mode + " 不应能提交 git");
+                assertFalse(v.contains("distill.write"), mode + " 不应能写蒸馏产物");
+                assertFalse(v.contains("exam.write"), mode + " 不应能写检验册");
             }
+        }
+
+        @Test
+        @DisplayName("P4 蒸馏与出题工具仅在 curate 可见")
+        void ownsDistillTools() {
+            ToolView curate = resolver.resolveMode("curate");
+            assertTrue(curate.contains("distill.draft"));
+            assertTrue(curate.contains("distill.write"));
+            assertTrue(curate.contains("exam.draft"));
+            assertTrue(curate.contains("exam.write"));
+            assertTrue(curate.contains("route.next"), "策展时也需要知道该先整理哪一块");
         }
     }
 
