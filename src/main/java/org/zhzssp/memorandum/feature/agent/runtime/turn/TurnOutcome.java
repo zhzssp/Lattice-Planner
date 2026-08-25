@@ -22,6 +22,12 @@ public final class TurnOutcome {
     public static final String CAUSE_CRAG_DEGRADED = "CRAG_DEGRADED";
     public static final String CAUSE_SUBAGENT_TRUNCATED = "SUBAGENT_TRUNCATED";
     public static final String CAUSE_TOOL_BANNED = "TOOL_BANNED";
+    /**
+     * 上下文折叠（滚动摘要）：历史被折叠成一条摘要，旧消息不再逐条保留。
+     * 与 {@link #CAUSE_TRUNCATED} 区分——截断是纯丢弃，摘要是「折叠成要点」，
+     * 有损程度不同，统计口径上必须能分开看。
+     */
+    public static final String CAUSE_SUMMARIZED = "SUMMARIZED";
 
     private final String sessionId;
     private final String mode;

@@ -28,6 +28,11 @@ public class ConversationMemory {
 
     private static final int WINDOW = 30;
 
+    /** 窗口容量（供滚动摘要等按比例计算触发阈值）。 */
+    public static int windowSize() {
+        return WINDOW;
+    }
+
     private final Map<String, Deque<Msg>> store = new ConcurrentHashMap<>();
     /** sessionId -> 最后一次 append 的时刻，用于空闲归档判定。 */
     private final Map<String, Instant> lastActiveAt = new ConcurrentHashMap<>();
@@ -37,6 +42,12 @@ public class ConversationMemory {
         return q == null ? List.of() : new ArrayList<>(q);
     }
 
+    /** 当前窗口已用条数（供摘要触发判定）。 */
+    public int size(String sid) {
+        Deque<Msg> q = store.get(sid);
+        return q == null ? 0 : q.size();
+    }
+
     public void append(String sid, String role, String content) {
         Deque<Msg> q = store.computeIfAbsent(sid, k -> new ArrayDeque<>());
         synchronized (q) {
@@ -44,6 +55,34 @@ public class ConversationMemory {
             while (q.size() > WINDOW) q.pollFirst();
         }
         lastActiveAt.put(sid, Instant.now());
+    }
+
+    /**
+     * 折叠窗口最老的 {@code count} 条消息为一条摘要。
+     *
+     * <p>供 {@code ContextCompactor} 调用，<strong>取代</strong>默认的 {@code pollFirst}
+     * 无差别丢弃：把最老的 {@code count} 条换成一条 {@code role=user} 的摘要消息，
+     * 保留其中「用户设定的约束」这类关键信息，而不是让它们随窗口滑出而静默消失。</p>
+     *
+     * <p>当 {@code summaryContent} 为空/空白时，语义退化为「纯丢弃」（不留占位消息）——
+     * 供整段全是工具噪声、无需摘要也不值得留占位的场景。</p>
+     *
+     * <p>线程安全：与 {@link #append} 一样在 {@code Deque} 上加锁。</p>
+     *
+     * @return 实际被替换的消息条数（窗口不足 {@code count} 时按实际数量）
+     */
+    public int compact(String sid, int count, String role, String summaryContent) {
+        Deque<Msg> q = store.get(sid);
+        if (q == null || count <= 0) return 0;
+        synchronized (q) {
+            int actual = Math.min(count, q.size());
+            if (actual <= 0) return 0;
+            for (int i = 0; i < actual; i++) q.pollFirst();
+            if (summaryContent != null && !summaryContent.isBlank()) {
+                q.addFirst(new Msg(role, summaryContent));
+            }
+            return actual;
+        }
     }
 
     public void clear(String sid) {

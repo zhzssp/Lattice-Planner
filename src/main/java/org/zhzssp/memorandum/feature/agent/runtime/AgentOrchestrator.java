@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.zhzssp.memorandum.feature.agent.chat.AgentChatWebSocketHandler;
+import org.zhzssp.memorandum.entity.User;
+import org.zhzssp.memorandum.feature.agent.memory.FactService;
 import org.zhzssp.memorandum.feature.agent.policy.ToolApprovalPolicy;
 import org.zhzssp.memorandum.feature.agent.policy.ToolConfirmCoordinator;
 import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
@@ -45,6 +47,8 @@ public class AgentOrchestrator {
     private final org.zhzssp.memorandum.feature.agent.runtime.turn.TurnStoppingBus turnStopping;
     private final org.zhzssp.memorandum.feature.agent.tool.visibility.ToolVisibilityResolver visibility;
     private final org.zhzssp.memorandum.feature.agent.tool.visibility.SessionToolMask sessionToolMask;
+    private final ContextCompactor contextCompactor;
+    private final FactService factService;
 
     @Value("${agent.chat.max-steps:8}")
     private int maxSteps;
@@ -66,7 +70,9 @@ public class AgentOrchestrator {
                              ReflexionAdvisor reflexionAdvisor,
                              org.zhzssp.memorandum.feature.agent.runtime.turn.TurnStoppingBus turnStopping,
                              org.zhzssp.memorandum.feature.agent.tool.visibility.ToolVisibilityResolver visibility,
-                             org.zhzssp.memorandum.feature.agent.tool.visibility.SessionToolMask sessionToolMask) {
+                             org.zhzssp.memorandum.feature.agent.tool.visibility.SessionToolMask sessionToolMask,
+                             ContextCompactor contextCompactor,
+                             FactService factService) {
         this.llm = llm;
         this.registry = registry;
         this.parser = parser;
@@ -81,6 +87,8 @@ public class AgentOrchestrator {
         this.turnStopping = turnStopping;
         this.visibility = visibility;
         this.sessionToolMask = sessionToolMask;
+        this.contextCompactor = contextCompactor;
+        this.factService = factService;
     }
 
     public void handleUserTurn(String sid, String userInput, String mode, String longTermMemo) {
@@ -108,9 +116,28 @@ public class AgentOrchestrator {
             closeTurn(sid, outcome);
             return;
         }
+        // 上下文工程 P1：易变 facts 快照（turn 内不变，作为注入视图放 system 之后）
+        // ★不进 memory、不进 system——放 history 首条 user 消息，避免打穿前缀缓存
+        String volatileFacts = null;
+        try {
+            User currentUser = AgentContext.requireUser();
+            volatileFacts = factService.volatileSnippet(currentUser.getId(), sid);
+            // 异步抽取本轮输入中的事实（fire-and-forget，失败不影响主链路）
+            factService.extractAsync(currentUser.getId(), sid, userInput, 0);
+        } catch (Exception ex) {
+            log.warn("[Agent] facts 注入/抽取失败：{}", ex.getMessage());
+        }
         try {
             for (int step = 0; step < maxSteps; step++) {
                 var msgs = promptBuilder.assemble(prefix, memory.history(sid));
+                if (volatileFacts != null) {
+                    // 易变 facts 插在 system 之后、真实 history 之前：
+                    // 位置在前缀之后 → 不影响上游 prompt cache 的前缀命中
+                    Map<String, String> factsMsg = new LinkedHashMap<>();
+                    factsMsg.put("role", "user");
+                    factsMsg.put("content", volatileFacts);
+                    msgs.add(1, factsMsg);
+                }
                 String llmRaw;
                 trace.llmCall(sid, step, prefix.prefixHash());
                 try {
@@ -394,6 +421,14 @@ public class AgentOrchestrator {
             body = body + "\n\n[策略提示]\n" + strategyHint;
         }
         memory.append(sid, "user", body);
+
+        // 上下文工程 P1：窗口将满时折叠最老一段为摘要，避免关键约束随窗口滑出而静默丢失
+        try {
+            contextCompactor.compactIfNeeded(sid, outcome);
+        } catch (Exception ex) {
+            // 折叠是增强，绝不能因它失败而阻断工具结果回灌
+            log.warn("[Agent] 滚动摘要触发异常：{}", ex.getMessage());
+        }
     }
 
     /** 截断字符串；发生截断时置位降级标记（TRUNCATED）。 */

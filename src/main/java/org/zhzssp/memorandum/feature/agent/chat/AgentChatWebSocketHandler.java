@@ -13,6 +13,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.zhzssp.memorandum.entity.User;
 import org.zhzssp.memorandum.feature.agent.policy.ToolConfirmCoordinator;
+import org.zhzssp.memorandum.feature.agent.memory.FactService;
 import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
 import org.zhzssp.memorandum.feature.agent.runtime.AgentOrchestrator;
 import org.zhzssp.memorandum.feature.agent.runtime.LongTermMemoryService;
@@ -46,6 +47,7 @@ public class AgentChatWebSocketHandler extends TextWebSocketHandler {
     private final ToolConfirmCoordinator confirmCoordinator;
     private final LongTermMemoryService longTermMemoryService;
     private final SessionArchiveScheduler sessionArchiveScheduler;
+    private final FactService factService;
 
     /** sessionId -> WebSocketSession */
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
@@ -56,7 +58,8 @@ public class AgentChatWebSocketHandler extends TextWebSocketHandler {
                                      LocalBridgeProxy localBridgeProxy,
                                      ToolConfirmCoordinator confirmCoordinator,
                                      LongTermMemoryService longTermMemoryService,
-                                     SessionArchiveScheduler sessionArchiveScheduler) {
+                                     SessionArchiveScheduler sessionArchiveScheduler,
+                                     FactService factService) {
         this.om = om;
         this.userRepository = userRepository;
         this.orchestrator = orchestrator;
@@ -64,6 +67,7 @@ public class AgentChatWebSocketHandler extends TextWebSocketHandler {
         this.confirmCoordinator = confirmCoordinator;
         this.longTermMemoryService = longTermMemoryService;
         this.sessionArchiveScheduler = sessionArchiveScheduler;
+        this.factService = factService;
     }
 
     private String sidOf(WebSocketSession s) {
@@ -119,6 +123,14 @@ public class AgentChatWebSocketHandler extends TextWebSocketHandler {
                     AgentContext.set(user, sid);
                     try {
                         String memo = longTermMemoryService.snippetFor(user);
+                        // 上下文工程 P1：稳定 facts 并入长期记忆段，进 system prompt
+                        // （变更频率天级，不会频繁刷新 memoHash → 不打穿前缀缓存）
+                        String stableFacts = factService.stableSnippet(user.getId());
+                        if (stableFacts != null && !stableFacts.isBlank()) {
+                            memo = (memo == null || memo.isBlank())
+                                    ? "[已确认的事实]\n" + stableFacts
+                                    : memo + "\n\n[已确认的事实]\n" + stableFacts;
+                        }
                         orchestrator.handleUserTurn(sid, text, mode, memo);
                     } catch (Exception ex) {
                         log.error("[Agent] turn error", ex);
