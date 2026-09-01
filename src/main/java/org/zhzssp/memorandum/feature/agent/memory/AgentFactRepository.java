@@ -22,6 +22,20 @@ public interface AgentFactRepository extends JpaRepository<AgentFact, Long> {
             + "order by f.updatedAt desc")
     List<AgentFact> findStableActive(@Param("userId") Long userId);
 
+    /**
+     * 某用户在 {@code before} 之前创建的 ACTIVE 稳定 facts，按最近更新倒序。
+     *
+     * <p>支撑 {@code stable-apply-granularity=DAY}：稳定 facts 进 system prompt 并参与
+     * memoHash，取「今天零点前」这一刀能让该段在一整天内字节不变。</p>
+     */
+    @Query("select f from AgentFact f where f.userId = :userId and f.kind = "
+            + "org.zhzssp.memorandum.feature.agent.memory.AgentFact.Kind.STABLE "
+            + "and f.status = org.zhzssp.memorandum.feature.agent.memory.AgentFact.Status.ACTIVE "
+            + "and f.createdAt < :before "
+            + "order by f.updatedAt desc")
+    List<AgentFact> findStableActiveCreatedBefore(@Param("userId") Long userId,
+                                                  @Param("before") java.time.LocalDateTime before);
+
     /** 某会话的全部 ACTIVE 易变 facts，按最近更新倒序。 */
     @Query("select f from AgentFact f where f.userId = :userId and f.sessionId = :sessionId "
             + "and f.kind = org.zhzssp.memorandum.feature.agent.memory.AgentFact.Kind.VOLATILE "

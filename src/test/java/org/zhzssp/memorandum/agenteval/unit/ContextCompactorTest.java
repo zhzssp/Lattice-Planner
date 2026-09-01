@@ -92,13 +92,15 @@ class ContextCompactorTest {
         @DisplayName("待折叠段全是工具噪声 → 不付 LLM 调用，直接丢弃")
         void pureNoiseDropsWithoutLlm() {
             String sid = "s";
-            // 先塞 25 条真实对话把窗口顶到阈值附近，再塞 15 条工具噪声触发折叠
-            appendDialogue(sid, 15);
-            for (int i = 0; i < 10; i++) {
+            // ★噪声必须先入队：折叠取的是「最老的 foldSize 条」，而窗口从队头淘汰。
+            // 若先塞对话再塞噪声，对话会把噪声顶到队尾，最老的反而是真实对话。
+            for (int i = 0; i < 5; i++) { // 10 条噪声，恰好等于 foldSize
                 memory.append(sid, "assistant", "{\"tool\":\"task.create\",\"arguments\":{}}");
                 memory.append(sid, "user", "[tool_result task.create]\n{}");
             }
+            appendDialogue(sid, 7); // 再补 14 条，凑到 24 = 30*0.8 阈值
             int before = memory.size(sid);
+            assertEquals(24, before, "构造前提：恰好触发阈值且噪声仍在最老位置");
             compactor.compactIfNeeded(sid, outcome());
             // 折叠确实发生了（窗口变小），但 LLM 一次都没被调
             assertTrue(memory.size(sid) < before, "纯工具噪声也应触发折叠（丢弃）");

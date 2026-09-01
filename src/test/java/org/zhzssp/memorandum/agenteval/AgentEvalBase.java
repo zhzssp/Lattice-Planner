@@ -75,6 +75,10 @@ public abstract class AgentEvalBase {
     @MockitoBean
     protected UserRepository userRepository;
 
+    /** 用于把评测用户真正写进 H2，见 {@link #ensureUserRow()}。 */
+    @Autowired
+    protected org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     protected User testUser;
     protected String sessionId;
     private String currentCaseId;
@@ -88,6 +92,7 @@ public abstract class AgentEvalBase {
         this.caseStartMs = System.currentTimeMillis();
 
         this.testUser = buildTestUser();
+        ensureUserRow();
         org.mockito.Mockito.when(userRepository.findByUsername(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(Optional.of(testUser));
         org.mockito.Mockito.when(userRepository.findAll())
@@ -172,5 +177,20 @@ public abstract class AgentEvalBase {
         u.setId(1L);
         u.setUsername("eval-user");
         return u;
+    }
+
+    /**
+     * 把评测用户真正插进 H2。
+     *
+     * <p>{@link UserRepository} 是 mock，用户对象只活在内存里，从不落库；
+     * 而 {@code task.create} 这类写工具会插入指向 user 的外键，缺行即 23506。
+     * 缺了这一步，写工具在评测里其实<strong>全部执行失败</strong>，
+     * 却因为断言只检查「工具被调用过」而始终显示通过——
+     * 报告里的 {@code failedTools} 是唯一能看出来的地方。
+     */
+    private void ensureUserRow() {
+        jdbcTemplate.update(
+                "MERGE INTO user (id, username, password) KEY(id) VALUES (?, ?, ?)",
+                testUser.getId(), testUser.getUsername(), "eval-not-a-real-credential");
     }
 }

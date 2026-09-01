@@ -66,9 +66,15 @@ public class ExamService {
     private static final String M_BLIND = "@@BLIND@@";
     private static final String M_ITEMEND = "@@ITEMEND@@";
 
-    /** 命令里像路径的 token：含 {@code /} 或带脚本类扩展名。 */
+    /**
+     * 命令里像路径的 token：含 {@code /} 或带脚本类扩展名。
+     *
+     * <p>后顾断言里的 {@code $} 不可省：{@code $LAB_HOME/run.sh} 若从 {@code L} 起匹配，
+     * 捕获到的是不带 {@code $} 的 {@code LAB_HOME/run.sh}，后续的「含 $ 不判」闸门便看不见它，
+     * 于是一条合法的变量路径会被误判为「引用了不存在的脚本」而丢题。</p>
+     */
     private static final Pattern PATH_LIKE = Pattern.compile(
-            "(?<![\\w./-])((?:[\\w.@-]+/)+[\\w.@-]+|[\\w.@-]+\\.(?:sh|py|cpp|cc|c|h|mlir|ll|td|yaml|yml|json|txt|cmake))");
+            "(?<![\\w./$-])((?:[\\w.@-]+/)+[\\w.@-]+|[\\w.@-]+\\.(?:sh|py|cpp|cc|c|h|mlir|ll|td|yaml|yml|json|txt|cmake))");
 
     /** 明显不是仓库内路径的形状。 */
     private static final Pattern NOT_REPO_PATH = Pattern.compile(

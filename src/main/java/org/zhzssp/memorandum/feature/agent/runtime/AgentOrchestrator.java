@@ -92,6 +92,7 @@ public class AgentOrchestrator {
     }
 
     public void handleUserTurn(String sid, String userInput, String mode, String longTermMemo) {
+        int turnIndex = memory.nextTurn(sid);
         memory.append(sid, "user", userInput);
         trace.turnStart(sid, userInput, mode);
         // L：单轮收尾上下文（承载粘性降级标记，见 TurnOutcome）
@@ -123,9 +124,16 @@ public class AgentOrchestrator {
             User currentUser = AgentContext.requireUser();
             volatileFacts = factService.volatileSnippet(currentUser.getId(), sid);
             // 异步抽取本轮输入中的事实（fire-and-forget，失败不影响主链路）
-            factService.extractAsync(currentUser.getId(), sid, userInput, 0);
+            factService.extractAsync(currentUser.getId(), sid, userInput, turnIndex);
         } catch (Exception ex) {
             log.warn("[Agent] facts 注入/抽取失败：{}", ex.getMessage());
+        }
+        // 上下文工程 P1：轮首也检查一次折叠。只在 appendToolTrace 后触发是不够的——
+        // 纯聊天会话不产生工具 trace，窗口照样会满，那条路径上关键约束仍会静默滑出。
+        try {
+            contextCompactor.compactIfNeeded(sid, outcome);
+        } catch (Exception ex) {
+            log.warn("[Agent] 滚动摘要触发异常：{}", ex.getMessage());
         }
         try {
             for (int step = 0; step < maxSteps; step++) {

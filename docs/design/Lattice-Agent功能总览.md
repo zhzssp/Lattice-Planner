@@ -1,235 +1,245 @@
 # Lattice-Agent 功能总览
 
-> 本文档面向「快速理解 / 面试讲解 / 二次开发」，聚焦**当前已落地的能力**与**关键设计点**。
-> 详细的逐文件实现方案请参考同目录下的 `Agent实现方案.md`。
+> 面向「快速理解 / 二次开发 / 面试讲解」，聚焦**当前已落地的能力**与**关键设计点**。
+> 逐文件实现方案见同目录 `Agent实现方案.md`——本文是"做完了什么"，那份是"为什么这么做"。
+>
+> **本文合并了原先的 `Lattice-Agent-功能完整说明.md`**（两份内容重叠且都已过时）。
+> 校对基准：2026-09-01，对应 `V4.0.0` 分支。所有数字均为当日实测，改代码后请回来同步。
 
 ---
 
 ## 1. 一句话概括
 
-**Lattice-Agent** 是内嵌在 Lattice-Planner 任务规划软件里的对话式智能体：用户在任意业务页面右下角点开抽屉式聊天面板，就能用自然语言驱动 Agent **读写自己的目标 / 任务 / 笔记 / 复盘数据**，调用项目原有的 **LLM 规划器** 自动拆目标，甚至**读取本地 PC 上的 Markdown / PDF**。整套循环是自实现的精简 ReAct + Reflexion，未引入 LangChain / Spring AI。
+**Lattice-Agent** 是内嵌在 Lattice-Planner 里的对话式智能体：用户在任意业务页面点开抽屉式聊天面板，就能用自然语言驱动 Agent **读写自己的目标 / 任务 / 笔记 / 复盘数据**、检索个人知识库、读取本地文档、委派子代理协作。
+
+整套运行时是自实现的——ReAct 主循环、注解反射工具注册、子代理隔离、上下文工程、双向 MCP，**未引入 LangChain / Spring AI**。
 
 ---
 
-## 2. 整体架构
+## 2. 分层结构
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│  浏览器 / Electron 渲染端                                            │
-│  ┌────────────┐  ┌──────────────────────────────┐                 │
-│  │  Fab 按钮   │→ │  抽屉面板 chat-panel.js       │                 │
-│  └────────────┘  │  (sessionId / WS / 渲染)       │                 │
-│                  └────────────┬─────────────────┘                  │
-│                               │ ws://host/ws/agent/{sid}            │
-│                  Electron preload.js   ←─ localCall (反向)          │
-└────────────────────────────────┼────────────────────────────────────┘
-                                 │
-┌────────────────────────────────┼────────────────────────────────────┐
-│  Spring Boot 后端                                                    │
-│  AgentChatWebSocketHandler  ─►  AgentOrchestrator (ReAct 主循环)     │
-│         │                              │                            │
-│         │           ┌──── ToolRegistry (反射调用 @AgentTool)  ◄────┐ │
-│         │           │       │                                     │ │
-│         │           │   TaskTools / GoalTools / NoteTools /       │ │
-│         │           │   PlannerTools / InsightTools / LocalDocTools│ │
-│         │           │                                             │ │
-│         │           └─►  LlmGateway (DeepSeek)                    │ │
-│         │                                                         │ │
-│         └──── ToolConfirmCoordinator (高危确认弹窗)                │ │
-│                LocalBridgeProxy ── 反向 IPC ──────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────┘
+┌─ 对话层 chat ────────────────────────────────────────┐
+│ AgentChatWebSocketHandler  /ws/agent/{sid}           │
+├─ 编排层 runtime ────────────────────────────────────┤
+│ AgentOrchestrator（ReAct 主循环，≤24 步）             │
+│ PromptBuilder + PrefixCache / ToolCallParser         │
+│ ReflexionAdvisor / TurnStopping / TurnOutcome        │
+├─ 上下文层 runtime + memory ─────────────────────────┤
+│ ConversationMemory（窗口 30）                         │
+│ ContextCompactor（滚动摘要）/ FactService（Facts 层）  │
+│ LongTermMemoryService（跨会话归档）                    │
+├─ 子代理层 subagent ─────────────────────────────────┤
+│ SubAgentRunner / SubAgentExecutor（并行 fan-out）     │
+├─ 工具层 tool ───────────────────────────────────────┤
+│ ToolRegistry（@AgentTool 注解 → 反射）                │
+│ 可见性 ToolVisibilityResolver（四层 scope 链）         │
+├─ 策略层 policy ─────────────────────────────────────┤
+│ ToolApprovalPolicy / ToolConfirmCoordinator          │
+├─ 知识层 pkm ────────────────────────────────────────┤
+│ RagServing → CorrectiveRetriever(CRAG) → RagSearch   │
+├─ 知识仓库 codex ────────────────────────────────────┤
+│ 索引 / 检验 / 沉淀 / 缺口 / 蒸馏 五期能力              │
+└─ 接入层 mcp + llm ─────────────────────────────────┘
+  MCP Server + Client（含 loopback）/ LlmGateway → Router
 ```
 
-### 主循环（精简 ReAct）
+**核心与插件解耦**：任务/目标/笔记是核心业务层，Agent 通过 Spring 事件驱动扩展（Agent 写库 → `TaskCompletedEvent` → 目标进度自动重算）。**Agent 永远调业务真服务，业务代码 0 修改**。
+
+---
+
+## 3. 核心推理引擎（ReAct 主循环）
+
+`AgentOrchestrator.handleUserTurn` 单轮最多 `agent.chat.max-steps`（**默认 24**）步。每步 LLM 输出要么是工具调用 JSON，要么是终态自然语言。
+
+**工具执行前的三重闸门**（都是执行层强制，不是提示层劝告）：
+
+1. **存在吗** → 否则回灌 `UNKNOWN_TOOL`（幻觉自纠）
+2. **可见吗** → 当前 scope 不可见则回灌 `TOOL_NOT_VISIBLE`（越界拦截）
+3. **封禁了吗** → 本轮失败超阈值则短路，不真正执行
+
+**收尾不是直接返回**：终态先问一圈 `TurnStoppingAdvisor`，顾问可返回 steer 让循环继续（单轮上限由 Bus 强制，防无限循环）。
+
+**流式事件**：WebSocket 下发 `assistant / toolStart / toolResult / confirmReq / done / error`。
+
+---
+
+## 4. 工具系统
+
+`ToolRegistry` 在 `ApplicationReadyEvent` 时反射扫描所有 `@AgentTool`（用 ready 而非 `@PostConstruct`，因为 MCP 远程工具要等客户端连上才注册）。
+
+**当前共 64 个工具**：
+
+| 域 | 代表工具 | 说明 |
+|---|---|---|
+| task | `task.create` / `search` / `today` / `complete` / `archive` | 6 个 |
+| goal | `goal.list` / `create` / `archive` / `link_task` | 5 个 |
+| note | `note.list` / `create` | 2 个（自动屏蔽 `AGENT_MEMO`） |
+| planner | `planner.draft_goal_plan` / `apply_goal_plan` | 2 个 |
+| insight | `insight.daily_scores` / `summarize_period` | 2 个 |
+| kb | `kb.semantic_search` / `lookup_by_title` / `list_backlinks` / `ingest_local_doc` … | 6 个 |
+| subagent | `subagent.plan` / `reflect` / `research` / `parallel_research` | 5 个 |
+| codex | `doc.*` `repo.*` `git.*` `ci.*` `gap.*` `distill.*` `route.*` `checkpoint.*` `sediment.*` | 36 个 |
+| MCP 远程 | `mcp.<server>.<tool>` | 运行时动态注册 |
+
+**参数必须打 `@ToolParam`**，否则启动直接失败——Java 编译后参数名会丢，没注解就无法生成正确 JSON Schema。**宁可启动失败，也不要运行时给 LLM 一个错的 schema**。
+
+**统一入口**：`registry.invoke(name, args)` 对 LLM 完全透明——它不知道背后是本地反射还是跨进程 JSON-RPC。
+
+> ⚠️ **`local.*` 工具已下线**。本地文件访问从 Electron 反向 IPC 迁移到 MCP 后端直读，现统一走 `mcp.loopback.local.read_document`。`LocalDocTools.java` 保留为空壳（无任何 `@AgentTool`）。历史文档里提到的 `local.list_dir` / `local.read_file` / `local.read_pdf` **均已不存在**。
+
+---
+
+## 5. 工具可见性（四层 scope 链）
 
 ```
-user 输入
+GLOBAL（全量）→ MODE（模式）→ ROLE（子代理角色）→ SESSION（会话）
+```
+
+支持 `allow`（收窄）/ `deny`（累积剔除）/ `pin`（破例）/ 结构性保留（不可被 pin 解除，如 `subagent.*` 对子代理）。
+
+**为什么不能只靠 tag 过滤**（两个真实缺陷）：
+- tag 是 OR 语义，只能"放行"不能"禁止"——`note.create` 同带 `note` 和 `write`，learn 模式放行 `note` 后它照样能写笔记
+- 过滤只影响给 LLM 的 schema，**不影响执行**——模型凭记忆调不可见工具照样调得通，因为 `registry.get()` 查的是全量表
+
+所以在执行前再拦一道，返回 `TOOL_NOT_VISIBLE`。这与 Reflexion 封禁组成两层权限治理：**可见性决定"你本来能碰什么"，封禁决定"你这轮已经把什么碰坏了"**。
+
+---
+
+## 6. 子代理系统
+
+`SubAgentRunner` 在**独立局部上下文**跑完整 ReAct，只把压缩结论回主 Agent，中间过程全部丢弃。
+
+| 角色 | 定位 | 工具 tag 子集 |
+|---|---|---|
+| PLANNER | 读文档 → 拆目标 → 建任务落库 | mcp + kb + planner + task + goal |
+| REFLECTION | 聚合周期数据产出结构化复盘 | insight + task + goal + note + kb |
+| RESEARCH | 多跳知识库检索，给有出处的答案 | kb + note + mcp |
+
+**关键约束**：
+- 结论截断 `agent.subagent.result-max-chars=4000`
+- 每角色步数 `agent.subagent.max-steps=12`（独立于主循环的 24）
+- **子代理不能再委派子代理**：`guardTopLevel()` 查 `depth > 0` 抛异常 + 可见性层结构性保留 `subagent.*`，双保险
+- 工具 tag 取**最小必要子集**——tag 是 OR 语义，放通用的 read/write 会命中所有工具，隔离失去意义
+
+**并行 fan-out**：`subagent.parallel_research` 把问题拆成多个子问题并发研究，线程池 size=4，`allOf().orTimeout(120s)`，超时的 worker 标注降级而**不整体失败**。仅绑定只读角色，写角色保持串行。
+
+**ThreadLocal 跨线程显式传播**：worker 线程手动 `AgentContext.set` + `finally clear`。**不能用 `InheritableThreadLocal`**——固定线程池会复用线程，继承语义会让上个任务的用户身份泄漏。
+
+---
+
+## 7. 上下文工程
+
+| 层 | 载体 | 生命周期 | 解决什么 |
+|---|---|---|---|
+| 短期 | `ConversationMemory`（内存，窗口 30） | 会话内 | 多轮连贯 |
+| 折叠 | `ContextCompactor`（滚动摘要） | 窗口将满时 | 关键约束不随窗口静默滑出 |
+| 事实 | `FactService`（`agent_fact` 表） | 跨会话 / 会话内 | 硬约束可核对、可纠正 |
+| 长期 | `LongTermMemoryService` → `AGENT_MEMO` 笔记 | 跨会话 | "记住我的习惯" |
+| 工作 | 子代理局部 `List` | 单次子任务 | 隔离长文档 |
+| 前缀 | `PrefixCache`（Caffeine） | turn 内 + 跨 turn | 省构造 CPU + 让上游 prompt cache 命中 |
+
+**滚动摘要**（`agent.context.compaction.enabled=true`，已开启）：
+- 窗口用到 80% 时把最老 10 条折叠成一条摘要（`role=user`，**不能进 system**，否则破坏前缀字节稳定）
+- **纯工具噪声短路**：待折叠段剔除 tool trace 后不足 6 条真实对话 → 直接丢弃，不付 LLM 调用
+- **失败回退等价旧行为**：折叠失败则直接丢弃 + 置 `CAUSE_TRUNCATED`，绝不阻断对话
+- 触发点在**轮首**和**每次工具结果回灌后**——只挂后者的话，纯聊天会话永远折叠不到
+
+**Facts 层**（`agent.context.facts.enabled=false`，**默认关**）：
+- 每轮异步从用户原话抽取事实，按变更频率分流注入：稳定 → system prompt，易变 → history 首条
+- 每条必存 `source_quote` + `source_turn`，用户能核对"凭什么说我有这条约束"
+- 覆盖而非追加（同 key 新值把旧值标 `SUPERSEDED`）；`REJECTED` 永不再抽
+- 只收 `MEDIUM` 以上置信度——facts 注入每一轮，抽错的污染面比一次错误回答大得多
+- `stable-apply-granularity=DAY`：稳定 facts 只取今天零点前创建的，让 system 段全天字节恒定
+
+> **为什么 facts 默认关**：它写进 system prompt，抽错会污染每一轮，而"抽取准确率"目前没有离线证据——回放套件用的是录制响应，量不出真实模型的抽取质量。放开前需在 record 模式下用真 API 验证。
+
+**效果实测**见 `build/agent-eval/context-engineering.md`（`./gradlew test --tests '*ContextEngineeringBenchmark*'` 可复现）。
+
+**前缀缓存 key**：`(mode, toolsetHash, memoHash, dateBucket)`。`dateBucket` 用**天级**而非精确时间——精确到秒的话每次请求前缀都不同，上游 automatic prefix caching 永远无法命中。`exportSchemas()` 输出**按名排序**，因为 `ConcurrentHashMap` 迭代顺序规范上不保证。
+
+---
+
+## 8. 安全与权限
+
+- **多用户隔离**：`AgentContext` ThreadLocal 存 user/sid/depth，所有工具第一行 `requireUser()`，仓储查询带 userId 过滤——**越权读他人数据在架构上不可达**
+- **高危工具确认**：`requiresConfirm` 工具先发 `confirmReq`，60s 超时按拒绝
+- **授权策略分层**：`requiresConfirm` 是工具固有属性（注解里，编译期固定）；用户的 auto-approve 是运行时降权（存 `UserPreference`）。判断式 `requiresConfirm && !autoApproved(user, tool)` 抽成 `ToolApprovalPolicy`，主循环与子代理共用
+- **深度护栏**：`AgentContext.depth` 防子代理递归
+
+---
+
+## 9. 知识库与 RAG
+
+```
+RagServingService（门面：语义缓存 / 精排 / 异步预取 / 指标）
   ▼
-PromptBuilder：拼系统提示（含工具 schema + 长期记忆）
-  ▼  ┌─ 最大 N 步（默认 8）─┐
-LlmGateway → LLM 输出
-  ├─ 解析为 ToolCall ──► 高危？走确认 ──► 反射执行 ──► 结果回灌 history
-  └─ 否则视为终态自然语言 ──► 推送给 UI ──► sendDone
+CorrectiveRetriever（CRAG）
+  ├─ 分级：CORRECT(≥0.6) / AMBIGUOUS(≥0.4) / INCORRECT
+  ├─ QueryRewriter 改写重检索（RRF 合并，最多 1 次）
+  └─ 仍不达标 → degraded=true，结构化信号回传 LLM
+  ▼
+RagSearchService（Hybrid 双通路）
+  ├─ 关键字：MySQL FULLTEXT ngram（RRF 1/(1+rank)）
+  ├─ 向量：bge-m3 1024 维 cosine
+  └─ 加权融合 alpha=0.4，任一通路异常自动降级另一路
 ```
 
-工具执行抛错时，错误 JSON 直接喂回 LLM——等价于一次 **Reflexion**，让模型自我纠偏。
+**关键决策**：
+- **零外部向量组件**：MySQL JSON + Caffeine LRU，万级 chunk 全表余弦约 10ms。清楚天花板——十万级以上必须换 pgvector / Milvus
+- **降级矩阵完整**：没配 embedding key 时自动退回纯关键字通路，功能不失效
+- **降级信号无条件返回并置于数组首位**——曾因"只在零命中时返回"导致"有命中但质量差"场景信号丢失
+- **语义查询缓存**：cosine ≥ 0.93 命中，按用户 LRU（32 条/用户，64 用户），笔记更新时主动 invalidate
+- **角色感知预取**：委派 RESEARCH 子代理前 fire-and-forget 预取，因为确定它接下来一定会检索
+- **LLM 精排默认关闭**：额外一次 LLM 调用，收益不确定时不开
 
 ---
 
-## 3. 已落地的工具集（20 个）
+## 10. MCP 双向集成
 
-| 域 | 工具 | 读/写 | 需确认 | 作用 |
-|---|---|---|---|---|
-| **task** | `task.create` | 写 |  | 新建任务（含 deadline / energy / preferredSlot） |
-|  | `task.search` | 读 |  | 关键字 + 截止日期范围查询 |
-|  | `task.today` | 读 |  | 今日可行动任务 |
-|  | `task.fuzzy_pending` | 读 |  | 列出粒度过粗、长期未拆的任务 |
-|  | `task.complete` | 写 | ✓ | 标记完成（触发事件回环） |
-|  | `task.archive` | 写 | ✓ | 归档任务 |
-| **goal** | `goal.list` / `goal.list_all` | 读 |  | 活跃目标 / 全部目标 |
-|  | `goal.create` | 写 | ✓ | 新建目标（长期/短期/临时） |
-|  | `goal.archive` | 写 | ✓ | 归档目标 + 联动归档其下任务 |
-|  | `goal.link_task` | 写 | ✓ | 把任务挂到一个或多个目标下 |
-| **note** | `note.list` | 读 |  | 列出非系统笔记（自动屏蔽 AGENT_MEMO） |
-|  | `note.create` | 写 |  | 新建用户笔记 |
-| **planner** | `planner.draft_goal_plan` | 读 |  | 调用项目原有 PlannerAgentService 拆目标（不落库） |
-|  | `planner.apply_goal_plan` | 写 | ✓ | 把上一步草案落库为目标 + 任务树 |
-| **insight** | `insight.daily_scores` | 读 |  | 区间每日规划完成得分曲线 |
-|  | `insight.summarize_period` | 读 |  | LLM 自然语言总结 + 建议 |
-| **local** | `local.list_dir` | 读 | ✓ | 列本地目录（必须在 Electron 白名单内） |
-|  | `local.read_file` | 读 | ✓ | 读本地文本文件（md/txt/json/yml…） |
-|  | `local.read_pdf` | 读 | ✓ | 读本地 PDF 纯文本（pdf-parse） |
+- **Server**：`/sse` + `/mcp/message`，把本地工具与资源暴露给外部 MCP 客户端（Claude Desktop、Cursor、Cline）
+- **Client**：`McpClientManager` 连接远程 MCP Server，把远端工具代理为本地 `@AgentTool`
+- **loopback（招牌特性）**：Agent 读本地文档时不走同进程直调的捷径，而是作为 MCP Client 连本机自己的 Server，完整走 SSE + JSON-RPC 握手。多一次本机回环 <5ms，换来协议栈完整复用
+- **健康检查**：30s 周期自动重连
 
-> **20 个工具全部由 `@AgentTool` 注解 + 反射注册**，新增工具只需在任意 `@Service` / `@Component` 上加一个方法、贴上注解，无需改 Registry。
+> **已知限制**：loopback 连接启动时建立并长期复用，绑定 token 持有者身份，与"当前对话用户"是两个独立身份。对"读本机白名单目录"可接受（白名单本身是全局配置）；多用户隔离部署需改成按对话用户动态签发临时 token。
 
 ---
 
-## 4. 三种对话模式
+## 11. 可观测与评测
 
-面板顶部下拉切换，本质是**给 LLM 喂的工具子集不同**（在 `PromptBuilder` 里按 tag 过滤）：
+- **轨迹埋点**：`AgentTraceListener` + `AgentTraceMetrics`，生产与测试**共用同一套埋点**
+- **端点**：`GET /api/agent/trace/stats`、`/api/agent/prefix-cache/stats`、`/api/observability/stats`
+- **评测体系**：录制回放，9 个轨迹用例 + 3 个上下文工程基准，离线零成本。详见 [`../Agent评测体系使用指南.md`](../Agent评测体系使用指南.md)
 
-| 模式 | 暴露的工具 tag | 适用场景 |
+**一条硬约束**（从"指标恒为 0"那个坑沉淀的）：**没有消费方的指标等于没有指标**。每个新能力必须同时有开关、有指标、有暴露端点。
+
+---
+
+## 12. 关键配置项
+
+| 配置 | 当前值 | 含义 |
 |---|---|---|
-| **Chat** | 全部 | 通用问答、灵活调度任意工具 |
-| **自动规划** | `task` `goal` `planner` `read` `write` | "把这个目标拆成可执行任务"，Agent 调 `planner.draft_goal_plan` → 用户确认 → `planner.apply_goal_plan` |
-| **复盘** | `task` `goal` `insight` `note` `read` | "这周完成度怎样？" Agent 自动跑 `insight.summarize_period` + 抽笔记/未完成任务给出反思 |
+| `agent.chat.max-steps` | 24 | 主循环步数上限 |
+| `agent.chat.history-window` | 30 | 短期记忆窗口 |
+| `agent.subagent.max-steps` | 12 | 子代理步数上限 |
+| `agent.subagent.result-max-chars` | 4000 | 子代理结论截断 |
+| `agent.subagent.parallel.size` / `timeout-seconds` | 4 / 120 | 并行 fan-out |
+| `agent.context.compaction.enabled` | **true** | 滚动摘要 |
+| `agent.context.facts.enabled` | **false** | Facts 层（见 §7 说明） |
+| `agent.prefix-cache.max-entries` / `expire-minutes` | 256 / 120 | 前缀缓存 |
+| `pkm.crag.upper` / `lower` | 0.6 / 0.4 | CRAG 分级阈值 |
+| `pkm.rag.serving.query-cache.threshold` | 0.93 | 语义缓存命中阈值 |
+
+技术栈：**Java 21** · Spring Boot 3.5.6 · WebSocket · MySQL · H2（评测）· Caffeine · Jackson · DeepSeek · bge-m3 · Electron · PDFBox · POI
 
 ---
 
-## 5. 核心创新点（面试讲解口径）
+## 13. 已知限制
 
-### 5.1 业务事件回环（Event Loop）
-Agent 写库 → 触发 Spring `TaskCreatedEvent` / `TaskCompletedEvent` → `GoalEventListener` 自动重算挂载目标的进度。
-这意味着 Agent 永远在用**业务真服务**而不是写一份"Agent 专用 DAO"，**业务代码 0 修改**。
-
-### 5.2 反射 + 注解的本地工具体系（MCP 等价）
-不依赖 Spring AI / LangChain：
-
-```java
-@AgentTool(name = "task.complete", tags = {"task","write"}, requiresConfirm = true,
-           description = "把指定 id 的任务标记为完成。需用户确认。")
-public TaskView complete(@ToolParam(value="id", desc="任务 id") Long id) { ... }
-```
-
-启动时一次扫描，运行时 `registry.invoke(name, JsonNode args)` 反射调用，并把方法签名导出成 OpenAI function-calling 风格的 JSON Schema 喂给 LLM。换言之：**这就是一个最小 MCP**。
-
-### 5.3 反向通道（Backend ↔ Electron）
-本地文件类工具走"反向 RPC"：
-
-```
-后端 LocalDocTools.readPdf
-   → LocalBridgeProxy 通过用户当前 WS 推 localCall
-   → 浏览器 chat-panel.js 收到后调 window.lattice.localBridge.readPdf
-   → Electron preload → ipcMain → fs/pdf-parse
-   → 原路返回（CompletableFuture，30s 超时）
-```
-
-**敏感操作不出用户机器**，且后端不知道用户磁盘结构——这是该架构相对"服务器代读"的核心安全优势。
-
-### 5.4 高危操作显式确认
-所有 `requiresConfirm = true` 的工具：在执行前推一条 `confirmReq` 给前端，前端弹气泡按钮，用户点"允许"才会真正落库；超时 60s 默认拒绝。
-
-### 5.5 Reflexion 式自纠偏
-工具异常时，错误 `{error, message}` 直接作为 user 角色追加到 history，下一步 LLM 自动改写参数。无需手写 retry 策略。
-
-### 5.6 长期记忆（基础版已就绪）
-会话结束时 `LongTermMemoryService.archive` 把对话浓缩为一段记忆，写入 `Note(type=AGENT_MEMO)`；下次会话开始时自动摘最近 5 条注入 system prompt。`AGENT_MEMO` 已在 `NoteController` / `NoteService` 层对用户列表完全屏蔽。
-
-### 5.7 解耦 + 抗循环依赖
-- Handler ↔ Orchestrator / ConfirmCoordinator / LocalBridgeProxy 之间用 `@Lazy` 切环
-- ToolRegistry 扫描时机用 `ApplicationReadyEvent` 而非 `@PostConstruct`，杜绝"扫描期触发别的 bean 初始化"造成的循环
-
----
-
-## 6. 关键文件索引
-
-### 后端（`src/main/java/.../feature/agent`）
-
-```
-chat/    AgentChatWebSocketHandler.java   ← WS 入口、消息分发、daemon 线程 + AgentContext
-runtime/ AgentOrchestrator.java           ← ReAct 主循环
-         PromptBuilder.java               ← 系统提示拼装 + 模式过滤
-         ConversationMemory.java          ← 内存版历史（窗口=30）
-         ToolCallParser.java              ← 抓 ```json``` / 外层 {} / 去 <think>
-         AgentContext.java                ← ThreadLocal user / sid
-         LongTermMemoryService.java       ← 会话归档为 AGENT_MEMO
-policy/  ToolConfirmCoordinator.java      ← 60s 超时的确认 future
-tool/    AgentTool.java / ToolParam.java  ← 注解
-         ToolRegistry.java                ← 扫描 + 反射 + schema 导出
-         ToolDefinition.java
-         LocalBridgeProxy.java            ← 反向 IPC future
-   impl/ TaskTools / GoalTools / NoteTools /
-         PlannerTools / InsightTools / LocalDocTools
-service/ LlmGateway.java                  ← DeepSeek 封装（chat / reasoner 兼容）
-```
-
-### 配置
-
-| 文件 | 作用 |
-|---|---|
-| `config/AgentWebSocketConfig.java` | 注册 `/ws/agent/**` |
-| `config/WebSecurityConfig.java` | CSRF 放行 + permitAll `/agent/**` |
-| `application.properties` | `agent.chat.model` `agent.chat.max-steps` 等 |
-
-### 前端
-
-| 文件 | 作用 |
-|---|---|
-| `templates/fragments/agent-panel.html` | Fab + 抽屉面板 fragment |
-| `templates/{dashboard,addMemo,preferenceSettings,selectFeatures}.html` | 4 处 fragment 注入点 |
-| `static/agent/chat-panel.css` | 抽屉 + 气泡样式 |
-| `static/agent/chat-panel.js` | sessionId / WS / 7 种消息渲染 / 反向 localCall 处理 |
-
-### Electron
-
-| 文件 | 作用 |
-|---|---|
-| `electron-app/preload.js` | 暴露 `window.lattice.localBridge.{listDir, readFile, readPdf}` |
-| `electron-app/main.js` | `ipcMain.handle('local:*')` + 路径/扩展名/大小校验 |
-| `electron-app/permission-config.json` | `allowDirs / denyDirs / allowExt / maxFileBytes` |
-
----
-
-## 7. 怎么用（用户视角）
-
-1. `gradlew.bat bootRun` 启动后端，启动末尾日志会出现 `[Agent] Registered 20 tools: [...]`
-2. 浏览器或 Electron 登录后，进入 `/dashboard` 等页面
-3. 点击右下角蓝紫色 **AI** 圆形悬浮按钮 → 右侧抽屉滑出
-4. 顶部下拉选模式（Chat / 自动规划 / 复盘）
-5. 输入框打字，**Ctrl+Enter** 发送
-6. 高危操作会弹出黄色确认气泡，点"允许"才会真的落库
-7. 想用本地文档工具：跑 Electron 壳，并把目录加进 `permission-config.json` 的 `allowDirs`
-
----
-
-## 8. 三个 Demo 验收路径
-
-| Demo | 自然语言指令 | Agent 应该跑出来的工具链 |
-|---|---|---|
-| **A. 业务闭环** | "帮我把今天没做完的事归档掉" | `task.today` → 多次 `task.archive`（每次走确认） → 终态自然语言总结 + GoalListener 自动更新进度 |
-| **B. 复盘** | "最近一周状态怎么样？给点建议" | `insight.daily_scores` → `insight.summarize_period` → `note.list`（可选） → 终态建议 |
-| **C. 本地文档驱动规划** | "读一下 D:/plan.pdf 帮我拆任务" | `local.read_pdf`（确认） → `planner.draft_goal_plan` → 用户审阅 → `planner.apply_goal_plan`（确认）落库 |
-
----
-
-## 9. 未来演进（Roadmap）
-
-| 版本 | 目标 |
-|---|---|
-| **V2** | 本地文档向量化（pgvector）+ `memory.search` 工具，让 Agent 跨会话检索历史输入 |
-| **V3** | 工具流式日志 + Token 级流式输出（提升交互观感） |
-| **V4** | 接入标准 **MCP 协议** 适配层，把现有 ToolRegistry 适配为 MCP server，向第三方客户端开放 |
-| **V5** | 主动型触发：定时复盘 / 任务到期主动提醒（cron + Agent 主动 push 入会话） |
-
----
-
-## 10. 已知限制
-
-- 长期记忆为「全文摘要」，没有向量检索，规模上去后会膨胀（V2 解决）
-- 浏览器壳里 `local.*` 工具不可用（必须 Electron 启动）
-- 工具调用并行未启用，一次只调一个工具（设计为线性 ReAct，便于审计）
-- ConversationMemory 是进程内内存，重启即清空（生产部署需替换为 Redis / DB）
-
----
-
-> 维护者：将本文档与 `Agent实现方案.md` 配合阅读——前者是"做完的事"，后者是"为什么这么做"。
+- `ConversationMemory` 是进程内内存，**重启即清空**（生产需替换为 Redis / DB）
+- 工具调用未并行，一次只调一个——设计为线性 ReAct 便于审计，且工具间常有数据依赖
+- 滚动摘要对**中段约束**的保护弱于早期约束（折叠放回队头 + 尾部截断的固有结果，实测散布场景留存 40%）
+- Facts 抽取准确率无离线证据，故默认关闭
+- 评测只覆盖"决策路径对不对"，未做 LLM-as-Judge 的答案质量评分
+- 浏览器壳里本地文档功能不可用（需 MCP loopback 且白名单配置）

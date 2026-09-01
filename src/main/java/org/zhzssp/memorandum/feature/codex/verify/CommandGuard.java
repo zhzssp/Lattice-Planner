@@ -202,7 +202,7 @@ public class CommandGuard {
      * 因为元字符已在前一道闸门被拒，剩下的形态只有「程序名 + 简单参数」。
      * 分词器越简单，可推理性越强。</p>
      */
-    static List<String> tokenize(String cmd) {
+    public static List<String> tokenize(String cmd) {
         List<String> out = new ArrayList<>();
         StringBuilder cur = new StringBuilder();
         char quote = 0;

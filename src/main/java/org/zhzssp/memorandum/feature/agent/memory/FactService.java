@@ -80,10 +80,28 @@ public class FactService {
      */
     public String stableSnippet(Long userId) {
         if (!enabled) return "";
-        List<AgentFact> facts = factRepo.findStableActive(userId);
+        List<AgentFact> facts = findStableForInjection(userId);
         if (facts.isEmpty()) return "";
         List<AgentFact> limited = facts.subList(0, Math.min(facts.size(), maxStable));
         return format(limited);
+    }
+
+    /**
+     * 按 {@code stable-apply-granularity} 取要注入 system 的稳定 facts。
+     *
+     * <p>{@code DAY} 只取今天零点前就已存在的：稳定 facts 拼进 system prompt 并参与
+     * memoHash，若今天刚抽到的立刻生效，每抽一条就打穿一次上游前缀缓存。攒到次日
+     * 生效，换来 system 段一整天字节不变。代价是新抽到的稳定偏好当天不进上下文——
+     * 这是设计里明确接受的取舍：稳定偏好本就是长期的，晚一天无妨，而前缀缓存是
+     * 每一轮都在付的成本。需要立刻生效的约束应该被抽成 VOLATILE，走 history 注入。</p>
+     *
+     * <p>其余取值（如 {@code IMMEDIATE}）＝不延迟，立即生效。</p>
+     */
+    private List<AgentFact> findStableForInjection(Long userId) {
+        if ("DAY".equalsIgnoreCase(stableGranularity == null ? "" : stableGranularity.strip())) {
+            return factRepo.findStableActiveCreatedBefore(userId, LocalDate.now().atStartOfDay());
+        }
+        return factRepo.findStableActive(userId);
     }
 
     /**
@@ -186,7 +204,7 @@ public class FactService {
                 String value = n.path("value").asText("").strip();
                 AgentFact.Kind kind = "STABLE".equalsIgnoreCase(n.path("kind").asText())
                         ? AgentFact.Kind.STABLE : AgentFact.Kind.VOLATILE;
-                AgentFact.Confidence conf = AgentFact.Confidence.of(n.path("confidence").asText());
+                AgentFact.Confidence conf = AgentFact.Confidence.ofCandidate(n.path("confidence").asText());
                 if (key.isEmpty() || value.isEmpty()) continue;
                 if (conf.ordinal() > floor.ordinal()) continue; // 低于下限的丢弃
                 out.add(new Extracted(key, value, kind, conf));
@@ -198,8 +216,8 @@ public class FactService {
     }
 
     private AgentFact.Confidence parseFloor() {
-        // HIGH=0, MEDIUM=1；下限为 MEDIUM 时，HIGH/MEDIUM 都收
-        return AgentFact.Confidence.of(minConfidenceRaw);
+        // HIGH=0, MEDIUM=1, LOW=2；下限为 MEDIUM 时收 HIGH/MEDIUM，LOW 被 ordinal 比较挡掉
+        return AgentFact.Confidence.ofFloor(minConfidenceRaw);
     }
 
     /* ==================== 落库（覆盖语义） ==================== */

@@ -1,8 +1,10 @@
 # Agent 评测体系使用指南
 
 > 位置：`src/test/java/org/zhzssp/memorandum/agenteval/`
-> 状态：**框架已完成并验证通过**，待补录制盒
+> 状态：**框架完成，9 个轨迹用例全部就位**；`./gradlew agentEval` 离线全绿
 > 对应方案：`docs/Agent优化方案候选.md` 方案 A
+>
+> 最近一次校对：2026-09-01（修复两个让评测「假绿」的台账缺陷，见 §6）
 
 ---
 
@@ -84,7 +86,7 @@ LlmTransport  ← 抽象接口（唯一被替换的地方）
 | `AgentChatWebSocketHandler` | 评测中发帧无意义 |
 | `UserRepository` | 提供固定测试用户 |
 
-数据库用 H2 内存库，**仅用于装配 Spring 上下文**，不承载业务断言。
+数据库用 H2 内存库装配 Spring 上下文。**注意它不是纯摆设**：`task.create` 这类写工具会真的往 H2 里插数据，所以评测用户必须真实落库（`AgentEvalBase.ensureUserRow()`），否则外键约束会让写工具全部静默失败 —— 详见 §6.2。
 
 这个边界划分是有意的：它让评测能在**无 MySQL、无网络、无 API Key** 的 CI 环境常态运行。
 
@@ -96,7 +98,23 @@ LlmTransport  ← 抽象接口（唯一被替换的地方）
 |---|---|---|---|---|
 | **L1 单元** | `agenteval/unit/` | 无 | 毫秒 | `ToolCallParser` 解析鲁棒性等纯逻辑 |
 | **L2 轨迹** | `agenteval/cases/` | Spring + H2 + 录制盒 | 秒级 | Agent 决策质量（**核心**） |
+| **B 基准** | `agenteval/bench/` | 无 | 毫秒 | 上下文工程的开关前后对比（见 §11） |
 | L3 集成 | 标 `@Tag("integration")` | 真实 MySQL + API Key | 分钟 | 默认跳过，`-Pintegration` 开启 |
+
+### 关于 `MemorandumApplicationTests.contextLoads()`
+
+`./gradlew test` 跑全量时，唯一一个会红的用例是它。原因不是缺陷，是**它是全仓唯一依赖真实 MySQL 的测试**：
+
+```java
+@SpringBootTest          // 裸注解，不带 @ActiveProfiles
+class MemorandumApplicationTests { void contextLoads() { ... } }
+```
+
+不指定 profile 就走 `src/main/resources/application.properties`，那里的 `spring.datasource.url` 指向 `jdbc:mysql://localhost:3306/memo_db`。本机没起 MySQL 时，Hibernate 拿不到 JDBC metadata，报 `Unable to determine Dialect`，上下文装配失败。
+
+**它和 Agent 评测完全无关** —— `agentEval` 走 `agenteval` profile + H2，不受影响。本机起了 MySQL 就能通过。
+
+> 若希望 `./gradlew test` 在干净环境下也全绿，可选：给它加 `@ActiveProfiles` 指向一个 H2 profile，或改用 Testcontainers 拉一个真 MySQL。前者快但测不到真实方言，后者慢但更接近生产 —— 尚未选型。
 
 ---
 
@@ -108,26 +126,31 @@ LlmTransport  ← 抽象接口（唯一被替换的地方）
 ./gradlew agentEval
 ```
 
-输出示例：
+当前实际输出（2026-09-01）：
 
 ```
 ══════════════════════════════════════════════════════════════
   Agent 评测报告   mode=replay   用例数=9
 ══════════════════════════════════════════════════════════════
-  收敛率        88.9%    (收敛 8 / 步数耗尽 1 / LLM失败 0)
-  工具幻觉率    0.0%     (0 次编造 / 0 个用例受影响)
-  含工具失败    1 个用例
-  步数 P50/P95  2 / 5   最大 6
-  LLM 调用      共 21 次，均 2.33 次/用例
+  收敛率       100.0%    (收敛 9 / 步数耗尽 0 / LLM失败 0)
+  工具幻觉率     0.0%    (0 次编造 / 0 个用例受影响)
+  含工具失败       1 个用例   ← tool_error_recovery，用例故意制造
+  步数 P50/P95   1 / 2    最大 2
+  LLM 调用      共 18 次，均 2.00 次/用例
+  录制新鲜度    0 个用例漂移（全部录制与当前 prompt 一致）
 ──────────────────────────────────────────────────────────────
   逐用例明细
    PASS    create_task_basic       steps=1 llm=2 tools=task.create
+   PASS    kb_search_hit           steps=1 llm=2 tools=kb.semantic_search
    PASS    kb_search_degraded      steps=1 llm=2 tools=kb.semantic_search
+   PASS    tool_error_recovery     steps=2 llm=3 failed=task.search
    ...
 ══════════════════════════════════════════════════════════════
 ```
 
 同时写入 `build/agent-eval/report.json` 供 CI 归档与趋势对比。
+
+> **步数 P50=1 偏低是回放的性质，不是模型很聪明**：录制盒固定了"模型说了什么"，所以每个用例的路径是录下来那一条。这个指标在 record 模式下才反映真实决策效率。
 
 ### 录制（需 API Key，产生真实调用与费用）
 
@@ -148,24 +171,59 @@ set DEEPSEEK_API_KEY=sk-xxx
 
 ## 6. 当前状态
 
-**已验证通过**：
+### 6.1 跑通情况
 
-- L1 单元测试 **9/9 PASSED**
-- L2 框架端到端跑通：Spring 上下文在无 MySQL/无网络下成功装配
-- 2 个手工 fixture 用例 **PASSED**（`no_tool_hallucination`、`mode_isolation_learn`）
-- 报告生成正常
+| 命令 | 结果 |
+|---|---|
+| `./gradlew agentEval` | **9/9 用例通过**，收敛率 100%，工具幻觉率 0% |
+| `./gradlew test` | 367 个用例，1 个失败（`contextLoads`，需真实 MySQL，见 §4） |
 
-**待你完成**：其余 7 个用例需录制。
+9 个轨迹用例的录制盒**全部就位**。其中 `no_tool_hallucination`、`mode_isolation_learn` 及后补的 7 个均为**手工编写的 fixture**（`fingerprint: null`，跳过漂移检测），用于在无 API Key 时验证框架。
 
-```bash
-# 一次性录制全部（约 20 次 LLM 调用，成本极低）
-set DEEPSEEK_API_KEY=sk-xxx
-gradlew agentEval -Dagent.eval.mode=record
+> **建议尽快用真实 API 重录一遍**。手工 fixture 固定的是「我认为模型会这么答」，而评测的价值恰恰在于发现「模型实际不这么答」。手工盒能验证链路，不能验证模型行为。
+>
+> ```bash
+> set DEEPSEEK_API_KEY=sk-xxx
+> gradlew agentEval -Dagent.eval.mode=record
+> ```
+>
+> 录制后逐个检查 `cassettes/*.json` 的 `responseContent`，确认模型行为合理（比如 `kb_search_degraded` 里它是否真的说了"未找到强相关笔记"）。**若模型行为本身不对，那是 prompt 需要改，不是测试需要改** —— 这正是评测体系的价值。
+
+### 6.2 ★曾让评测「假绿」的两个台账缺陷（已修）
+
+这两个都属于**评测本身坏了，但它报告自己是好的** —— 比被测代码有 bug 更危险，因为它让所有其它结论都不可信。记录在这里是为了下次别再犯。
+
+**缺陷一：H2 把 `user` 当保留字，DB 层静默损坏**
+
+实体表名就叫 `user`，而 `USER` 是 H2 2.x 的保留字。任何 JOIN 到它的查询都抛 `42001` 语法错，而多数调用点把异常吞成「查无结果」。于是评测跑在一个**静默损坏的 DB 层**上，看起来还全绿。
+
+修复：H2 URL 加 `NON_KEYWORDS=USER`。
+
+```properties
+spring.datasource.url=jdbc:h2:mem:agenteval;...;MODE=MySQL;NON_KEYWORDS=USER
 ```
 
-录制后逐个检查 `cassettes/*.json` 的 `responseContent`，确认模型行为合理（比如 `kb_search_degraded` 里它是否真的说了"未找到强相关笔记"）。**若模型行为本身不对，那是 prompt 需要改，不是测试需要改** —— 这正是评测体系的价值。
+**缺陷二：评测用户从不落库，写工具全部失败却不报错**
 
-> 注意：两个 fixture 是**手工编写**的（`fingerprint: null` 跳过漂移检测），用于在无 API Key 时验证框架。建议也一并重新录制为真实数据。
+`UserRepository` 是 mock，测试用户只活在内存里。而 `task.create` 会插入指向 `user` 的外键 —— 缺行就是 `23506` 外键冲突。**所有写工具在评测里其实一直执行失败**，但断言只检查「工具被调用过」，所以 9 个用例照样全绿。
+
+唯一能看出来的地方是报告里的 `failedTools` 字段，而在发现之前没人看它。
+
+修复：`AgentEvalBase.ensureUserRow()` 用 `JdbcTemplate` 把用户真正 MERGE 进 H2。
+
+**教训（值得在面试里讲）**：
+
+> 一个只断言「工具被调用了」的评测套件，测的是**模型选对了工具**，不是**这次调用真的成功了**。两者差一个数量级的信息量。现在的做法是把 `failedTools` 纳入报告并逐用例核对 —— 目前唯一非空的是 `tool_error_recovery`，那是用例**故意**制造的失败，用来测反思重试。
+
+### 6.3 怎么判断报告是否可信
+
+跑完后先看这三个字段，任何一个异常都说明是台账问题而非模型问题：
+
+| 字段 | 期望 | 异常时说明 |
+|---|---|---|
+| `failedTools` | 仅 `tool_error_recovery` 非空 | 工具执行真的失败了，多半是环境/DB 问题 |
+| `driftWarnings` | 空 | prompt 改过，录制盒已过期，需重录 |
+| 控制台 `SQL Error` | 无 | DB 层静默损坏，见 §6.2 |
 
 ---
 
@@ -238,12 +296,42 @@ GET /api/agent/trace/stats
 >
 > 指标上跑一遍能拿到收敛率、工具幻觉率、步数 P50/P95、平均 LLM 调用数。CI 里是完全离线的，不需要 API Key。
 
-**Part 7 边界表要新增一行**（诚实划界）：
+**Part 7 边界表要新增两行**（诚实划界）：
 
 | 我做的 | 我没做的 |
 |---|---|
 | 轨迹回放 + 决策层断言 + 指标报告 | **LLM-as-Judge 的答案质量自动评分**、多轮对话的长程一致性评测、对抗性测试集 |
+| 上下文工程的机制级基准（见 §11） | **真实模型的摘要质量评测** —— 基准里的摘要器是抽取式桩 |
 
 被问到时可以说：
 
 > 我评的是"决策路径对不对"，还没做"答案写得好不好"。后者需要 LLM-as-Judge 或人工标注评分集，属于下一步。
+
+**另外强烈建议讲 §6.2 那两个台账缺陷** —— 这是本项目最有说服力的一段，因为它证明的不是"我写了测试"，而是"我怀疑过自己的测试"：
+
+> 我的评测套件有段时间是假绿的：写工具因为外键约束一直执行失败，但断言只检查「工具被调用过」，所以 9 个用例全通过。是我去核对报告里 `failedTools` 字段才发现的。这件事让我意识到，**断言的粒度决定了测试的信息量** —— 「调用了」和「调用成功了」差一个数量级。
+
+---
+
+## 11. 上下文工程基准（`agenteval/bench/`）
+
+轨迹评测回答的是「单轮决策对不对」，回答不了「跑几十轮之后上下文还剩什么」。后者是滚动摘要与 Facts 层要解决的问题，所以单开一组基准。
+
+```bash
+./gradlew test --tests '*ContextEngineeringBenchmark*'
+# 报告写入 build/agent-eval/context-engineering.md
+```
+
+**三个基准**：
+
+| 基准 | 量什么 | 当前结果 |
+|---|---|---|
+| 1 · 长对话约束留存 | 40 轮后，第 1..5 轮说的硬约束还剩几条 | 关闭 0/5；开启 5/5（约束集中在开头）或 2/5（散布到第 17 轮） |
+| 2 · 纯工具噪声短路 | 整段是工具 trace 时实付多少次摘要调用 | 60 次折叠判定，0 次 LLM 调用 |
+| 3 · facts 前缀稳定性 | 一天内 system 段出现几种字节版本 | IMMEDIATE 9 种；DAY 恒为 1 种 |
+
+**口径声明（读结论前必看）**：窗口淘汰、折叠触发与级联、200 字截断、噪声短路、DAY 粒度卡点都是被测代码的真实行为；**但摘要器本身是抽取式桩**，不是真实 LLM。所以留存率量的是「折叠机制能否把约束带过窗口边界」，不是「某个模型的摘要写得好不好」。后者要在 record 模式下用真 API 单独量。
+
+**基准 1 那个 2/5 是刻意补的对照**，值得单独讲：第一版只测了约束集中在开头的情况，跑出 5/5。深究后发现是折叠把最老一段压成一条**放回队头**、而摘要超长时从**尾部**截断，所以越早说的越受保护 —— 场景恰好挑在了最有利的位置。把同样 5 条约束散开，留存立刻掉到 40%。
+
+> 这是机制的真实边界，不是实现 bug。写进文档而不是藏起来，因为「早期约束保得住、中段约束会衰减」才是可以拿去做决策的结论，「开了 compaction 就不丢信息」不是。

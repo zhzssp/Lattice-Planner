@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 进程内会话短期记忆。每个 sessionId 对应一个滑动窗口。
@@ -36,6 +37,8 @@ public class ConversationMemory {
     private final Map<String, Deque<Msg>> store = new ConcurrentHashMap<>();
     /** sessionId -> 最后一次 append 的时刻，用于空闲归档判定。 */
     private final Map<String, Instant> lastActiveAt = new ConcurrentHashMap<>();
+    /** sessionId -> 已开始的用户轮次数，供 facts 的 source_turn 追溯。 */
+    private final Map<String, AtomicInteger> turnCounters = new ConcurrentHashMap<>();
 
     public List<Msg> history(String sid) {
         Deque<Msg> q = store.get(sid);
@@ -85,9 +88,26 @@ public class ConversationMemory {
         }
     }
 
+    /**
+     * 开启新一轮，返回该轮在本会话中的序号（第一轮为 1）。
+     *
+     * <p>轮次不能从消息条数推算：窗口会滑动、会被摘要折叠，条数是会变小的量，
+     * 而 {@code source_turn} 要的是「用户第几次开口」这个单调不减的事实。</p>
+     */
+    public int nextTurn(String sid) {
+        return turnCounters.computeIfAbsent(sid, k -> new AtomicInteger()).incrementAndGet();
+    }
+
+    /** 当前轮次序号；尚未开始任何轮返回 0。 */
+    public int currentTurn(String sid) {
+        AtomicInteger c = turnCounters.get(sid);
+        return c == null ? 0 : c.get();
+    }
+
     public void clear(String sid) {
         store.remove(sid);
         lastActiveAt.remove(sid);
+        turnCounters.remove(sid);
     }
 
     /** 该会话最后活跃时刻；从未活跃返回 null。 */

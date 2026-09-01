@@ -46,7 +46,7 @@ class CommandGuardTest {
         guard = new CommandGuard(git);
         ReflectionTestUtils.setField(guard, "allowedExecutablesRaw",
                 "bash,python,git,cmake,ninja,mlir-opt,pytest");
-        ReflectionTestUtils.setField(guard, "allowScriptsOutsideGit", false);
+        ReflectionTestUtils.setField(guard, "allowUntrackedScripts", false);
 
         // 造出仓库结构：<root>/scripts/all.sh 与 <root>/lab/scripts/run.sh
         Files.createDirectories(repoRoot.resolve("scripts"));
@@ -256,7 +256,7 @@ class CommandGuardTest {
         void canBeRelaxed() throws Exception {
             Files.writeString(repoRoot.resolve("scripts/sneaky.sh"), "echo x\n");
             when(git.isTracked(any(Path.class), anyString())).thenReturn(false);
-            ReflectionTestUtils.setField(guard, "allowScriptsOutsideGit", true);
+            ReflectionTestUtils.setField(guard, "allowUntrackedScripts", true);
 
             assertTrue(guard.check("bash scripts/sneaky.sh", null, repoRoot).allowed());
         }

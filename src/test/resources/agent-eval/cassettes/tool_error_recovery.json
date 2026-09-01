@@ -1,0 +1,28 @@
+{
+  "caseId" : "tool_error_recovery",
+  "recordedAt" : "2026-09-01T11:30:00",
+  "recordedModel" : "deepseek-chat",
+  "_comment" : "手工编写的 fixture（非真实录制）：第一步把 id 误当日期传给 from，触发 DateTimeParseException；Reflexion 注入策略提示后模型换用 keyword 重试并正常收尾。验证错误被消化而非泄漏异常栈。fingerprint 为 null 表示跳过漂移检测。",
+  "interactions" : [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[2 msgs] last=把 id 为 999999 的任务标记为完成",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{\"from\":\"999999\"}}",
+    "responseUsageJson" : null
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[4 msgs] last=[tool_result task.search] error",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{\"keyword\":\"999999\"}}",
+    "responseUsageJson" : null
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[6 msgs] last=[tool_result task.search]",
+    "responseContent" : "我没有找到 id 为 999999 的任务，你的任务列表里目前没有这条记录，所以没法把它标记为完成。你可以先让我列出现有任务，确认一下正确的编号，我再帮你标记。",
+    "responseUsageJson" : null
+  } ]
+}

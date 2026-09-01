@@ -35,17 +35,38 @@ public class AgentFact {
         VOLATILE
     }
 
-    /** 抽取置信度。 */
+    /**
+     * 抽取置信度。<strong>声明顺序即强度顺序</strong>，{@code ordinal()} 越大越弱——
+     * 入库下限过滤依赖这个顺序（见 {@code FactService.parseExtracted}）。
+     *
+     * <p>LOW 参与枚举只是为了让「低于下限」这件事可被表达并因此被过滤掉；
+     * 它永远不会落库，因为过滤发生在 save 之前。</p>
+     */
     public enum Confidence {
-        HIGH, MEDIUM;
-        // LOW 不入库，故不在此枚举中
+        HIGH, MEDIUM, LOW;
 
-        public static Confidence of(String s) {
-            if (s == null) return MEDIUM;
+        /**
+         * 解析模型输出的置信度。无法识别一律当 LOW —— 宁缺勿错：
+         * 模型漏写或乱写 confidence 时，该条候选应当被下限挡掉，而不是蒙混成 MEDIUM 入库。
+         */
+        public static Confidence ofCandidate(String s) {
+            return parse(s, LOW);
+        }
+
+        /**
+         * 解析配置里的入库下限。无法识别回落 MEDIUM —— 与 ofCandidate 反向：
+         * 配置笔误不该把闸门开到最大（若也回落 LOW，则等于什么都收）。
+         */
+        public static Confidence ofFloor(String s) {
+            return parse(s, MEDIUM);
+        }
+
+        private static Confidence parse(String s, Confidence fallback) {
+            if (s == null) return fallback;
             for (Confidence c : values()) {
                 if (c.name().equalsIgnoreCase(s.trim())) return c;
             }
-            return MEDIUM;
+            return fallback;
         }
     }
 

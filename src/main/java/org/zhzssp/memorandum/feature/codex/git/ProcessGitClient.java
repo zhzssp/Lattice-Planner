@@ -165,7 +165,7 @@ public class ProcessGitClient implements GitClient {
             in.append(f.toAbsolutePath()).append('\n');
         }
         try {
-            Result r = exec(repo, timeoutSeconds, in.toString(), args.toArray(new String[0]));
+            Result r = execWithStdin(repo, timeoutSeconds, in.toString(), args.toArray(new String[0]));
             if (r.exitCode() != 0) return fallbackHashes(repo, files);
             List<String> out = new ArrayList<>(files.size());
             for (String line : r.stdout().split("\\R")) {
@@ -380,7 +380,7 @@ public class ProcessGitClient implements GitClient {
         try {
             // -F -：从 stdin 读 message。用 -m 拼多行会遇到 Windows 下的引号与换行差异，
             // 而提交信息里恰恰要带 Session / Co-authored-by 这类多行 trailer。
-            Result r = exec(repo, timeoutSeconds, message, "commit", "-F", "-");
+            Result r = execWithStdin(repo, timeoutSeconds, message, "commit", "-F", "-");
             if (r.exitCode() != 0) {
                 String err = (r.stderr() + r.stdout()).toLowerCase();
                 if (err.contains("please tell me who you are") || err.contains("user.email")) {
@@ -505,10 +505,15 @@ public class ProcessGitClient implements GitClient {
     }
 
     private Result exec(Path cwd, int timeout, String... args) throws Exception {
-        return exec(cwd, timeout, null, args);
+        return execWithStdin(cwd, timeout, null, args);
     }
 
-    private Result exec(Path cwd, int timeout, String stdin, String... args) throws Exception {
+    /**
+     * 带 stdin 的执行。刻意与 {@link #exec} 分名而非重载：两者若同名，
+     * {@code exec(repo, t, "diff", "HEAD")} 在变长参数阶段对
+     * {@code (String...)} 与 {@code (String, String...)} 同时可用且无更具体者，编译期歧义。
+     */
+    private Result execWithStdin(Path cwd, int timeout, String stdin, String... args) throws Exception {
         List<String> cmd = new ArrayList<>(args.length + 1);
         cmd.add(gitExecutable);
         cmd.addAll(List.of(args));

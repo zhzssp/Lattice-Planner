@@ -206,4 +206,7 @@ FactServiceTest        10 用例：抽取 / 置信度 / 覆盖 / REJECTED 永不
 1. **摘要有损，无法保证忠实**。设计只保证「折叠过这件事不会被隐瞒」（`CAUSE_SUMMARIZED` 留痕），不保证「折叠内容完全正确」。
 2. **facts 可能抽错，且错误会被注入每一轮**。三层防护（只收 MEDIUM+ / 可核对 / REJECTED 永不再抽）降低概率，但消除不了。这是两个开关默认关闭、且建议「先只开摘要」的原因。
 3. **facts 的 key 归一化是启发式的**。同义不同 key（`deadline.project-x` vs `deadline.projectX`）可能导致覆盖失效。缓解：注入时未做 value 去重（当前量级可接受），彻底解决需受控词表。
-4. **稳定 facts 的 DAY 粒度是「简化实现」**：当前直接并入 memo 每轮拼接，靠「稳定 facts 本身抽取稀少」控制 memoHash 变化频率，未做显式的「攒到次日」缓存。若将来稳定 facts 频繁变化，需补 `stable-apply-granularity` 的真正实现。
+4. ~~**稳定 facts 的 DAY 粒度是「简化实现」**~~ —— 已补齐。`stableSnippet` 现按 `stable-apply-granularity` 取数：`DAY` 只取 `createdAt < 今天零点` 的 fact（`findStableActiveCreatedBefore`），system 段全天字节恒定；其余取值立即生效。实测见 `build/agent-eval/context-engineering.md` 基准 3：一天内新增 8 条稳定 fact，IMMEDIATE 下 system 段出现 9 种字节版本，DAY 下恒为 1 种。
+   **代价要如实说**：新抽到的稳定偏好当天不进上下文。需要立刻生效的约束应被抽成 `VOLATILE`——那条路径走 history 首条注入，不参与 memoHash。
+
+5. **折叠对「中段约束」的保护弱于「早期约束」**。折叠把最老一段压成一条放回<em>队头</em>，而摘要超长时从<em>尾部</em>截断，于是越早说的内容越靠队头、越受保护。基准 1 实测：同样 5 条约束，集中在第 1..5 轮时 40 轮后留存 5/5，散布到第 1..17 轮时只剩 2/5。这不是实现 bug，是「反复压缩 + 尾部截断」的固有结果；要改善需让摘要器按重要性而非位置取舍，属 P2 范围。

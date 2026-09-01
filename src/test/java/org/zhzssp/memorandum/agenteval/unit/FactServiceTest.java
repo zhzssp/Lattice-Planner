@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.zhzssp.memorandum.feature.agent.memory.AgentFact;
 import org.zhzssp.memorandum.feature.agent.memory.AgentFactRepository;
@@ -95,16 +96,27 @@ class FactServiceTest {
         }
 
         @Test
-        @DisplayName("低置信候选（低于下限）不入库")
+        @DisplayName("★低置信候选（低于下限）不入库")
         void dropsLowConfidence() {
-            // 下限是 MEDIUM；LOW 不在枚举里，用解析不到的方式构造——直接断言：
-            // 抽到 confidence 低于下限的条目应被丢弃。这里用 MEDIUM 下限 + 一条 LOW 输出验证。
-            // 由于 LOW 不在 Confidence 枚举，解析会回退 MEDIUM，故改测：kind 非法 + 空值过滤
+            // 下限 MEDIUM。LOW 必须被挡掉——facts 注入每一轮，抽错的污染面比一次错误回答大得多。
+            // 缺失 confidence 字段等同 LOW：模型漏写不该蒙混成 MEDIUM 入库（宁缺勿错）。
+            when(llm.generateText(anyString())).thenReturn(llmJson(
+                    "{\"key\":\"guess.a\",\"value\":\"看起来像是下周\",\"kind\":\"VOLATILE\",\"confidence\":\"LOW\"}",
+                    "{\"key\":\"missing.b\",\"value\":\"没写置信度\",\"kind\":\"VOLATILE\"}",
+                    "{\"key\":\"ok.c\",\"value\":\"原文明确说了\",\"kind\":\"VOLATILE\",\"confidence\":\"HIGH\"}"));
+            service.extractAsync(1L, "s1", "这是一条足够长的用户输入，用于触发事实抽取流程", 0);
+            assertEquals(1, saved.size(), "LOW 与缺失 confidence 的候选都应被下限挡掉");
+            assertEquals("ok.c", saved.get(0).getFactKey());
+        }
+
+        @Test
+        @DisplayName("空 key 或空 value 的候选被丢弃")
+        void dropsEmptyKeyOrValue() {
             when(llm.generateText(anyString())).thenReturn(llmJson(
                     "{\"key\":\"\",\"value\":\"无 key\",\"kind\":\"VOLATILE\",\"confidence\":\"HIGH\"}",
                     "{\"key\":\"x\",\"value\":\"\",\"kind\":\"VOLATILE\",\"confidence\":\"HIGH\"}",
                     "{\"key\":\"ok\",\"value\":\"有 key 有值\",\"kind\":\"VOLATILE\",\"confidence\":\"HIGH\"}"));
-            service.extractAsync(1L, "s1", "这是一条足够长的用户输入用于触发抽取", 0);
+            service.extractAsync(1L, "s1", "这是一条足够长的用户输入，用于触发事实抽取流程", 0);
             assertEquals(1, saved.size(), "空 key 或空 value 的候选应被丢弃");
             assertEquals("ok", saved.get(0).getFactKey());
         }
@@ -210,7 +222,7 @@ class FactServiceTest {
         void stableSnippetFormat() {
             AgentFact f = new AgentFact();
             f.setFactValue("习惯早上做深度工作");
-            when(repo.findStableActive(1L)).thenReturn(List.of(f));
+            when(repo.findStableActiveCreatedBefore(eq(1L), any())).thenReturn(List.of(f));
             String s = service.stableSnippet(1L);
             assertTrue(s.contains("习惯早上做深度工作"));
             assertFalse(s.contains("[已知事实]"), "稳定 facts 走 system，由 handler 统一加段标题");
@@ -219,8 +231,38 @@ class FactServiceTest {
         @Test
         @DisplayName("无稳定 facts 时返回空串（不污染 memoHash）")
         void stableSnippetEmpty() {
-            when(repo.findStableActive(1L)).thenReturn(List.of());
+            when(repo.findStableActiveCreatedBefore(eq(1L), any())).thenReturn(List.of());
             assertEquals("", service.stableSnippet(1L));
+        }
+
+        @Test
+        @DisplayName("★DAY 粒度只取今天零点前创建的稳定 facts（今天新抽的不进 system）")
+        void dayGranularityCutsAtMidnight() {
+            AgentFact f = new AgentFact();
+            f.setFactValue("习惯早上做深度工作");
+            when(repo.findStableActiveCreatedBefore(eq(1L), any())).thenReturn(List.of(f));
+
+            service.stableSnippet(1L);
+
+            // 卡点必须正好是今天零点：早一秒会漏掉昨天的，晚一秒会放今天新抽的进 system，
+            // 而 system 段一变就打穿上游前缀缓存——这正是 DAY 粒度要买的东西。
+            ArgumentCaptor<java.time.LocalDateTime> cutoff =
+                    ArgumentCaptor.forClass(java.time.LocalDateTime.class);
+            verify(repo).findStableActiveCreatedBefore(eq(1L), cutoff.capture());
+            assertEquals(java.time.LocalDate.now().atStartOfDay(), cutoff.getValue());
+            verify(repo, never()).findStableActive(anyLong());
+        }
+
+        @Test
+        @DisplayName("非 DAY 粒度立即生效（走不带时间卡点的查询）")
+        void nonDayGranularityAppliesImmediately() {
+            ReflectionTestUtils.setField(service, "stableGranularity", "IMMEDIATE");
+            AgentFact f = new AgentFact();
+            f.setFactValue("习惯早上做深度工作");
+            when(repo.findStableActive(1L)).thenReturn(List.of(f));
+
+            assertTrue(service.stableSnippet(1L).contains("习惯早上做深度工作"));
+            verify(repo, never()).findStableActiveCreatedBefore(anyLong(), any());
         }
 
         @Test

@@ -224,7 +224,7 @@ public class McpLocalFileService {
 
     /* ---- 安全校验 ---- */
 
-    boolean isAllowed(Path path) {
+    public boolean isAllowed(Path path) {
         if (!enabled) return false;
         Path abs = path.toAbsolutePath().normalize();
         for (Path allowed : getAllowedDirs()) {
