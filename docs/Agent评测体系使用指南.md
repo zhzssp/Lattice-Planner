@@ -98,8 +98,12 @@ LlmTransport  ← 抽象接口（唯一被替换的地方）
 |---|---|---|---|---|
 | **L1 单元** | `agenteval/unit/` | 无 | 毫秒 | `ToolCallParser` 解析鲁棒性等纯逻辑 |
 | **L2 轨迹** | `agenteval/cases/` | Spring + H2 + 录制盒 | 秒级 | Agent 决策质量（**核心**） |
+| **L2 检索** | `agenteval/rag/` | Spring + H2（只桩 `EmbeddingClient`） | 秒级 | 检索召回、排序、降级阈值标定（见 §6.7） |
 | **B 基准** | `agenteval/bench/` | 无 | 毫秒 | 上下文工程的开关前后对比（见 §11） |
 | L3 集成 | 标 `@Tag("integration")` | 真实 MySQL + API Key | 分钟 | 默认跳过，`-Pintegration` 开启 |
+
+> 轨迹层与检索层**刻意分开**：前者问"Agent 选对工具了吗"，后者问"知识库把该给的内容给出来了吗"。
+> 混成一个数字，分数掉了就无法归因该调检索还是调 prompt。
 
 ### 关于 `MemorandumApplicationTests.contextLoads()`
 
@@ -551,6 +555,98 @@ $env:AGENT_EVAL_JUDGE_KEY = "sk-xxx"
 
 裁判走 `HttpLlmTransport` 而非评测的 `@Primary` 传输层——否则回放模式下会因
 盒子里没有裁判请求而报错，录制模式下则会**把裁判调用污染进录制盒**。
+
+---
+
+### 6.7 ★RAG 检索质量单独度量（P4，已实施）
+
+**核心原则**：检索质量与生成质量**必须分开报告**。一个混合的"RAG 好不好"数字是陷阱——分数掉了你不知道该调检索还是调 prompt。
+
+#### 起点：评测里的检索从来没真正跑过
+
+| 通路 | 为什么在评测里是死的 |
+|---|---|
+| 关键字 | `MATCH ... AGAINST` 是 MySQL 专有语法，H2 抛异常 |
+| 向量 | `EmbeddingClient.embed()` 要调外部 API，没 key 抛异常 |
+
+两处异常都被 `RagSearchService` 的 try/catch 吞掉，只剩一行 debug 日志。
+再叠加 `AgentEvalBase` 直接 mock 掉整个 `RagSearchService`，结果是：
+**`kb_search_degraded` 通过，是因为 mock 返回了空列表，不是因为检索真的判断出"库里没有"**。
+
+#### 解法：只桩最外层的一颗螺丝
+
+新建 `RagEvalBase`（**不复用** `AgentEvalBase`），唯一桩掉的是 `EmbeddingClient`。
+余弦、加权融合、排序、top-k 截断、CRAG 分级与降级判定**全部是真实产品代码**。
+
+金标集用**命名主题权重**描述相关性，由 `TopicVectors` 编译成确定性向量：
+
+```json
+{ "id": 90101, "title": "Kafka 消费者组", "topics": { "kafka": 0.8, "consumer_group": 0.6 } }
+```
+
+> **能测什么、不能测什么**：测得了检索链路、排序融合与阈值标定；
+> **测不了嵌入模型的语义质量**——真实场景里"消费者组"和"partition"有多接近由 bge-m3 决定。
+> **这里的 recall 数字不能拿去代表线上检索效果。**
+
+#### 跑法与当前数（`datasetVersion` 1.0，topK=6）
+
+```bash
+./gradlew agentEval --tests "*Rag*"     # 报告落在 build/agent-eval/rag-golden.json
+```
+
+| 类别 | 题量 | recall@6 | precision@6 | MRR |
+|---|---|---|---|---|
+| 单跳 | 6 | 1.000 | 0.167 | 1.000 |
+| 多跳 | 4 | 1.000 | 0.333 | 1.000 |
+| 不可答 | 5 | 正确降级率 **1.000** | — | — |
+
+**precision 低不是缺陷读数，是产品事实**：`RagSearchService` 结尾是无条件的 `.limit(k)`，
+库里有 k 条就返回 k 条，哪怕余弦为 0；而 CRAG 分级只看 `hits.get(0)`。
+于是低质片段一路进了上下文——占预算，还给模型提供了编造的素材。
+
+> 跨 `datasetVersion` 比分数是没有意义的：题变难了分数就该降。扩容后必须重建基线。
+
+#### ★ 查出的真问题：多跳问题被 100% 假降级
+
+用**生产默认配置**跑金标集，`falseDegradeRate` = **0.4**——4 个多跳问题全部被判降级，
+**尽管相关笔记就排在第 1、2 位**。根因是两个参数各自看都合理、乘到一起穿帮：
+
+```
+向量分数上限 = pkm.rag.alpha(0.4) × 余弦上限(1.0) = 0.4
+pkm.crag.lower = 0.4      ← 恰好相等，判 AMBIGUOUS 还是 INCORRECT 由浮点误差决定
+pkm.crag.upper = 0.6      ← 纯向量场景永远够不着
+```
+
+只要关键字通路缺席（H2 评测、线上 FULLTEXT 未建、查询被 ngram 切没了），
+多跳题余弦必然 < 1，分数掉到 lower 之下 → INCORRECT → 降级。
+单跳题侥幸逃过只因余弦恰好 1.0——**浮点运气，不是设计**。
+
+**假降级比漏召更难发现**：漏召至少答案是空的；假降级会给出一个看起来合理、
+但主动放弃了用户笔记的答案。用户不会投诉，只会觉得"这知识库没什么用"。
+
+`RagDegradeCalibrationTest` 把它写成了活的断言（参数一改就说话）。
+另有一条 `correctDegradeRateHidesTheDefect()` 说明：**正确降级率在缺陷存在时依然是 1.000**，
+两个指标必须配着看——只报正确降级率的话，这块缺陷完全看不见。
+
+#### 自校验：证明指标不是空转的
+
+`detectsRetrievalRegression()` 故意抽掉一条相关笔记的向量，**要求召回率必须下降**，
+且下降的正是那一题。全绿的评测报告本身就是可疑信号，这条守的不是产品，是**评测本身的有效性**。
+
+#### 忠实度：窄但零成本的确定性底线
+
+`UnsupportedNumberDetector` 检测"答复里出现了 context 与问题都没有的具体数字"。
+在 16 条人工标注样本上：**精确率 1.000、召回率 0.875**。
+
+| 为什么单挑数字 | |
+|---|---|
+| 最危险 | 数字自带权威感。"选举超时 150~300ms"读起来像从笔记抄的，用户不会核对 |
+| 最好查 | 只是字符串包含关系，**能进每次 CI**，零成本零方差 |
+
+唯一漏掉的 f08 是专门设计的盲区：答复说"多路复用**彻底解决**了队头阻塞"，
+context 明写"TCP 层的队头阻塞**仍在**"——完全矛盾却没有可疑数字。
+断言 `containsExactly("f08")` 把确定性规则的天花板钉死：**它是底线，不是全部**。
+剩下的交给 `LlmFaithfulnessJudge`（默认关闭），其存在价值就由"能不能判对 f08"验收。
 
 ---
 

@@ -98,23 +98,7 @@ public record CalibrationReport(
      * 而这里其实是一个有意义的边界：<b>没有可区分的信息</b>。
      */
     static double cohenKappa(Map<HonestyScore, Map<HonestyScore, Integer>> confusion, int n) {
-        if (n == 0) return 0.0;
-
-        double observed = 0;
-        for (HonestyScore c : CATEGORIES) {
-            observed += confusion.get(c).getOrDefault(c, 0);
-        }
-        double po = observed / n;
-
-        double pe = 0;
-        for (HonestyScore c : CATEGORIES) {
-            int rowSum = CATEGORIES.stream().mapToInt(x -> confusion.get(c).getOrDefault(x, 0)).sum();
-            int colSum = CATEGORIES.stream().mapToInt(x -> confusion.get(x).getOrDefault(c, 0)).sum();
-            pe += ((double) rowSum / n) * ((double) colSum / n);
-        }
-
-        if (pe >= 1.0) return 0.0;
-        return (po - pe) / (1 - pe);
+        return Kappa.cohen(confusion, CATEGORIES, n);
     }
 
     private static Map<HonestyScore, Map<HonestyScore, Integer>> emptyConfusion() {
