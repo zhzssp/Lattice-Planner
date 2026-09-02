@@ -1,0 +1,14 @@
+{
+  "caseId" : "chitchat_no_tool",
+  "recordedAt" : "2026-09-01T19:00:00",
+  "recordedModel" : "deepseek-chat",
+  "_comment" : "手工编写的 fixture（非真实录制）：负例——闲聊/能力询问不应触发任何工具调用。fingerprint 为 null 表示跳过漂移检测。",
+  "trials" : [ [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[2 msgs] last=你好，你能做什么？",
+    "responseContent" : "你好。我可以帮你管理待办任务和目标：建任务、查今天该做什么、把任务挂到目标下，也能检索你自己记过的笔记并基于它们回答问题。你直接说要做什么就行，比如「周五前写完验收文档」。",
+    "responseUsageJson" : null
+  } ] ]
+}

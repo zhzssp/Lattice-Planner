@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zhzssp.memorandum.agenteval.cassette.Cassette;
 import org.zhzssp.memorandum.agenteval.cassette.CassetteStore;
+import org.zhzssp.memorandum.agenteval.trial.EvalTrialExtension;
 import org.zhzssp.memorandum.feature.agent.llm.transport.LlmTransport;
 
 import java.util.ArrayList;
@@ -38,15 +39,35 @@ public class ReplayLlmTransport implements LlmTransport {
     private final ObjectMapper om;
     private final AtomicInteger counter = new AtomicInteger(0);
     private volatile Cassette current;
+    private volatile int currentTrial;
     private final List<String> driftWarnings = new ArrayList<>();
 
     public ReplayLlmTransport(ObjectMapper om) {
         this.om = om;
     }
 
-    /** 载入某用例的录制盒，准备回放。 */
-    public void beginCase(String caseId) {
-        this.current = CassetteStore.load(caseId);
+    /**
+     * 载入某用例第 {@code trial} 次试验的录制，准备回放。
+     *
+     * <p>若该试次没有录制，<b>直接抛错而不是回退到 trial 0</b>。
+     * 回退看似"容错"，实则是最坏的选择：它会把同一条轨迹重放 k 遍，
+     * 于是 k 次试验结果完全相同、方差恒为 0，{@code pass^k} 退化成 {@code pass^1}。
+     * 报告上会出现一个漂亮且完全虚假的可靠性数字——这比测试直接失败危险得多。
+     */
+    public void beginCase(String caseId, int trial) {
+        Cassette c = CassetteStore.load(caseId);
+        if (c.trial(trial) == null) {
+            int wanted = EvalTrialExtension.trialCount();
+            throw new AssertionError(String.format(
+                    "用例 %s 只录制了 %d 次试验，无法回放第 %d 次。%n"
+                            + "pass^k 要求每次试验都是独立录制的轨迹，不能靠重放同一条来凑数。%n"
+                            + "请以录制模式补录（PowerShell 下参数要加引号）：%n"
+                            + "  gradlew agentEval \"-Dagent.eval.mode=record\" \"-Dagent.eval.trials=%d\"%n"
+                            + "需 DEEPSEEK_API_KEY，会产生真实 API 调用与费用。",
+                    caseId, c.trialCount(), trial + 1, wanted));
+        }
+        this.current = c;
+        this.currentTrial = trial;
         this.counter.set(0);
         this.driftWarnings.clear();
     }
@@ -68,15 +89,16 @@ public class ReplayLlmTransport implements LlmTransport {
             throw new IllegalStateException("ReplayLlmTransport 未初始化：请先调用 beginCase(caseId)");
         }
         int idx = counter.getAndIncrement();
-        Cassette.LlmInteraction rec = c.at(idx);
+        int t = this.currentTrial;
+        Cassette.LlmInteraction rec = c.at(t, idx);
 
         if (rec == null) {
             throw new AssertionError(String.format(
-                    "录制耗尽：用例 %s 只录了 %d 次 LLM 调用，但 Agent 请求了第 %d 次。%n"
+                    "录制耗尽：用例 %s（第 %d 次试验）只录了 %d 次 LLM 调用，但 Agent 请求了第 %d 次。%n"
                             + "这通常说明 Agent 行为已改变（多绕了推理步骤）。%n"
                             + "若这是预期的改动，请重新录制：-Dagent.eval.mode=record%n"
                             + "本次请求摘要：%s",
-                    c.getCaseId(), c.size(), idx + 1, CassetteStore.digest(request)));
+                    c.getCaseId(), t, c.size(t), idx + 1, CassetteStore.digest(request)));
         }
 
         // 指纹漂移检测：不阻断，但要让人知道

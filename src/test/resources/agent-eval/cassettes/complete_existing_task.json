@@ -1,0 +1,28 @@
+{
+  "caseId" : "complete_existing_task",
+  "recordedAt" : "2026-09-01T19:00:00",
+  "recordedModel" : "deepseek-chat",
+  "_comment" : "手工编写的 fixture（非真实录制）：多步写路径——必须先 task.search 拿到 id 才能 task.complete，这是真实数据依赖，因此参考顺序在此有意义。任务 id 90001 由用例显式 seed。fingerprint 为 null 表示跳过漂移检测。",
+  "trials" : [ [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[2 msgs] last=把「准备周报」这个任务标记成完成",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{\"keyword\":\"准备周报\"}}",
+    "responseUsageJson" : null
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[4 msgs] last=[tool_result task.search]",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":90001}}",
+    "responseUsageJson" : null
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[6 msgs] last=[tool_result task.complete]",
+    "responseContent" : "已经把「准备周报」标记为完成了。还有别的要处理吗？",
+    "responseUsageJson" : null
+  } ] ]
+}

@@ -1,0 +1,14 @@
+{
+  "caseId" : "ambiguous_asks_clarification",
+  "recordedAt" : "2026-09-01T19:00:00",
+  "recordedModel" : "deepseek-chat",
+  "_comment" : "手工编写的 fixture（非真实录制）：负例——信息不足时应追问，而不是凭空建一条任务把请求「办掉」。fingerprint 为 null 表示跳过漂移检测。",
+  "trials" : [ [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[2 msgs] last=帮我安排一下",
+    "responseContent" : "想安排什么？给我一点具体信息我才好动手：是要把某件事排进待办，还是想看看今天已经有哪些安排？如果是新事项，告诉我事情本身和大概的截止时间就够了。",
+    "responseUsageJson" : null
+  } ] ]
+}

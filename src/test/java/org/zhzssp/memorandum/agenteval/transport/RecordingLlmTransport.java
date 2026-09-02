@@ -28,27 +28,39 @@ public class RecordingLlmTransport implements LlmTransport {
     private final ObjectMapper om;
     private final AtomicInteger counter = new AtomicInteger(0);
     private volatile Cassette current;
+    private volatile int currentTrial;
 
     public RecordingLlmTransport(LlmTransport delegate, ObjectMapper om) {
         this.delegate = delegate;
         this.om = om;
     }
 
-    /** 开始录制一个用例。同一个 Transport 实例可顺序录制多个用例。 */
-    public void beginCase(String caseId) {
-        this.current = new Cassette(caseId, LocalDateTime.now().toString(), null);
+    /**
+     * 开始录制某用例的第 {@code trial} 次试验。
+     *
+     * <p>同一用例的多次试验必须<b>累积进同一个盒子</b>：若每次试验都新建 Cassette，
+     * 后一次试验写盘时会覆盖前一次，最终文件里只剩最后一条轨迹。
+     * 因此这里仅在 caseId 变化时才新建。
+     */
+    public void beginCase(String caseId, int trial) {
+        Cassette c = this.current;
+        if (c == null || !caseId.equals(c.getCaseId())) {
+            c = new Cassette(caseId, LocalDateTime.now().toString(), null);
+            this.current = c;
+        }
+        this.currentTrial = trial;
         this.counter.set(0);
-        log.info("[AgentEval] 开始录制用例：{}", caseId);
+        log.info("[AgentEval] 开始录制用例：{}（第 {} 次试验）", caseId, trial);
     }
 
-    /** 结束并写盘。 */
+    /** 结束当前试验并写盘（整盒重写，含已录完的全部试次）。 */
     public void flush() {
         Cassette c = this.current;
         if (c == null) return;
         CassetteStore.save(c);
-        log.info("[AgentEval] 录制完成：{}（{} 次 LLM 交互）→ {}",
-                c.getCaseId(), c.size(), CassetteStore.pathFor(c.getCaseId()));
-        this.current = null;
+        log.info("[AgentEval] 录制完成：{}（{} 次试验，本次 {} 条交互）→ {}",
+                c.getCaseId(), c.trialCount(), c.size(currentTrial),
+                CassetteStore.pathFor(c.getCaseId()));
     }
 
     @Override
@@ -67,7 +79,7 @@ public class RecordingLlmTransport implements LlmTransport {
                     // usage 序列化失败不影响录制主体
                 }
             }
-            c.add(new Cassette.LlmInteraction(
+            c.add(this.currentTrial, new Cassette.LlmInteraction(
                     counter.getAndIncrement(),
                     request.purpose().name(),
                     CassetteStore.fingerprint(request),

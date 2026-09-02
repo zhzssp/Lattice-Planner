@@ -1,0 +1,21 @@
+{
+  "caseId" : "readonly_intent_no_write",
+  "recordedAt" : "2026-09-01T19:00:00",
+  "recordedModel" : "deepseek-chat",
+  "_comment" : "手工编写的 fixture（非真实录制）：负例——纯查询意图只能走读工具，不得顺手写库。fingerprint 为 null 表示跳过漂移检测。",
+  "trials" : [ [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[2 msgs] last=我这周都有啥安排？",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{\"from\":\"2026-08-31\",\"to\":\"2026-09-06\"}}",
+    "responseUsageJson" : null
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : null,
+    "messagesDigest" : "[4 msgs] last=[tool_result task.search]",
+    "responseContent" : "这周你的待办列表是空的，没有设了截止日期在本周的任务。要我把什么事情排进来吗？",
+    "responseUsageJson" : null
+  } ] ]
+}

@@ -73,6 +73,10 @@ tasks.named('test') {
  * Agent 评测任务：只跑评测套件并输出指标报告。
  *   ./gradlew agentEval                              回放模式（离线、零成本）
  *   ./gradlew agentEval -Dagent.eval.mode=record     录制模式（需 DEEPSEEK_API_KEY，产生真实调用）
+ *   ./gradlew agentEval -Dagent.eval.trials=3        每个用例跑 3 次，产出 pass@k / pass^k
+ *
+ * 试次数需先有对应的多试次录制：
+ *   ./gradlew agentEval -Dagent.eval.mode=record -Dagent.eval.trials=3
  */
 tasks.register('agentEval', Test) {
 	group = 'verification'
@@ -83,6 +87,7 @@ tasks.register('agentEval', Test) {
 		includeTags 'agent-eval'
 	}
 	systemProperty 'agent.eval.mode', System.getProperty('agent.eval.mode', 'replay')
+	systemProperty 'agent.eval.trials', System.getProperty('agent.eval.trials', '1')
 	testLogging {
 		events 'passed', 'failed'
 		exceptionFormat = 'full'
