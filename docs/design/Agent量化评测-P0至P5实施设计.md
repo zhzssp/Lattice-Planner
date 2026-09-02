@@ -360,15 +360,18 @@ pass^k 要求每次试验都是独立录制的轨迹，不能靠重放同一条�
 
 - [x] `Cassette` 支持 `trials[][]`，旧格式 `interactions[]` 仍可读（`CassetteTest` 6 条）
 - [x] `pass@k` / `pass^k` 算术正确（`ReliabilityMetricsTest` 6 条）
-- [x] `-Dagent.eval.trials=3` 展开成 27 次调用（9 用例 × 3 试次），
+- [x] `-Dagent.eval.trials=3` 展开成 27 次调用（P1 当时是 9 用例 × 3 试次），
       其中 18 次（试次 2、3）按设计**明确报错**而非静默重放
 - [x] 报告新增 `reliability` 区分与 `distinctCases` / `trialsPerCase`；
       `trials=1` 时 `passAtK == passHatK` 并附提示说明测不出稳定性
 - [x] 9 个用例在 `trials=1` 下仍全绿——向后兼容
 
+> **P2 之后用例增至 13 个**，所以现在 `trials=3` 展开的是 **39 次**调用，
+> 下面的待执行项也相应变成 13 × 3。上面的 27 / 9 是 P1 当时的实测值，保留不改。
+
 **待执行（需 API Key）**
 
-- [ ] 用真实 API 录制 9 个用例 × 3 试次
+- [ ] 用真实 API 录制 **13 个用例 × 3 试次**
 - [ ] 回放确认 `pass@3` 与 `pass^3` **不相等**
       （若相等，说明方差被压掉了，需回头查 temperature 是否被设成 0）
 
@@ -666,7 +669,7 @@ rubric（写进 prompt，要求返回 JSON）：
 
 ---
 
-# 六、P4 · RAG 质量单独度量
+# 六、P4 · RAG 质量单独度量 · ✅ 已实施
 
 > **核心原则（最值得讲的一条）**：检索质量与生成质量**必须分开报告**，一个混合数字是陷阱——分数掉了你不知道该调检索还是调 prompt。
 
@@ -862,9 +865,24 @@ src/test/java/.../agenteval/
   judge/HonestyCalibrationTest.java ✅ [P3] 三个判分器的校准（4 条 + 1 跳过）
   resources/agent-eval/judge/honesty-calibration.json ✅ [P3] 人工标注集 n=20
 
-  golden/GoldenSet.java               [P4 新增] RAG 金标集加载
-  report/RagMetrics.java              [P4 新增] faithfulness / context recall
-  transport/UsageAccumulator.java     [P5 新增] token 累计（避免改生产接口）
+  rag/GoldenSet.java               ✅ [P4] RAG 金标集加载 + 局限说明
+  rag/TopicVectors.java            ✅ [P4] 命名主题权重 → 确定性向量（让向量通路能离线跑）
+  rag/RetrievalMetrics.java        ✅ [P4] recall@k / precision@k / MRR 纯函数
+  rag/RetrievalMetricsTest.java    ✅ [P4] 指标算术验证
+  rag/RagGoldenReport.java         ✅ [P4] 可答/不可答分开聚合，含假降级率
+  rag/RagEvalBase.java             ✅ [P4] 只桩 EmbeddingClient，其余跑真实检索代码
+  rag/RagGoldenEvalTest.java       ✅ [P4] 金标集打分 + 结构性上限 + 自校验退化检测
+  rag/RagDegradeCalibrationTest.java ✅ [P4] 生产默认配置下守护「多跳假降级」缺陷
+  rag/faithfulness/Faithfulness.java          ✅ [P4] 忠实度评分口径
+  rag/faithfulness/FaithfulnessSample.java    ✅ [P4] 校准样本 + 加载
+  rag/faithfulness/UnsupportedNumberDetector.java ✅ [P4] 零误报的数字幻觉检测（进 CI）
+  rag/faithfulness/LlmFaithfulnessJudge.java  ✅ [P4] 忠实度裁判（默认关闭）
+  rag/faithfulness/FaithfulnessCalibrationTest.java ✅ [P4] 检测器与裁判的校准
+  judge/Kappa.java                 ✅ [P4] Cohen's κ 提取成通用工具，供两处校准共用
+  resources/agent-eval/rag/golden-set.json            ✅ [P4] 10 语料 / 15 问题
+  resources/agent-eval/rag/faithfulness-calibration.json ✅ [P4] 人工标注集 n=16
+
+  transport/UsageAccumulator.java     [P5 新增] token 累计（避免改生产接口）← 未开工
 
   AgentEvalBase.java               ✅ [P0] 全局不变量 + probe 注入 + 每用例清库
                                    ✅ [P1] 试次注入、按试次隔离 session、caseId 解析加固
@@ -882,7 +900,9 @@ src/test/java/.../agenteval/
   build.gradle                     ✅ [P1] 透传 -Dagent.eval.trials
 ```
 
-**没有任何生产代码改动**（BLOCKER-4 刻意绕开了 `AgentTraceListener` 接口）。这是有意的：评测体系的改造不应该有能力去弄坏被测系统。
+P0~P4 **没有任何生产代码改动**。这是有意的：评测体系的改造不应该有能力去弄坏被测系统。
+（P5 的 BLOCKER-4 也按这个原则设计——在评测侧 transport 累计 usage，而不是给
+`AgentTraceListener` 加方法。但 **P5 尚未开工**，`UsageAccumulator` 还不存在。）
 
 > **但 P3 查出了一个尚未修复的生产缺陷**：`DegradeDisclosureAdvisor.containsDisclosure`
 > 会被"伪造归属 + 尾部挂一句『基于通用知识』"绕过（§5.4 的 `d06`）。
@@ -900,7 +920,7 @@ src/test/java/.../agenteval/
 | **P1 ◐** | 真实录制 + pass@k/pass^k + BLOCKER-2 | API Key | 基建已完成，待录制 | **高**：指标恢复含义，首获可靠性数 |
 | **P2 ✅** | 轨迹指标分解 + 负例补齐 | 无（不必等 P1） | 已完成 | 中高：能定位"为什么不对"，并解开了写路径覆盖的堵点 |
 | **P3 ✅** | LLM 裁判 + 人工校准 | 无（校准集可先构造） | 已完成 | **高于预期**：意外查出生产判据 κ≈0，并交付了一条零误报的 CI 门禁 |
-| **P4** | RAG faithfulness / context recall + 金标集 | P3 | 三天 | 中：检索与生成分开归因 |
+| **P4 ✅** | RAG 检索指标 + 金标集 + 忠实度 | P3 | 已完成 | **高于预期**：查出多跳被 100% 假降级，是一条真实产品缺陷 |
 | **P5** | 成本延迟门禁 + 能力/回归分离 + BLOCKER-4 | P2 | 半天 | 中：防"对但太贵" |
 
 > **P2 的依赖被证明是错的**：原设计写「P2 依赖 P1」，实则不然。轨迹指标是纯函数，负例是新用例，两者都不需要真实录制就能落地并验证。真正需要 P1 的只有「指标数值的可信度」——现在算出的 precision=1.0 反映的是手写录制盒，不是模型真实表现。
