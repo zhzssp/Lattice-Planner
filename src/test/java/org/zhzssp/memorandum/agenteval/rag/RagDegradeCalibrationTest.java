@@ -11,74 +11,75 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * P4 · 降级阈值标定检查——<b>本类跑的是生产默认配置，刻意不覆盖任何参数</b>。
  *
- * <h3>它查出了什么</h3>
+ * <h3>它曾经查出什么</h3>
  * {@code pkm.rag.alpha=0.4} × {@code pkm.crag.lower=0.4} 这对参数，
  * 在<b>关键字通路缺席</b>时会让检索得分的上限正好压在降级阈值上。
- * 于是相关笔记明明排在第 1、2 位，系统却告诉用户"没找到，以下基于通用知识"。
+ * 于是相关笔记明明排在第 1、2 位，系统却告诉用户"没找到，以下基于通用知识"——
+ * 4 道多跳题<b>全部</b>中招。
  *
  * <p>这就是所谓<b>假降级</b>。它比漏召更难发现：
  * 漏召至少答案是空的，假降级则会给出一个<b>看起来合理、但主动放弃了你的笔记</b>的答案。
  * 用户不会去投诉，只会觉得"这个知识库好像没什么用"。
  *
- * <h3>为什么把缺陷写成断言，而不是先修</h3>
- * 修法有好几种（提高 alpha、下调 lower、给纯向量场景单独标定、
- * 或者干脆让关键字通路缺席时走另一套阈值），选哪种得先量清楚代价。
- * 在那之前，<b>这条断言是这个缺陷唯一的书面记录</b>，
- * 而且它是活的：参数一改它就说话。
+ * <h3>修法与本类现在的职责</h3>
+ * 根因是<b>量纲错配</b>：{@code score} 是排序分数（含 alpha 权重、随命中通路浮动），
+ * 却被拿去比一个表达"语义相关度"的固定阈值。修法是让
+ * {@link org.zhzssp.memorandum.feature.pkm.crag.RetrievalEvaluator} 改判
+ * {@code relevance}（余弦，与 alpha 和通路都无关），而不是去挪 alpha 或 lower——
+ * 挪参数只能让这一组数据碰巧不出事，换个 topK 或换个模型又会复发。
  *
- * <p><b>修好之后应当把断言反过来</b>（改成 {@code isEqualTo(0.0)}），
- * 而不是删掉——它守的那条线一直都在。
+ * <p>断言已按原计划<b>反转</b>：从"证明缺陷存在"变成"守住缺陷不复发"。
+ * 它守的那条线一直都在，所以不删。<b>任何让判级重新依赖 alpha 的改动，
+ * 都会在这里变红。</b>
  */
 @DisplayName("P4 · 降级阈值标定（生产默认配置）")
 class RagDegradeCalibrationTest extends RagEvalBase {
 
     @Test
-    @DisplayName("生产配置下多跳问题会被 100% 假降级")
-    void multiHopIsFalselyDegradedUnderProductionConfig() {
+    @DisplayName("生产配置下多跳问题不再被假降级")
+    void multiHopIsNotFalselyDegradedUnderProductionConfig() {
         RagGoldenReport report = runGoldenSet();
         System.out.println(report.render());
 
         // 前提：召回本身是好的。假降级不是"没找到"，是"找到了却说没找到"
         assertThat(report.meanRecall(QuestionType.MULTI_HOP))
-                .as("相关笔记确实都召回来了——这正是问题所在")
+                .as("相关笔记确实都召回来了——这曾经正是问题所在")
                 .isEqualTo(1.0);
 
         List<RagGoldenReport.Row> multiHop = report.byType(QuestionType.MULTI_HOP);
         long degraded = multiHop.stream().filter(RagGoldenReport.Row::degraded).count();
 
         assertThat(degraded)
-                .as("多跳题的最高分 = alpha(0.4) × 余弦(<1)，必然小于 lower(%.2f)，"
-                        + "于是全部被判 INCORRECT。相关笔记就排在第 1、2 位，"
-                        + "系统却会说『我没在你的笔记里找到』",
-                        evaluator.getLower())
-                .isEqualTo(multiHop.size());
+                .as("判级已改用与 alpha 无关的 relevance。若这里重新变成 %d，"
+                        + "说明判级又和排序分数耦合上了——查 RetrievalEvaluator.grade "
+                        + "是不是被改回读 score()", multiHop.size())
+                .isZero();
 
-        // 单跳题侥幸逃过，只是因为余弦恰好是 1.0，得分正好落在阈值上——靠的是浮点运气
         assertThat(report.falseDegradeRate())
-                .as("假降级率 = %.2f。它不是 1.0 只是因为单跳题的余弦恰好为 1.0，"
-                        + "分数不多不少正好等于阈值。这是浮点运气，不是设计",
-                        report.falseDegradeRate())
-                .isGreaterThan(0.0);
+                .as("可回答的题一道都不该被判降级")
+                .isEqualTo(0.0);
     }
 
     /**
-     * 不可回答类不受这个缺陷影响——它们本来就该降级。
+     * 收紧降级不能以放过"不可答"为代价。
      *
-     * <p>单独断言一次，是为了说明假降级<b>不能靠"正确降级率"发现</b>：
-     * 这个数在缺陷存在时依然是满分。两个指标必须配着看，
-     * 就像精确率之于召回率。
+     * <p>这两个指标必须配着看，就像精确率之于召回率：
+     * 只看正确降级率，一个"永远降级"的系统满分；
+     * 只看假降级率，一个"从不降级"的系统满分。
+     * 修假降级最容易的走偏方式，就是把阈值调松到什么都不降级——
+     * <b>这条断言就是拦这个的。</b>
      */
     @Test
-    @DisplayName("正确降级率看不出这个缺陷：它在缺陷存在时依然满分")
-    void correctDegradeRateHidesTheDefect() {
+    @DisplayName("收紧降级没有放过『库里根本没有』的问题")
+    void correctDegradeRateStillHolds() {
         RagGoldenReport report = runGoldenSet();
 
         assertThat(report.correctDegradeRate())
-                .as("库里没有的问题照样被正确降级")
+                .as("库里没有的问题必须照样被降级。这个数掉下来，"
+                        + "说明假降级是靠『把阈值调到什么都不降级』换来的")
                 .isEqualTo(1.0);
         assertThat(report.falseDegradeRate())
-                .as("而同一次运行里，该召回的题也在被降级。"
-                        + "只报正确降级率的话，这块缺陷是完全看不见的")
-                .isGreaterThan(0.0);
+                .as("而同一次运行里，该召回的题一道都没被误伤")
+                .isEqualTo(0.0);
     }
 }

@@ -383,7 +383,7 @@ POST localhost:8080/mcp/message（JSON-RPC: tools/call）
 | 后端主源码 | 250 个 Java 文件 |
 | 工具集 | **64 个** `@AgentTool`（含 codex 的 doc./repo./ci./gap./distill./route.*） |
 | 子代理 | 3 个角色 + 并行 fan-out |
-| 测试 | **432 个单测 + 20 个评测用例**（13 轨迹回放 + 7 RAG 金标集） |
+| 测试 | **435 个单测 + 20 个评测用例**（13 轨迹回放 + 7 RAG 金标集） |
 | 数据库迁移 | 11 个 SQL |
 | 设计文档 | 32 篇（每个能力都有「现状→设计→改动→验收」） |
 

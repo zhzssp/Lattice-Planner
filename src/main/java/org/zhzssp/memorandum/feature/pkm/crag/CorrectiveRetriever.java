@@ -19,7 +19,7 @@ import java.util.Map;
  *
  * <p>协调检索 → 评估 → 纠错（重检索/降级）的完整闭环：
  * <pre>
- *   search → gradeByScore
+ *   search → grade
  *     CORRECT    → 直接使用
  *     AMBIGUOUS  → 改写 1~2 个 query，重检索，RRF 合并去重
  *     INCORRECT  → 改写重检索；仍不达标则 degraded=true（告知 LLM 走通用知识）
@@ -93,14 +93,14 @@ public class CorrectiveRetriever {
         if (!enabled) {
             metrics.recordBypass();
             List<RagSearchService.Hit> plain = doSearch(user, query, k);
-            RetrievalEvaluator.Grade g = evaluator.gradeByScore(plain);
+            RetrievalEvaluator.Grade g = evaluator.grade(plain);
             metrics.recordGrade(g);
             return new CragResult(truncate(plain, k), g, false, List.of(query));
         }
 
         // 1) 首次检索
         List<RagSearchService.Hit> hits = doSearch(user, query, k * 4); // 取候选池
-        RetrievalEvaluator.Grade grade = evaluator.gradeByScore(hits);
+        RetrievalEvaluator.Grade grade = evaluator.grade(hits);
         List<String> usedQueries = new ArrayList<>();
         usedQueries.add(query);
 
@@ -121,7 +121,7 @@ public class CorrectiveRetriever {
             hits = mergeByRrf(hits, rwHits);
         }
 
-        RetrievalEvaluator.Grade g2 = evaluator.gradeByScore(hits);
+        RetrievalEvaluator.Grade g2 = evaluator.grade(hits);
         boolean degraded = (g2 == RetrievalEvaluator.Grade.INCORRECT || hits.isEmpty());
         metrics.recordGrade(g2);
         if (degraded) {
@@ -141,14 +141,18 @@ public class CorrectiveRetriever {
      *
      * <p>融合公式为标准 RRF：{@code score = Σ 1/(k + rank)}，k=60 为业界常用常数，
      * 让排名靠前的贡献更大且对绝对分数尺度不敏感（两路检索的 score 量纲可能不同）。
-     * 同时保留各路原始 score 的最大值，供 {@link RetrievalEvaluator#gradeByScore} 判级
-     * ——判级依赖的是"原始融合分数"语义，不能用 RRF 分数（量级完全不同）。</p>
+     * 同时保留各路原始 score 的最大值，避免 RRF 的量级（约 0.016~0.033）泄漏到
+     * 对外可见的分数上。</p>
+     *
+     * <p>{@code relevance} 同样取最大值传下去——它是 {@link RetrievalEvaluator#grade}
+     * 的唯一依据，合并时丢了它，改写重检索召回的好结果就白捡了。</p>
      */
     private List<RagSearchService.Hit> mergeByRrf(List<RagSearchService.Hit> a, List<RagSearchService.Hit> b) {
         final int k = 60;
         Map<String, RagSearchService.Hit> byKey = new LinkedHashMap<>();
         Map<String, Double> rrf = new LinkedHashMap<>();
         Map<String, Double> maxScore = new LinkedHashMap<>();
+        Map<String, Double> maxRelevance = new LinkedHashMap<>();
 
         for (List<RagSearchService.Hit> list : List.of(a, b)) {
             int rank = 0;
@@ -156,6 +160,7 @@ public class CorrectiveRetriever {
                 String key = hitKey(h);
                 rrf.merge(key, 1.0 / (k + rank), Double::sum);
                 maxScore.merge(key, h.score(), Math::max);
+                if (h.relevance() != null) maxRelevance.merge(key, h.relevance(), Math::max);
                 // 首次出现时登记；重复出现时用内容更完整的那条
                 byKey.merge(key, h, (old, nu) -> {
                     boolean oldBlank = old.content() == null || old.content().isBlank();
@@ -166,17 +171,19 @@ public class CorrectiveRetriever {
             }
         }
 
-        // 按 RRF 降序排列，但 Hit.score 回填为各路原始分数的最大值（保持判级语义）
+        // 按 RRF 降序排列，但 score / relevance 回填为各路的最大值
         return byKey.entrySet().stream()
                 .sorted(Comparator.comparingDouble(
                         (Map.Entry<String, RagSearchService.Hit> e) -> -rrf.getOrDefault(e.getKey(), 0.0)))
                 .map(e -> {
                     RagSearchService.Hit h = e.getValue();
-                    double best = maxScore.getOrDefault(e.getKey(), h.score());
-                    if (best == h.score()) return h;
+                    double bestScore = maxScore.getOrDefault(e.getKey(), h.score());
+                    Double bestRel = RagSearchService.Hit.higherRelevance(
+                            maxRelevance.get(e.getKey()), h.relevance());
+                    if (bestScore == h.score() && java.util.Objects.equals(bestRel, h.relevance())) return h;
                     return new RagSearchService.Hit(
                             h.source(), h.noteId(), h.sourcePath(), h.chunkIdx(),
-                            h.content(), best, h.reason());
+                            h.content(), bestScore, bestRel, h.reason());
                 })
                 .toList();
     }

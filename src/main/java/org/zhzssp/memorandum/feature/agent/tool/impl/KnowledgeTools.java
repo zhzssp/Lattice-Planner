@@ -78,6 +78,8 @@ public class KnowledgeTools {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("source", h.source());
             row.put("score", round3(h.score()));
+            // 判级依据是 relevance 而非 score，两者量纲不同；不带出来就没法解释为什么判了这一级
+            if (h.relevance() != null) row.put("relevance", round3(h.relevance()));
             row.put("reason", h.reason());
             if ("NOTE".equals(h.source())) {
                 row.put("noteId", h.noteId());

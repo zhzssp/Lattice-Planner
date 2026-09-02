@@ -5,8 +5,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.context.TestPropertySource;
 import org.zhzssp.memorandum.agenteval.rag.GoldenSet.QuestionType;
+import org.zhzssp.memorandum.feature.pkm.crag.RetrievalEvaluator;
 import org.zhzssp.memorandum.feature.pkm.service.RagSearchService;
 
 import java.nio.file.Files;
@@ -23,17 +23,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 轨迹评测问的是"Agent 选对工具了吗"，本测试问的是"<b>知识库把该给的内容给出来了吗</b>"。
  * 二者必须分开：<b>混成一个"RAG 好不好"的数字，分数掉了你不知道该调检索还是调 prompt。</b>
  *
- * <h3>为什么这里把 alpha 调成 1.0</h3>
- * 见 {@link StructuralLimits#vectorOnlyScoreCeilingSitsOnThreshold}：
- * 关键字通路在 H2 上是死的，保持 {@code alpha=0.4} 会让所有分数恒等于
- * "0.4 × 余弦"，上限正好压在 AMBIGUOUS/INCORRECT 的边界上。
- * 本类要量的是<b>召回与排序</b>，需要一个不被阈值噪声干扰的分数区间；
- * 阈值标定本身由 {@link RagDegradeCalibrationTest} 用<b>生产默认配置</b>单独考察。
- *
- * <p>把 alpha 换成 1.0 <b>不影响召回率与 MRR</b>——它对向量分数是个单调缩放因子，
- * 排序不变。受影响的只有绝对分数，也就是分级结果。
+ * <h3>本类跑的是生产默认配置</h3>
+ * 早先这里必须覆盖 {@code pkm.rag.alpha=1.0} 才能量出干净的分数：当时判级读的是
+ * 排序分数，{@code alpha=0.4} 会把上限压在 AMBIGUOUS/INCORRECT 的边界上。
+ * 判级改用与 alpha 无关的 {@code relevance} 之后，这个覆盖就没必要了——
+ * <b>能删掉一个"为了让测试好看而加的配置覆盖"，本身就是修对了的信号。</b>
  */
-@TestPropertySource(properties = "pkm.rag.alpha=1.0")
 @DisplayName("P4 · RAG 检索金标集")
 class RagGoldenEvalTest extends RagEvalBase {
 
@@ -115,33 +110,31 @@ class RagGoldenEvalTest extends RagEvalBase {
     class StructuralLimits {
 
         /**
-         * 检索<b>没有分数下限</b>，零相似度的笔记照样会被塞进上下文。
+         * 分数下限已生效：零相似度的笔记不再被塞进上下文。
          *
-         * <p>{@code RagSearchService} 结尾是无条件的 {@code .limit(k)}：
+         * <p>此前 {@code RagSearchService} 结尾是无条件的 {@code .limit(k)}：
          * 只要库里有 k 条笔记，就一定返回 k 条，哪怕后几条余弦为 0。
-         * CRAG 的分级又只看 {@code hits.get(0)} 的最高分，
-         * 于是<b>低质片段一路畅通地进了模型的上下文窗口</b>。
+         * 代价是双份的——占用上下文预算，还给模型提供了编造的素材。
          *
-         * <p>代价是双份的：占用上下文预算，还给模型提供了编造的素材。
-         * 加一条分数下限就能解决——这条断言正是为了让那个改动有据可依。
-         * <b>改完之后本断言会变红，那时该更新的是断言，而不是绕过它。</b>
+         * <p>现在由 {@code pkm.rag.min-relevance} 挡掉。<b>断言已反转</b>：
+         * 从"证明没有下限"变成"守住下限还在"。
          */
         @Test
-        @DisplayName("没有分数下限：零相似度的笔记也会占满 top-k")
-        void noScoreFloor() {
+        @DisplayName("分数下限生效：余弦为 0 的笔记不进 top-k")
+        void scoreFloorDropsNoise() {
             GoldenSet.Question q = goldenSet.byType(QuestionType.SINGLE_HOP).get(0);
             List<RagSearchService.Hit> hits = rag.search(user, q.question(), goldenSet.topK());
 
             assertThat(hits)
-                    .as("库里有 %d 条笔记，取 top-%d 就一定填满",
-                            goldenSet.corpus().size(), goldenSet.topK())
-                    .hasSize(goldenSet.topK());
+                    .as("单跳题只有少数几条沾边的笔记，不该再被无关内容填满到 top-%d",
+                            goldenSet.topK())
+                    .isNotEmpty()
+                    .hasSizeLessThan(goldenSet.topK());
 
-            long zeroScore = hits.stream().filter(h -> h.score() <= 1e-9).count();
-            assertThat(zeroScore)
-                    .as("单跳题只有 1 条相关笔记，其余位置被余弦为 0 的噪声填满——"
-                            + "这些片段会原样进入模型上下文")
-                    .isGreaterThan(0);
+            assertThat(hits)
+                    .as("留下来的每一条都必须过了相关度门槛——"
+                            + "余弦为 0 的片段一旦进上下文，就是模型编造的素材")
+                    .allSatisfy(h -> assertThat(h.relevance()).isNotNull().isGreaterThan(0.0));
         }
 
         /**
@@ -172,31 +165,38 @@ class RagGoldenEvalTest extends RagEvalBase {
         }
 
         /**
-         * 生产配置下，纯向量通路<b>永远达不到 CORRECT</b>。
+         * 排序分数的上限依然压在阈值上——<b>但这已经不再有害</b>。
          *
-         * <p>{@code pkm.rag.alpha=0.4} 意味着向量分量的上限就是 {@code 0.4 × 1.0 = 0.4}，
-         * 而 {@code pkm.crag.upper=0.6}。也就是说：只要关键字通路缺席
-         * （H2 评测环境、线上 FULLTEXT 索引未建、或查询被 ngram 切没了），
-         * <b>再完美的语义匹配也顶多被判到 AMBIGUOUS</b>。
+         * <p>{@code pkm.rag.alpha=0.4} 意味着向量分量的排序分上限就是
+         * {@code 0.4 × 1.0 = 0.4}，恰好等于 {@code pkm.crag.lower}。
+         * 这个算术事实没变，也不打算改（alpha 本来就该是排序权重）。
+         * 变的是<b>没人再拿它去判级了</b>。
          *
-         * <p>更麻烦的是 0.4 恰好等于 {@code pkm.crag.lower}：
-         * 判 AMBIGUOUS 还是 INCORRECT 完全取决于浮点误差往哪边偏。
-         * 这不是评测环境的问题，是<b>权重与阈值没有一起标定</b>——
-         * 两个参数分别看都合理，乘到一起就穿帮了。后果见 {@link RagDegradeCalibrationTest}。
+         * <p>保留这条断言，是因为它记录了"为什么判级不能读 score"的完整理由：
+         * 一旦有人把判级改回读 {@code score()}，这两个数就会重新撞在一起，
+         * 而 {@link RagDegradeCalibrationTest} 会立刻变红。
          */
         @Test
-        @DisplayName("alpha=0.4 时纯向量分数上限 0.4，恰好压在降级阈值上")
-        void vectorOnlyScoreCeilingSitsOnThreshold() {
+        @DisplayName("排序分数上限仍压在阈值上，但判级已不看它")
+        void rankingScoreCeilingIsNoLongerUsedForGrading() {
             double productionAlpha = 0.4;
             double ceiling = productionAlpha * 1.0;
 
             assertThat(ceiling)
-                    .as("向量通路的分数上限 = alpha × 余弦上限")
+                    .as("排序分数的上限 = alpha × 余弦上限，仍然低于 upper")
                     .isLessThan(evaluator.getUpper());
             assertThat(ceiling)
-                    .as("而且正好落在 lower(%.2f) 上：判 AMBIGUOUS 还是 INCORRECT "
-                            + "由浮点误差决定，不由检索质量决定", evaluator.getLower())
+                    .as("而且仍然正好落在 lower(%.2f) 上——这就是当初判级读 score 时，"
+                            + "多跳题被 100%% 假降级的算术根因", evaluator.getLower())
                     .isEqualTo(evaluator.getLower());
+
+            // 而同样这批命中，按 relevance 判级能正常到达 CORRECT
+            GoldenSet.Question q = goldenSet.byType(QuestionType.SINGLE_HOP).get(0);
+            List<RagSearchService.Hit> hits = rag.search(user, q.question(), goldenSet.topK());
+            assertThat(evaluator.grade(hits))
+                    .as("判级依据换成与 alpha 无关的 relevance 之后，"
+                            + "完美语义匹配终于能被判成 CORRECT")
+                    .isEqualTo(RetrievalEvaluator.Grade.CORRECT);
         }
     }
 

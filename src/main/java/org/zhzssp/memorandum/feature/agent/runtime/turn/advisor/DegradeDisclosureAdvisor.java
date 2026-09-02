@@ -50,10 +50,23 @@ public class DegradeDisclosureAdvisor implements TurnStoppingAdvisor {
         if (outcome.steerCount() > 0) return Optional.empty();
         // 仅对「正常收敛」的答复做明示；步数耗尽/异常中止的措辞已自带说明
         if (outcome.reason() != TurnEndReason.FINAL_ANSWER) return Optional.empty();
-        // 答复已包含明示，放行
-        if (containsDisclosure(outcome.finalAnswer())) return Optional.empty();
+        // 答复已诚实交代，放行
+        if (DisclosureInspector.adequatelyDisclosed(outcome.finalAnswer())) return Optional.empty();
 
         String causes = String.join("、", outcome.degradeCauses());
+        String fabricated = DisclosureInspector.detectFabricatedAttribution(outcome.finalAnswer());
+
+        if (fabricated != null) {
+            log.info("[TurnStopping] 伪造归属「{}」，注入 steer：causes={}", fabricated, causes);
+            return Optional.of("""
+                    [系统提示] 本轮检索到的内容并不可靠（原因：%s），但你上面的答复用
+                    「%s」把这些内容说成了出自用户自己的笔记。这会让用户误以为是自己记过的结论，
+                    从而放弃核实。请重新给出最终答复：明确说明未能从用户笔记中找到相关内容、
+                    以下属于通用知识，并去掉一切把内容归到用户笔记名下的表述。
+                    不要调用任何工具，直接输出自然语言中文。
+                    """.formatted(causes, fabricated));
+        }
+
         log.info("[TurnStopping] 降级未明示，注入 steer：causes={}", causes);
         return Optional.of("""
                 [系统提示] 本轮执行过程中存在信息不完整的情况（原因：%s）。
@@ -61,14 +74,5 @@ public class DegradeDisclosureAdvisor implements TurnStoppingAdvisor {
                 在开头简短说明信息可能不完整（例如"部分内容因过长被截断，以下基于已有信息"），
                 然后再给出你的结论。不要调用任何工具，直接输出自然语言中文。
                 """.formatted(causes));
-    }
-
-    /** 答复是否已含降级明示——用少量可识别措辞做轻量匹配，宁漏勿误。 */
-    private boolean containsDisclosure(String answer) {
-        if (answer == null || answer.isBlank()) return false;
-        String s = answer;
-        return s.contains("截断") || s.contains("不完整") || s.contains("不全面")
-                || s.contains("基于已有信息") || s.contains("部分内容")
-                || s.contains("未找到强相关") || s.contains("基于通用知识");
     }
 }

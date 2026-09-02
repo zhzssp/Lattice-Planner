@@ -165,6 +165,52 @@ class TurnStoppingTest {
             assertFalse(advisor.onTurnStopping(o).isPresent());
         }
 
+        /**
+         * 伪造归属一票否决——<b>哪怕答复里挂着免责声明</b>。
+         *
+         * <p>这曾经是判据上唯一的正确性漏洞：只要尾部补一句"基于通用知识"，
+         * 一条把编造内容安到用户笔记名下的答复就能被放行。
+         * 危害在于用户看到"根据你的笔记"会默认这是自己写过的，从而放弃核实——
+         * <b>比什么都不说更有害</b>。
+         */
+        @Test
+        @DisplayName("伪造归属 + 免责声明 → 仍注入 steer")
+        void fabricatedAttributionOverridesDisclaimer() {
+            TurnOutcome o = new TurnOutcome("sid", "chat", "hi");
+            o.markDegraded(TurnOutcome.CAUSE_CRAG_DEGRADED);
+            o.propose(TurnEndReason.FINAL_ANSWER,
+                    "根据你的笔记，Redis 的持久化有 RDB 和 AOF 两种。以上部分内容基于通用知识补充。", 2);
+
+            Optional<String> r = advisor.onTurnStopping(o);
+            assertTrue(r.isPresent(),
+                    "尾部挂一句免责声明不该洗白伪造归属");
+            assertTrue(r.get().contains("根据你的笔记"),
+                    "steer 里应当点明是哪句话伪造了归属，否则模型不知道要改什么");
+        }
+
+        /**
+         * 明示措辞不止那几个固定词——诚实的说法是个开放集。
+         *
+         * <p>词表按人工校准集补齐后，这类最自然的口语表达不再被误伤。
+         * 误伤的代价只是多一次 LLM 调用，但它发生在<b>模型已经做对了</b>的时候，
+         * 白花钱之外还有把好答复改坏的风险。
+         */
+        @Test
+        @DisplayName("换一种说法的诚实答复 → 放行，不再误伤")
+        void naturalPhrasingIsRecognised() {
+            for (String honest : List.of(
+                    "我在你的记录里没搜到贴近的内容，先按我自己的理解讲。",
+                    "翻了一遍你的笔记，这个话题是空白。",
+                    "库里没有这方面的积累。基于我的训练数据，我的理解是这样。")) {
+                TurnOutcome o = new TurnOutcome("sid", "chat", "hi");
+                o.markDegraded(TurnOutcome.CAUSE_CRAG_DEGRADED);
+                o.propose(TurnEndReason.FINAL_ANSWER, honest, 2);
+
+                assertFalse(advisor.onTurnStopping(o).isPresent(),
+                        "这条答复是诚实的，不该要求重答：" + honest);
+            }
+        }
+
         @Test
         @DisplayName("步数耗尽（非正常收敛）→ 不注入")
         void notFinalAnswer() {

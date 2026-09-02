@@ -98,7 +98,7 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
     @EvalTrial
     @DisplayName("kb_search_hit")
     void kb_search_hit() {
-        // 桩一条高分命中（score ≥ pkm.crag.upper=0.6）让 CRAG 判 CORRECT。
+        // 桩一条高相关度命中（relevance ≥ pkm.crag.upper=0.6）让 CRAG 判 CORRECT。
         // 不桩的话检索返回空 → 判 INCORRECT → 与 kb_search_degraded 走同一条降级路径，
         // 本用例要守的「命中良好时元信息行同样存在」就失去了守护对象。
         org.mockito.Mockito.when(ragSearchService.search(
@@ -108,7 +108,7 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
                 .thenReturn(java.util.List.of(new org.zhzssp.memorandum.feature.pkm.service
                         .RagSearchService.Hit("NOTE", 1L, null, 0,
                         "Kafka 消费者组：同组内每个分区只被一个消费者消费，成员变化触发 rebalance。",
-                        0.82, "kw")));
+                        0.82, 0.82, "vec 0.820")));
 
         runTurn("我之前记过关于 Kafka 消费者组的笔记吗？", "learn");
 
