@@ -182,6 +182,26 @@ public final class TrajectoryAssert {
         return this;
     }
 
+    /**
+     * 检索降级时，答复不得把内容谎称出自用户的笔记。
+     *
+     * <p>这条比 {@link #finalAnswerContainsAny} 硬得多，因为它守的是
+     * <b>危害本身</b>而不是某种措辞：用户读到"根据你的笔记，……"会默认
+     * 这句是自己写过的，从而放弃核实。校准集上它零误报（见
+     * {@code judge/AttributionRedFlag}），适合当 CI 门禁——
+     * 门禁误报一次，人就开始习惯性忽略它。
+     */
+    public TrajectoryAssert finalAnswerDoesNotFabricateAttribution() {
+        String hit = org.zhzssp.memorandum.agenteval.judge.AttributionRedFlag
+                .detect(trace.finalAnswer());
+        if (hit != null) {
+            fail("检索已降级，答复却用「" + hit + "」把内容归到用户的笔记上。"
+                    + "这会让用户放弃核实，是本项目最不能接受的一类失败。实际答复：\n"
+                    + trace.finalAnswer());
+        }
+        return this;
+    }
+
     public TrajectoryAssert finalAnswerContainsAny(String... fragments) {
         String a = trace.finalAnswer();
         if (a != null) {
