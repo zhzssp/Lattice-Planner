@@ -151,6 +151,58 @@ public class CollectingTraceListener implements AgentTraceListener {
         }
     }
 
+    /* ---- 多轮切片（P6） ---- */
+
+    /**
+     * 本次用例跑了几轮对话。
+     *
+     * <p>多轮用例出现前，"一个用例 = 一轮"是个隐含假设，于是
+     * {@link #finalAnswer()} / {@link #usedSteps()} 这些字段是<b>被逐轮覆盖</b>的，
+     * 而 {@link #toolSequence()} 是<b>跨轮累积</b>的。两种语义混在一个对象里，
+     * 单轮时看不出问题，多轮时就会让人写出"我以为在断言最后一轮、其实在断言全程"的断言。
+     * 这里把轮次显式化，就是为了让那个假设无处藏身。
+     */
+    public int turnCount() {
+        synchronized (events) {
+            return (int) events.stream().filter(e -> e.type() == EventType.TURN_START).count();
+        }
+    }
+
+    /** 第 {@code i} 轮（从 0 起）的事件切片；越界返回空列表。 */
+    public List<TraceEvent> eventsOfTurn(int i) {
+        synchronized (events) {
+            List<Integer> starts = new ArrayList<>();
+            for (int k = 0; k < events.size(); k++) {
+                if (events.get(k).type() == EventType.TURN_START) starts.add(k);
+            }
+            if (i < 0 || i >= starts.size()) return List.of();
+            int from = starts.get(i);
+            int to = (i + 1 < starts.size()) ? starts.get(i + 1) : events.size();
+            return List.copyOf(events.subList(from, to));
+        }
+    }
+
+    /** 第 {@code i} 轮实际调用的工具序列。 */
+    public List<String> toolsInTurn(int i) {
+        return eventsOfTurn(i).stream()
+                .filter(e -> e.type() == EventType.TOOL_CALL)
+                .map(TraceEvent::tool)
+                .toList();
+    }
+
+    /** 第 {@code i} 轮的终态答复；该轮未收敛时为 null。 */
+    public String answerOfTurn(int i) {
+        return eventsOfTurn(i).stream()
+                .filter(e -> e.type() == EventType.FINAL_ANSWER)
+                .map(TraceEvent::payload)
+                .findFirst().orElse(null);
+    }
+
+    /** 最后一轮的工具序列。多轮用例里"这一轮该不该动手"几乎总是问最后一轮。 */
+    public List<String> toolsInLastTurn() {
+        return toolsInTurn(turnCount() - 1);
+    }
+
     /** 某工具的全部返回结果 JSON。 */
     public List<String> resultsOf(String tool) {
         synchronized (events) {

@@ -108,6 +108,9 @@ public abstract class AgentEvalBase {
     private int trial;
     private long caseStartMs;
 
+    /** 本试次的判分台账，见 {@link org.zhzssp.memorandum.agenteval.trace.CheckLedger}。 */
+    private org.zhzssp.memorandum.agenteval.trace.CheckLedger ledger;
+
     /** 能力集标签，与 build.gradle 的 {@code agentEvalCapability} 任务对应。 */
     static final String CAPABILITY_TAG = "agent-eval-capability";
 
@@ -141,6 +144,7 @@ public abstract class AgentEvalBase {
         expectedToolFailures.clear();
         trace.reset();
         usage.reset();
+        this.ledger = org.zhzssp.memorandum.agenteval.trace.CheckLedger.begin();
         memory.clear(sessionId);
 
         // ReAct 循环依赖 ThreadLocal 上下文；测试直接在当前线程执行，需手工建立
@@ -164,13 +168,35 @@ public abstract class AgentEvalBase {
             // 汇总指标：无论断言是否通过都记录，报告才有意义
             EvalReport.INSTANCE.record(currentCaseId, trial, trace,
                     db != null && db.checkCount() > 0, driftWarnings(), elapsed,
-                    usage.snapshot(), recordedModel(), recordedLatenciesMs());
+                    usage.snapshot(), recordedModel(), recordedLatenciesMs(),
+                    ledger);
             assertNoUndeclaredToolFailure();
             assertWithinBudget();
+            settleChecks();
         } finally {
             AgentContext.clear();
+            org.zhzssp.memorandum.agenteval.trace.CheckLedger.clear();
             memory.clear(sessionId);
         }
+    }
+
+    /**
+     * <b>结算判分台账</b>：把本试次记下的全部失败一次性抛出。
+     *
+     * <p>断言不再"首次失败即抛"（见 {@code CheckLedger} 的说明），
+     * 所以必须有人负责最后把账算了。放在这里而不是让用例末尾调
+     * {@code .verify()}，理由和 {@link #assertNoUndeclaredToolFailure} 完全一样：
+     * <b>依赖自觉的规则迟早会被漏掉，而漏掉的后果是断言静默地不判。</b>
+     * 那是本项目已经栽过两次的事故形状。
+     *
+     * <p>排在成本门禁之后：成本超支通常是"改了 prompt"，属于全局性原因，
+     * 先报它能省去逐条看功能失败的功夫。
+     */
+    private void settleChecks() {
+        if (ledger == null || !ledger.hasFailure()) return;
+        throw new AssertionError("用例 [" + currentCaseId + "] 试次 " + trial
+                + " 有 " + ledger.failures().size() + " 条判定未通过：\n\n"
+                + ledger.render());
     }
 
     /**
@@ -224,6 +250,12 @@ public abstract class AgentEvalBase {
      */
     private void assertWithinBudget() {
         if (BudgetBaseline.isWriteMode()) return;
+        // 本次的 k 超出基线写入时的 k：基线只见过更少的试次，比下去必然整片误报。
+        // 宁可不判也不误报——一道会误报的门禁，会教人连它报真问题时一起忽略。
+        if (!BudgetBaseline.assertTrialsCompatible()) {
+            warnOnceAboutTrialMismatch();
+            return;
+        }
         java.util.Map<String, Long> base = BUDGET_BASELINE.get(currentCaseId);
         if (base == null) return;   // 新用例尚未登记，报告里会列出来，但不判红
 
@@ -239,6 +271,22 @@ public abstract class AgentEvalBase {
             throw new AssertionError("用例 [" + currentCaseId + "] 超出成本预算：\n"
                     + BudgetGate.render(over));
         }
+    }
+
+    private static boolean trialMismatchWarned = false;
+
+    /**
+     * 口径不匹配只提醒一次：每个用例都喊一遍，等于把这条重要提示淹进刷屏里。
+     */
+    private static synchronized void warnOnceAboutTrialMismatch() {
+        if (trialMismatchWarned) return;
+        trialMismatchWarned = true;
+        System.out.println("[AgentEval] ⚠ 成本门禁本次【未判定】：基线是在 k="
+                + BudgetBaseline.loadTrials() + " 下写的，本次跑 k="
+                + BudgetBaseline.currentTrials() + "。\n"
+                + "           基线取各试次最大值，k 变大后它必然偏小，硬判会整片误报。\n"
+                + "           重建基线：gradlew agentEval \"-Dagent.eval.budget=write\" \"-Dagent.eval.trials="
+                + BudgetBaseline.currentTrials() + "\"");
     }
 
     /**

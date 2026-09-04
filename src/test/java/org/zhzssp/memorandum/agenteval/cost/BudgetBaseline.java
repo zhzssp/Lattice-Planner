@@ -70,6 +70,54 @@ public final class BudgetBaseline {
         return MODE_WRITE.equalsIgnoreCase(System.getProperty(MODE_PROPERTY, ""));
     }
 
+    /**
+     * 写这份基线时用的试次数 k；老基线（没记这个字段）返回 1。
+     *
+     * <h4>★ 不记 k 的基线，在 k 变大时会整片误报</h4>
+     * 基线取的是<b>各试次的最大值</b>，所以它的有效性<b>取决于写它时跑了几次试验</b>：
+     * 用 {@code trials=1} 写出来的基线只见过试次 0，
+     * 而试次 1、2 回放的是<b>另外两段录制响应</b>——长度不同、调用次数也可能不同。
+     * 拿它去卡 k=3 的运行，必然整片飘红。
+     *
+     * <p>这是真实发生过的：P5 的基线在 k=1 下写成，P6 第一次跑 k=3 时
+     * 三个用例同时判"超支 50%"。花了几分钟才确认<b>代码根本没变</b>——
+     * 而"门禁在代码没变时判红"是最糟的一种失败：<b>它教人忽略这道门禁</b>。
+     * 我为 {@code AttributionRedFlag} 写过同一句话，这次是自己踩了。
+     *
+     * <p>修法不是放宽容差（那会把真实的 prompt 膨胀一起放过去），
+     * 而是<b>让口径不匹配这件事变得看得见</b>：见 {@link #assertTrialsCompatible}。
+     */
+    public static int loadTrials() {
+        try (InputStream in = BudgetBaseline.class.getResourceAsStream(RESOURCE)) {
+            if (in == null) return 1;
+            return OM.readTree(in).path("generatedWithTrials").asInt(1);
+        } catch (Exception e) {
+            return 1;
+        }
+    }
+
+    /** 本次运行的试次数，与 {@code EvalTrialExtension} 读的是同一个属性。 */
+    public static int currentTrials() {
+        try {
+            return Math.max(1, Integer.parseInt(System.getProperty("agent.eval.trials", "1")));
+        } catch (NumberFormatException e) {
+            return 1;
+        }
+    }
+
+    /**
+     * 本次运行的 k 是否在基线的有效口径内。
+     *
+     * <p>{@code k > 基线 k} 时基线偏小，会误报；此时应<b>停止判定</b>并明说原因，
+     * 而不是让它红着——<b>一道会误报的门禁比没有门禁更糟</b>，
+     * 因为人会开始习惯性忽略它，等它某天报的是真问题时也一样被忽略。
+     *
+     * <p>反过来 {@code k < 基线 k} 是安全的：基线覆盖了更多试次，只会更宽松。
+     */
+    public static boolean assertTrialsCompatible() {
+        return currentTrials() <= loadTrials();
+    }
+
     /** 基线不存在时返回空 map——此时全部用例判为 UNTRACKED，不判红。 */
     public static Map<String, Map<String, Long>> load() {
         try (InputStream in = BudgetBaseline.class.getResourceAsStream(RESOURCE)) {
@@ -160,6 +208,8 @@ public final class BudgetBaseline {
         ));
         root.put("generatedAt", LocalDate.now().toString());
         root.put("generatedInMode", mode);
+        // ★ 必须记下写基线时用的 k，见 loadTrials 的说明
+        root.put("generatedWithTrials", currentTrials());
         root.put("gatedMetrics", GATED_METRICS);
         // 排序：让 diff 只反映真实变化，不反映执行顺序
         root.put("cases", new TreeMap<>(actual));

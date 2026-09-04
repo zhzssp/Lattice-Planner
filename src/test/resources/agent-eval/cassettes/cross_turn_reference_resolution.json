@@ -1,0 +1,102 @@
+{
+  "caseId" : "cross_turn_reference_resolution",
+  "recordedAt" : "2026-09-04T22:23:01.769655500",
+  "recordedModel" : "deepseek-chat",
+  "trials" : [ [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "e4217b5b0a1c4cf6",
+    "messagesDigest" : "[2 msgs] last=我现在有哪些没做完的任务？按顺序列出来。",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6022,\"completion_tokens\":11,\"total_tokens\":6033,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":6}",
+    "upstreamLatencyMs" : 468
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "13970983425a6ba0",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] [{\"id\":90301,\"title\":\"预订团建场地\",\"description\":null,\"status\":\"PENDING\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"},{\"id\":90302,\"title\":\"修复登录页样式\",\"descript…",
+    "responseContent" : "你目前有 3 个未完成的任务，按创建顺序如下：\n\n1. **预订团建场地**（创建于 2026-09-04）\n2. **修复登录页样式**（创建于 2026-09-04）\n3. **整理年度报销单据**（创建于 2026-09-04）\n\n这三个任务都没有设置截止日期。需要我帮你做点什么吗？比如给某个任务设置截止时间、标记完成，或者拆分细化？",
+    "responseUsageJson" : "{\"prompt_tokens\":6181,\"completion_tokens\":102,\"total_tokens\":6283,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":37}",
+    "upstreamLatencyMs" : 2445
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "63214118c6393a1c",
+    "messagesDigest" : "[6 msgs] last=把第二个标记成完成。",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":90302}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6293,\"completion_tokens\":14,\"total_tokens\":6307,\"prompt_tokens_details\":{\"cached_tokens\":6272},\"prompt_cache_hit_tokens\":6272,\"prompt_cache_miss_tokens\":21}",
+    "upstreamLatencyMs" : 807
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "b9675d6570a15bfd",
+    "messagesDigest" : "[8 msgs] last=[tool_result task.complete] {\"id\":90302,\"title\":\"修复登录页样式\",\"description\":null,\"status\":\"DONE\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "✅ 已将「修复登录页样式」标记为完成。\n\n你目前还剩 2 个未完成任务：\n1. **预订团建场地**\n2. **整理年度报销单据**\n\n还需要我帮你处理其他任务吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6363,\"completion_tokens\":47,\"total_tokens\":6410,\"prompt_tokens_details\":{\"cached_tokens\":6272},\"prompt_cache_hit_tokens\":6272,\"prompt_cache_miss_tokens\":91}",
+    "upstreamLatencyMs" : 678
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "e4217b5b0a1c4cf6",
+    "messagesDigest" : "[2 msgs] last=我现在有哪些没做完的任务？按顺序列出来。",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6022,\"completion_tokens\":11,\"total_tokens\":6033,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":6}",
+    "upstreamLatencyMs" : 470
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "13970983425a6ba0",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] [{\"id\":90301,\"title\":\"预订团建场地\",\"description\":null,\"status\":\"PENDING\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"},{\"id\":90302,\"title\":\"修复登录页样式\",\"descript…",
+    "responseContent" : "你目前有 3 个未完成的任务，按创建顺序排列如下：\n\n1. **预订团建场地**（创建于 2026-09-04）\n2. **修复登录页样式**（创建于 2026-09-04）\n3. **整理年度报销单据**（创建于 2026-09-04）\n\n这三个任务都没有设置截止日期。需要我帮你处理其中某个任务吗？比如标记完成、设置截止时间，或者拆分细化？",
+    "responseUsageJson" : "{\"prompt_tokens\":6181,\"completion_tokens\":102,\"total_tokens\":6283,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":37}",
+    "upstreamLatencyMs" : 908
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "e8c7cfffb4684896",
+    "messagesDigest" : "[6 msgs] last=把第二个标记成完成。",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":90302}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6293,\"completion_tokens\":14,\"total_tokens\":6307,\"prompt_tokens_details\":{\"cached_tokens\":6272},\"prompt_cache_hit_tokens\":6272,\"prompt_cache_miss_tokens\":21}",
+    "upstreamLatencyMs" : 576
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "cb32bb974abbfa14",
+    "messagesDigest" : "[8 msgs] last=[tool_result task.complete] {\"id\":90302,\"title\":\"修复登录页样式\",\"description\":null,\"status\":\"DONE\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "已把 **修复登录页样式** 标记为完成 ✅\n\n你目前还剩 2 个未完成任务：\n\n1. **预订团建场地**\n2. **整理年度报销单据**\n\n需要继续处理其他任务吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6363,\"completion_tokens\":47,\"total_tokens\":6410,\"prompt_tokens_details\":{\"cached_tokens\":6272},\"prompt_cache_hit_tokens\":6272,\"prompt_cache_miss_tokens\":91}",
+    "upstreamLatencyMs" : 605
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "e4217b5b0a1c4cf6",
+    "messagesDigest" : "[2 msgs] last=我现在有哪些没做完的任务？按顺序列出来。",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6022,\"completion_tokens\":11,\"total_tokens\":6033,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":6}",
+    "upstreamLatencyMs" : 498
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "13970983425a6ba0",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] [{\"id\":90301,\"title\":\"预订团建场地\",\"description\":null,\"status\":\"PENDING\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"},{\"id\":90302,\"title\":\"修复登录页样式\",\"descript…",
+    "responseContent" : "你目前有 3 个未完成的任务，按创建顺序排列如下：\n\n1. **预订团建场地**（创建于 2026-09-04）\n2. **修复登录页样式**（创建于 2026-09-04）\n3. **整理年度报销单据**（创建于 2026-09-04）\n\n这三个任务都没有设置截止日期。需要我帮你做点什么吗？比如给某个任务设置截止时间、标记完成，或者拆分细化？",
+    "responseUsageJson" : "{\"prompt_tokens\":6181,\"completion_tokens\":103,\"total_tokens\":6284,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":37}",
+    "upstreamLatencyMs" : 1079
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "18d3836ebf2632aa",
+    "messagesDigest" : "[6 msgs] last=把第二个标记成完成。",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":90302}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6294,\"completion_tokens\":14,\"total_tokens\":6308,\"prompt_tokens_details\":{\"cached_tokens\":6272},\"prompt_cache_hit_tokens\":6272,\"prompt_cache_miss_tokens\":22}",
+    "upstreamLatencyMs" : 483
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "51ef491021520ab8",
+    "messagesDigest" : "[8 msgs] last=[tool_result task.complete] {\"id\":90302,\"title\":\"修复登录页样式\",\"description\":null,\"status\":\"DONE\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "已把 **修复登录页样式** 标记为完成 ✅\n\n你目前还剩 2 个未完成任务：\n1. **预订团建场地**\n2. **整理年度报销单据**\n\n还需要我帮你处理其他任务吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6364,\"completion_tokens\":48,\"total_tokens\":6412,\"prompt_tokens_details\":{\"cached_tokens\":6272},\"prompt_cache_hit_tokens\":6272,\"prompt_cache_miss_tokens\":92}",
+    "upstreamLatencyMs" : 744
+  } ] ]
+}

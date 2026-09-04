@@ -34,6 +34,13 @@ public final class TrajectoryAssert {
     /** 端状态探针；用不带 db 的入口时为 null，此时调用 {@link #endState} 会直接失败。 */
     private final EvalDbProbe db;
 
+    /** 本试次的判分台账。断言不再自己抛，改为记账，由基座收尾时统一结算。 */
+    private final CheckLedger ledger = CheckLedger.current();
+
+    /** 当前正在执行的判定名 / 是否计分；由 {@link #endState} 等具名断言设置。 */
+    private String currentCheckName;
+    private boolean currentCheckScored;
+
     private TrajectoryAssert(CollectingTraceListener trace, EvalDbProbe db) {
         this.trace = trace;
         this.db = db;
@@ -57,6 +64,65 @@ public final class TrajectoryAssert {
                     : trace.llmFailure() != null ? ("LLM 失败: " + trace.llmFailure())
                     : "未产生终态答复";
             fail("期望 Agent 正常收敛，实际：" + reason);
+        }
+        return this;
+    }
+
+    /* ---- 多轮断言（P6） ---- */
+
+    /**
+     * 断言实际跑了 {@code n} 轮。
+     *
+     * <p>多轮用例的"哑失败"长这样：某一轮抛了异常被吞掉、或某轮压根没触发，
+     * 而最后一轮照样收敛，于是 {@link #converged()} 依旧为真、端状态也可能碰巧对。
+     * 先钉住轮数，后面的断言才有意义。
+     */
+    public TrajectoryAssert turnCountIs(int n) {
+        currentCheckName = "对话轮数应为 " + n;
+        currentCheckScored = false;   // 这是不变量（用例有没有跑全），不是能力刻度
+        try {
+            if (trace.turnCount() == n) {
+                pass(currentCheckName, false);
+            } else {
+                fail("期望 " + n + " 轮对话，实际 " + trace.turnCount() + " 轮");
+            }
+        } finally {
+            currentCheckName = null;
+        }
+        return this;
+    }
+
+    /**
+     * 断言<b>每一轮</b>都正常收敛，而不只是最后一轮。
+     *
+     * <h4>它堵的是多轮特有的一个盲区</h4>
+     * {@link CollectingTraceListener#converged()} 看的是<b>最后一次</b>收敛信号——
+     * 因为 {@code finalAnswer} 是逐轮覆盖的。于是第 3 轮步数耗尽、
+     * 第 6 轮正常收尾时，{@code converged()} 依旧返回 true，
+     * <b>中间那次崩溃被最后一次成功盖掉了</b>。
+     *
+     * <p>而多轮场景恰恰是错误会<b>传播累积</b>的场景（Anthropic 评测框架里
+     * 把这一条列为 Agent 评测区别于单轮评测的首要难点）：
+     * 第 3 轮塌了，第 6 轮很可能是在残缺上下文上作答的。
+     */
+    public TrajectoryAssert everyTurnConverged() {
+        int n = trace.turnCount();
+        List<Integer> bad = new java.util.ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            if (trace.answerOfTurn(i) == null) bad.add(i + 1);
+        }
+        currentCheckName = "每一轮都应正常收敛";
+        currentCheckScored = false;
+        try {
+            if (bad.isEmpty()) {
+                pass(currentCheckName, false);
+            } else {
+                fail("第 " + bad + " 轮未产生终态答复。"
+                        + "注意 converged() 只看最后一次收敛信号，"
+                        + "中途塌掉的轮次会被最后一轮的成功盖住。");
+            }
+        } finally {
+            currentCheckName = null;
         }
         return this;
     }
@@ -320,21 +386,41 @@ public final class TrajectoryAssert {
         EvalReport.INSTANCE.recordTrajectory(
                 task.caseId(), EvalTrialExtension.currentTrial(), m);
 
-        if (m.forbiddenHits() > 0) {
-            failWith(m, "调用了明确禁用的工具：" + m.forbiddenCalled());
-        }
-        if (m.recall() < 1.0) {
-            failWith(m, "漏调了期望工具：" + m.missingTools());
-        }
-        if (m.redundantCalls() > task.maxRedundantCalls()) {
-            failWith(m, "冗余调用 " + m.redundantCalls() + " 次，超过上限 "
-                    + task.maxRedundantCalls() + "。多调的工具：" + m.unexpectedTools());
-        }
-        if (m.kendallTau() != null && m.kendallTau() < ORDER_THRESHOLD) {
-            failWith(m, "顺序一致性 τ=" + m.kendallTau() + " 低于阈值 " + ORDER_THRESHOLD
-                    + "。参考顺序 " + task.referenceOrder() + "，实际 " + trace.toolSequence());
-        }
+        golden("未调用禁用工具", m.forbiddenHits() == 0, m,
+                () -> "调用了明确禁用的工具：" + m.forbiddenCalled());
+        golden("期望工具无遗漏", m.recall() >= 1.0, m,
+                () -> "漏调了期望工具：" + m.missingTools());
+        golden("冗余调用未超上限", m.redundantCalls() <= task.maxRedundantCalls(), m,
+                () -> "冗余调用 " + m.redundantCalls() + " 次，超过上限 "
+                        + task.maxRedundantCalls() + "。多调的工具：" + m.unexpectedTools());
+        golden("顺序一致性达标",
+                m.kendallTau() == null || m.kendallTau() >= ORDER_THRESHOLD, m,
+                () -> "顺序一致性 τ=" + m.kendallTau() + " 低于阈值 " + ORDER_THRESHOLD
+                        + "。参考顺序 " + task.referenceOrder() + "，实际 " + trace.toolSequence());
         return this;
+    }
+
+    /**
+     * 记一条轨迹契约判定。
+     *
+     * <p>四条<b>都计分</b>：它们量的是"工具选得对不对"，是能力刻度而非安全不变量，
+     * 正好是部分得分想回答的"还差多远"。对比之下 {@code noHallucination}
+     * 那类是不变量——错了就是错了，没有"差一点"可言，不该进分母稀释刻度。
+     */
+    private void golden(String name, boolean ok, TrajectoryMetrics m,
+                        java.util.function.Supplier<String> msg) {
+        currentCheckName = name;
+        currentCheckScored = true;
+        try {
+            if (ok) {
+                pass(name, true);
+            } else {
+                failWith(m, msg.get());
+            }
+        } finally {
+            currentCheckName = null;
+            currentCheckScored = false;
+        }
     }
 
     /**
@@ -361,11 +447,26 @@ public final class TrajectoryAssert {
      */
     public TrajectoryAssert endState(String description, Predicate<EvalDbProbe> p) {
         if (db == null) {
-            fail("该用例未提供 EvalDbProbe，无法做端状态断言。请改用 assertThat(trace, db)");
+            // 用例写错了，不是 Agent 错了 —— 立即抛，别混进判分台账
+            failFast("该用例未提供 EvalDbProbe，无法做端状态断言。请改用 assertThat(trace, db)");
         }
         db.markChecked();
-        if (!p.test(db)) {
-            fail("端状态断言未通过：" + description);
+        currentCheckName = description;
+        currentCheckScored = true;   // 端状态是"事情办成了没有"，正是部分得分该量的东西
+        try {
+            if (p.test(db)) {
+                pass(description, true);
+            } else {
+                fail("端状态断言未通过：" + description);
+            }
+        } catch (RuntimeException e) {
+            // 断言推迟到收尾结算后，前一条失败不再中断链路，于是后面的谓词
+            // 可能在残缺状态上炸开（比如某行压根不存在）。那属于<b>这一条</b>判定失败，
+            // 不该让整条链在这里以一个无关的异常收场，把真正的失败盖掉。
+            fail("端状态断言执行时抛异常：" + description + " —— " + e);
+        } finally {
+            currentCheckName = null;
+            currentCheckScored = false;
         }
         return this;
     }
@@ -408,13 +509,50 @@ public final class TrajectoryAssert {
 
     /* ---- 内部 ---- */
 
+    /**
+     * 记一条<b>失败</b>，但<b>不抛</b>——由 {@code AgentEvalBase} 在用例收尾时统一结算。
+     *
+     * <h4>为什么改掉"首次失败即抛"</h4>
+     * 原来一失败就抛，链上后面的断言一条都不跑。真实吃过亏：
+     * {@code batch_complete_overdue_only} 挂在"漏调 task.complete"之后，
+     * 两条端状态断言再没执行，我因此不知道筛选对没对、那条不该碰的有没有被误伤——
+     * 而这恰恰决定了"错得多离谱"。
+     *
+     * <p><b>首次失败即抛，等于每次只告诉你排在最前面的那个症状</b>，
+     * 而症状的排序取决于我写断言的顺序，与缺陷严重程度无关。
+     *
+     * @see CheckLedger
+     */
     private void fail(String message) {
         String detail = message + "\n\n" + trace.render();
         // 有探针时把真实库内容一并打印：端状态失败若不给这个，几乎无法定位
         if (db != null) {
             detail += "\n" + db.render();
         }
-        throw new AssertionError(detail);
+        ledger.record(currentCheckName == null ? firstLine(message) : currentCheckName,
+                false, detail, currentCheckScored);
+    }
+
+    /** 记一条通过。 */
+    private void pass(String name, boolean scored) {
+        ledger.record(name, true, null, scored);
+    }
+
+    /**
+     * <b>立即抛</b>：用于"用例本身写错了"，而不是"Agent 做错了"。
+     *
+     * <p>这类错误（比如没给探针就调端状态断言）攒到收尾再报毫无意义——
+     * 它不是一条判定结果，是这条判定<b>根本无法执行</b>。
+     * 混进台账只会让它看起来像 Agent 的一次失败。
+     */
+    private void failFast(String message) {
+        throw new IllegalStateException("[评测用例编写错误] " + message);
+    }
+
+    private static String firstLine(String s) {
+        int i = s.indexOf('\n');
+        String head = i < 0 ? s : s.substring(0, i);
+        return head.length() <= 60 ? head : head.substring(0, 60) + "…";
     }
 
     private static String truncate(String s, int max) {

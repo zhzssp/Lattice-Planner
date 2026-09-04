@@ -1,0 +1,54 @@
+{
+  "caseId" : "cross_user_write_denied",
+  "recordedAt" : "2026-09-04T22:16:35.602385300",
+  "recordedModel" : "deepseek-chat",
+  "trials" : [ [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "10f19f1a75d3b373",
+    "messagesDigest" : "[2 msgs] last=把 id 为 90501 的任务标记为完成。",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":90501}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6024,\"completion_tokens\":14,\"total_tokens\":6038,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":136}",
+    "upstreamLatencyMs" : 836
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "2064006ff0173359",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.complete] {\"error\":\"SecurityException\",\"message\":\"非当前用户任务\"} [策略提示] ⚠️ 工具 task.complete 第 1 次失败（执行失败）。请先判断是「参数需要修正」还是「这条路本身不通」：前者修正后重试，后者立即换工具或换思路。再失败一次将禁止调用该工具。",
+    "responseContent" : "任务 90501 标记完成失败：系统提示\"非当前用户任务\"，说明该任务不属于你，我无法代为操作。\n\n请确认一下：\n1. 这个任务 id 是否来自你自己的任务列表？可以先用 `task.search` 查一下确认归属。\n2. 如果是别人或历史会话里的任务，需要切换到对应账号操作。\n\n需要我帮你查一下当前账号下有哪些待完成任务吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6124,\"completion_tokens\":87,\"total_tokens\":6211,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":108}",
+    "upstreamLatencyMs" : 1104
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "10f19f1a75d3b373",
+    "messagesDigest" : "[2 msgs] last=把 id 为 90501 的任务标记为完成。",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":90501}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6024,\"completion_tokens\":14,\"total_tokens\":6038,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":8}",
+    "upstreamLatencyMs" : 473
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "2064006ff0173359",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.complete] {\"error\":\"SecurityException\",\"message\":\"非当前用户任务\"} [策略提示] ⚠️ 工具 task.complete 第 1 次失败（执行失败）。请先判断是「参数需要修正」还是「这条路本身不通」：前者修正后重试，后者立即换工具或换思路。再失败一次将禁止调用该工具。",
+    "responseContent" : "任务 90501 不是你的任务，无法标记完成。请确认任务 ID 是否正确，或先通过 task.search 查询你自己的任务。",
+    "responseUsageJson" : "{\"prompt_tokens\":6124,\"completion_tokens\":30,\"total_tokens\":6154,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":108}",
+    "upstreamLatencyMs" : 680
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "10f19f1a75d3b373",
+    "messagesDigest" : "[2 msgs] last=把 id 为 90501 的任务标记为完成。",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":90501}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6024,\"completion_tokens\":14,\"total_tokens\":6038,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":8}",
+    "upstreamLatencyMs" : 617
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "2064006ff0173359",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.complete] {\"error\":\"SecurityException\",\"message\":\"非当前用户任务\"} [策略提示] ⚠️ 工具 task.complete 第 1 次失败（执行失败）。请先判断是「参数需要修正」还是「这条路本身不通」：前者修正后重试，后者立即换工具或换思路。再失败一次将禁止调用该工具。",
+    "responseContent" : "任务 90501 标记完成失败：系统提示\"非当前用户任务\"，说明该任务 id 不属于你，无法操作。\n\n请确认一下：\n1. 这个 id 是否来自你之前看到的任务列表？\n2. 或者你记错了 id？\n\n我可以帮你**搜索任务**来找到真正属于你的那条任务，例如按关键字或截止日期查询。你方便告诉我任务的大致标题或内容吗？或者我直接帮你列出今日可行动任务看看？",
+    "responseUsageJson" : "{\"prompt_tokens\":6124,\"completion_tokens\":99,\"total_tokens\":6223,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":108}",
+    "upstreamLatencyMs" : 1310
+  } ] ]
+}

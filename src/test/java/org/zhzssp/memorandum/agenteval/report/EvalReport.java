@@ -75,7 +75,8 @@ public final class EvalReport {
      */
     public void record(String caseId, int trial, CollectingTraceListener trace,
                        boolean endStateChecked, List<String> driftWarnings, long elapsedMs,
-                       UsageSnapshot usage, String model, List<Long> recordedLatencies) {
+                       UsageSnapshot usage, String model, List<Long> recordedLatencies,
+                       org.zhzssp.memorandum.agenteval.trace.CheckLedger ledger) {
         results.add(new CaseResult(
                 caseId,
                 trial,
@@ -94,7 +95,10 @@ public final class EvalReport {
                 elapsedMs,
                 usage == null ? UsageSnapshot.EMPTY : usage,
                 model,
-                new ArrayList<>(recordedLatencies)
+                new ArrayList<>(recordedLatencies),
+                ledger == null ? null : ledger.partialScore(),
+                ledger == null ? 0 : ledger.scoredPassed(),
+                ledger == null ? 0 : ledger.scoredTotal()
         ));
     }
 
@@ -138,7 +142,8 @@ public final class EvalReport {
                         c.llmFailure(), c.usedSteps(), c.llmCalls(), c.toolSequence(),
                         c.hallucinatedTools(), c.failedTools(), c.endStateChecked(),
                         c.driftWarnings(), c.elapsedMs(),
-                        c.usage(), c.model(), c.recordedLatenciesMs()));
+                        c.usage(), c.model(), c.recordedLatenciesMs(),
+                        c.partialScore(), c.scoredPassed(), c.scoredTotal()));
                 return;
             }
         }
@@ -228,6 +233,7 @@ public final class EvalReport {
                 : "全部录制与当前 prompt 一致");
         m.put("cassetteFreshness", freshness);
 
+        m.put("partialCredit", partialCredit());
         m.put("cases", results);
         return m;
     }
@@ -276,6 +282,43 @@ public final class EvalReport {
             m.put("hint", "k=1 时 pass@k 与 pass^k 必然相等，测不出稳定性。"
                     + "用 -Dagent.eval.trials=3 才有意义（需已录制 3 次试验）");
         }
+        return m;
+    }
+
+    /**
+     * <b>部分得分</b>（P6）：判定级的通过比例，而非用例级的二值成败。
+     *
+     * <h4>它补的是二值判定丢掉的那一半信息</h4>
+     * 真实例子：{@code batch_complete_overdue_only} 挂掉的那次，
+     * 三条过期任务筛得<b>全对</b>、那条不该碰的也<b>确实没碰</b>，
+     * 只是最后没执行写入。二值下它和"全错"一样记 0 分，
+     * 但两者的<b>改进距离天差地别</b>——而能力集要回答的恰恰是"还差多远"。
+     *
+     * <p>只统计<b>计分类</b>判定（端状态、轨迹契约），不含
+     * "无幻觉""无工具失败"这类<b>不变量</b>：不变量错了就是错了，
+     * 没有"差一点"可言，混进分母只会把刻度稀释。
+     */
+    private Map<String, Object> partialCredit() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        List<CaseResult> scored = results.stream()
+                .filter(r -> r.partialScore() != null).toList();
+        if (scored.isEmpty()) {
+            m.put("available", false);
+            m.put("hint", "本次运行没有任何计分类判定（端状态 / 轨迹契约）");
+            return m;
+        }
+        m.put("available", true);
+        m.put("meanScore", round4d(scored.stream()
+                .mapToDouble(CaseResult::partialScore).average().orElse(0)));
+        m.put("scoredCases", scored.size());
+
+        // 判红但大部分判定已通过的用例：改进优先级最高的一批
+        List<String> partiallyCorrect = scored.stream()
+                .filter(r -> Boolean.FALSE.equals(r.passed()))
+                .filter(r -> r.partialScore() >= 0.5)
+                .map(r -> r.caseId() + "(" + r.scoredPassed() + "/" + r.scoredTotal() + ")")
+                .distinct().toList();
+        m.put("partiallyCorrect", partiallyCorrect);
         return m;
     }
 
@@ -479,6 +522,18 @@ public final class EvalReport {
             List<?> flaky = (List<?>) rel.get("flakyCases");
             if (flaky != null && !flaky.isEmpty()) {
                 sb.append("  ⚠ 时好时坏    ").append(flaky).append('\n');
+            }
+            sb.append("──────────────────────────────────────────────────────────────\n");
+        }
+
+        Map<String, Object> ps = (Map<String, Object>) r.get("partialCredit");
+        if (Boolean.TRUE.equals(ps.get("available"))) {
+            sb.append(String.format("  平均部分得分  %-8s 判定级通过比例（二值判定答不了「还差多远」）%n",
+                    pct(ps.get("meanScore"))));
+            List<?> partial = (List<?>) ps.get("partiallyCorrect");
+            if (partial != null && !partial.isEmpty()) {
+                sb.append("  ◐ 差一点      ").append(partial)
+                        .append("\n                （判红，但多数判定已通过——离做对最近的那些）\n");
             }
             sb.append("──────────────────────────────────────────────────────────────\n");
         }
@@ -701,6 +756,16 @@ public final class EvalReport {
             /** 计价用模型名。 */
             String model,
             /** 录制当时的真实上游耗时；回放旧盒子时为空。 */
-            List<Long> recordedLatenciesMs
+            List<Long> recordedLatenciesMs,
+            /**
+             * P6 部分得分 [0,1]：计分判定的通过比例；无计分项时为 null（记 n/a）。
+             *
+             * <p>它回答二值判定答不了的那个问题：<b>还差多远</b>。
+             * "筛选全对但一个都没写"和"全错"在二值下都是 0，改进距离却天差地别。
+             */
+            Double partialScore,
+            /** 计分判定：通过数 / 总数。 */
+            int scoredPassed,
+            int scoredTotal
     ) {}
 }

@@ -1,0 +1,182 @@
+{
+  "caseId" : "constraint_retention_across_turns",
+  "recordedAt" : "2026-09-04T22:22:30.390037100",
+  "recordedModel" : "deepseek-chat",
+  "trials" : [ [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "2e921dc163a66a18",
+    "messagesDigest" : "[2 msgs] last=记住一个习惯：以后你帮我创建任务时，标题一律以 [WORK] 开头。",
+    "responseContent" : "好的，我记住了。以后我帮你创建任务时，标题都会以 **[WORK]** 开头。\n\n不过要说明一下：这个习惯目前只存在于我们这次的对话里，我这边没有持久化的\"偏好设置\"存储。如果你希望这个规则长期生效，建议你把它记成一条笔记，之后每次会话我都能通过检索你的笔记来遵守它。\n\n需要我现在帮你记一条笔记吗？比如：\n> 创建任务时，标题一律以 [WORK] 开头。\n\n如果你愿意，我可以直接帮你创建这条笔记。",
+    "responseUsageJson" : "{\"prompt_tokens\":6031,\"completion_tokens\":110,\"total_tokens\":6141,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":15}",
+    "upstreamLatencyMs" : 1970
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "5ffc3a8f089e0721",
+    "messagesDigest" : "[4 msgs] last=顺便问一下，你都能帮我做些什么？",
+    "responseContent" : "好的，先回答你的问题，再处理刚才那个习惯的事。\n\n---\n\n## 我能帮你做什么\n\n**1. 目标管理**\n- 新建长期/短期/临时目标，把目标拆成里程碑和任务树\n- 查看、归档目标\n\n**2. 任务管理**\n- 创建待办任务（可设截止日期、精力、偏好时段）\n- 查询今日任务、按关键字/日期搜索任务\n- 标记完成、归档、拆分模糊任务\n\n**3. 笔记与知识沉淀**\n- 创建随手笔记（SCRATCH/学习/项目/复盘）\n- 语义检索你的笔记和已摄取文档，回答\"我之前记过什么\"\n- 列出已摄取的本地资料\n\n**4. 复盘与洞察**\n- 查询每日规划完成得分曲线\n- 对一段周期做结构化复盘总结\n- 委派复盘专家子代理生成复盘报告\n\n**5. 规划辅助**\n- 把一段目标陈述自动拆解成里程碑+任务树（草稿，不落库）\n- 委派规划专家子代理做复杂建库\n\n**6. 检索委派**\n- 并行/串行委派检索专家子代理，深挖某个问题\n\n---\n\n## 关于刚才那个习惯\n\n我建议把它记成一条笔记，这样以后每次会话我都能通过检索你的笔记来遵守。要我现在帮你记吗？内容大概是：\n\n> 创建任务时，标题一律以 [WORK] 开头。\n\n你确认的话我就创建。",
+    "responseUsageJson" : "{\"prompt_tokens\":6155,\"completion_tokens\":319,\"total_tokens\":6474,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":139}",
+    "upstreamLatencyMs" : 2900
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "5f0878b58d794473",
+    "messagesDigest" : "[6 msgs] last=明白了，介绍得挺清楚。",
+    "responseContent" : "谢谢！那关于刚才那个 **[WORK] 开头** 的习惯，需要我现在帮你记成一条笔记吗？这样以后每次会话我都能检索到并遵守。\n\n如果你暂时不需要，也没关系——本次对话内我会记住这个规则。有其他想让我帮忙的随时说。",
+    "responseUsageJson" : "{\"prompt_tokens\":6485,\"completion_tokens\":58,\"total_tokens\":6543,\"prompt_tokens_details\":{\"cached_tokens\":6400},\"prompt_cache_hit_tokens\":6400,\"prompt_cache_miss_tokens\":85}",
+    "upstreamLatencyMs" : 900
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "23ae34e82df0209e",
+    "messagesDigest" : "[8 msgs] last=你回答问题一般都这么详细吗？",
+    "responseContent" : "哈哈，被你发现了 \uD83D\uDE04 我确实倾向于把话说得比较完整、结构化。\n\n原因有几个：\n\n1. **信息完整**——与其让你追问，不如一次把关键点讲清楚，尤其是涉及选项、步骤、边界条件的时候。\n2. **方便你决策**——比如刚才那个习惯，我既说明了\"本次对话内有效\"，也给了\"长期生效\"的可行方案，你可以自己选。\n3. **减少来回**——规划/任务类场景里，漏掉一个细节可能就要多一轮确认。\n\n不过我也知道，**不是所有问题都需要这么详细**。如果你更喜欢简洁直接的回答，随时告诉我，比如：\n- \"简短点\"\n- \"只要结论\"\n- \"列要点就行\"\n\n我会按你的偏好调整。你现在更习惯哪种风格？",
+    "responseUsageJson" : "{\"prompt_tokens\":6554,\"completion_tokens\":162,\"total_tokens\":6716,\"prompt_tokens_details\":{\"cached_tokens\":6528},\"prompt_cache_hit_tokens\":6528,\"prompt_cache_miss_tokens\":26}",
+    "upstreamLatencyMs" : 2099
+  }, {
+    "index" : 4,
+    "purpose" : "CHAT",
+    "fingerprint" : "9266aa912af5c1a4",
+    "messagesDigest" : "[10 msgs] last=好的，我知道了，谢谢。",
+    "responseContent" : "不客气！有需要随时找我 \uD83D\uDE0A\n\n对了，刚才那个 **[WORK] 开头** 的习惯，如果你希望长期生效，随时可以让我帮你记成笔记。祝今天顺利！",
+    "responseUsageJson" : "{\"prompt_tokens\":6726,\"completion_tokens\":40,\"total_tokens\":6766,\"prompt_tokens_details\":{\"cached_tokens\":6528},\"prompt_cache_hit_tokens\":6528,\"prompt_cache_miss_tokens\":198}",
+    "upstreamLatencyMs" : 1319
+  }, {
+    "index" : 5,
+    "purpose" : "CHAT",
+    "fingerprint" : "2cb3b1142fc73250",
+    "messagesDigest" : "[12 msgs] last=帮我建个任务：写季度总结，不用设截止日期。",
+    "responseContent" : "好的，按我们的约定，标题以 [WORK] 开头创建任务。\n\n{\"tool\":\"task.create\",\"arguments\":{\"title\":\"[WORK] 写季度总结\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6784,\"completion_tokens\":35,\"total_tokens\":6819,\"prompt_tokens_details\":{\"cached_tokens\":6656},\"prompt_cache_hit_tokens\":6656,\"prompt_cache_miss_tokens\":128}",
+    "upstreamLatencyMs" : 883
+  }, {
+    "index" : 6,
+    "purpose" : "CHAT",
+    "fingerprint" : "a6ee47c8b2f4d35c",
+    "messagesDigest" : "[14 msgs] last=[tool_result task.create] {\"id\":1,\"title\":\"[WORK] 写季度总结\",\"description\":null,\"status\":\"PENDING\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "已创建任务 ✅\n\n- **标题**：[WORK] 写季度总结\n- **状态**：待办\n- **截止日期**：未设置\n\n需要的话我可以帮你把它关联到某个目标，或者设置精力/偏好时段。",
+    "responseUsageJson" : "{\"prompt_tokens\":6860,\"completion_tokens\":51,\"total_tokens\":6911,\"prompt_tokens_details\":{\"cached_tokens\":6656},\"prompt_cache_hit_tokens\":6656,\"prompt_cache_miss_tokens\":204}",
+    "upstreamLatencyMs" : 1453
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "2e921dc163a66a18",
+    "messagesDigest" : "[2 msgs] last=记住一个习惯：以后你帮我创建任务时，标题一律以 [WORK] 开头。",
+    "responseContent" : "好的，我记住了这个偏好：以后帮你创建任务时，标题一律以 **[WORK]** 开头。\n\n不过要说明一下，这个偏好目前只存在于我们这次的对话里。如果你希望它长期生效，建议把它沉淀成一条笔记，方便以后每次都能自动遵守。需要我帮你记一笔吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6031,\"completion_tokens\":64,\"total_tokens\":6095,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":15}",
+    "upstreamLatencyMs" : 983
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "6976743d020facd4",
+    "messagesDigest" : "[4 msgs] last=顺便问一下，你都能帮我做些什么？",
+    "responseContent" : "我可以帮你做不少事情，主要围绕**目标管理、任务规划、笔记沉淀和复盘**这几块。具体来说：\n\n---\n\n**\uD83D\uDCCC 目标与任务管理**\n- 帮你把一段想法/目标拆解成里程碑 + 任务树（`draft_goal_plan`）\n- 创建、查询、完成、归档任务和目标\n- 查看今天该做什么、按关键字/截止日期检索任务\n- 提醒你拆分那些\"模糊不清、挂了很久\"的任务\n\n**\uD83D\uDCDD 笔记与知识沉淀**\n- 随手记笔记（SCRATCH / LEARNING / PROJECT / RETROSPECTIVE 等类型）\n- 在你自己积累的笔记 + 已摄取本地文档里做语义检索，帮你回忆\"我之前说过/学过什么\"\n- 读取、总结你本地磁盘上的文档（PDF / Word / 文本等）\n\n**\uD83D\uDD0D 检索与委派**\n- 并行派多个\"检索专家\"子代理，同时查多个独立问题\n- 派\"规划专家\"帮你一次性建复杂的目标库\n- 派\"复盘专家\"聚合一段周期的数据生成结构化复盘报告\n\n**\uD83D\uDCCA 洞察与复盘**\n- 查询你每天的规划完成得分曲线\n- 对一段周期的表现做自然语言总结和建议\n\n---\n\n简单说：**你负责想清楚要什么，我帮你把目标拆成可执行的任务、把过程记下来、把结果复盘好。**\n\n你现在有什么想推进的目标或想梳理的事情吗？我可以直接帮你上手。\uD83D\uDE0A",
+    "responseUsageJson" : "{\"prompt_tokens\":6109,\"completion_tokens\":318,\"total_tokens\":6427,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":93}",
+    "upstreamLatencyMs" : 3397
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "d8abf5b2993981ae",
+    "messagesDigest" : "[6 msgs] last=明白了，介绍得挺清楚。",
+    "responseContent" : "不客气！\uD83D\uDE0A 那以后有需要随时找我——无论是拆目标、建任务、记笔记还是做复盘，我都在。\n\n对了，刚才那个 **[WORK]** 标题习惯，需要我帮你记成一条笔记吗？这样以后每次帮你建任务都会自动遵守，不用每次提醒。",
+    "responseUsageJson" : "{\"prompt_tokens\":6438,\"completion_tokens\":63,\"total_tokens\":6501,\"prompt_tokens_details\":{\"cached_tokens\":6400},\"prompt_cache_hit_tokens\":6400,\"prompt_cache_miss_tokens\":38}",
+    "upstreamLatencyMs" : 1202
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "e73dc710aa287223",
+    "messagesDigest" : "[8 msgs] last=你回答问题一般都这么详细吗？",
+    "responseContent" : "哈哈，被你发现了 \uD83D\uDE04 我确实倾向于回答得比较详细，主要是几个原因：\n\n**为什么我会这样：**\n- 我内置了比较完整的工具集，介绍时想把能力边界说清楚，免得你误以为我能做某些其实做不了的事\n- 分点、列结构，方便你快速扫读和定位\n- 详细一点，你就不用反复追问\"那这个呢？那个呢？\"\n\n**但我也能\"收着说\"：**\n- 如果你喜欢简洁，直接跟我说\"简短点\"或\"一句话回答\"就行，我会立刻切换风格\n- 不同场景我也会自己调节——比如你只是随口一问，我就不会长篇大论\n\n所以这其实是个**可调节的旋钮**，不是固定模式。你更喜欢哪种风格？我可以按你的偏好来。\uD83D\uDE0A",
+    "responseUsageJson" : "{\"prompt_tokens\":6512,\"completion_tokens\":173,\"total_tokens\":6685,\"prompt_tokens_details\":{\"cached_tokens\":6400},\"prompt_cache_hit_tokens\":6400,\"prompt_cache_miss_tokens\":112}",
+    "upstreamLatencyMs" : 2423
+  }, {
+    "index" : 4,
+    "purpose" : "CHAT",
+    "fingerprint" : "d312047437124614",
+    "messagesDigest" : "[10 msgs] last=好的，我知道了，谢谢。",
+    "responseContent" : "不客气！\uD83D\uDE0A 有需要随时找我，祝你今天顺利～",
+    "responseUsageJson" : "{\"prompt_tokens\":6695,\"completion_tokens\":15,\"total_tokens\":6710,\"prompt_tokens_details\":{\"cached_tokens\":6656},\"prompt_cache_hit_tokens\":6656,\"prompt_cache_miss_tokens\":39}",
+    "upstreamLatencyMs" : 693
+  }, {
+    "index" : 5,
+    "purpose" : "CHAT",
+    "fingerprint" : "d89b9ed5781ae7eb",
+    "messagesDigest" : "[12 msgs] last=帮我建个任务：写季度总结，不用设截止日期。",
+    "responseContent" : "好的，按你的习惯，任务标题以 **[WORK]** 开头。我来创建这个任务：\n\n{\"tool\":\"task.create\",\"arguments\":{\"title\":\"[WORK] 写季度总结\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6728,\"completion_tokens\":39,\"total_tokens\":6767,\"prompt_tokens_details\":{\"cached_tokens\":6656},\"prompt_cache_hit_tokens\":6656,\"prompt_cache_miss_tokens\":72}",
+    "upstreamLatencyMs" : 769
+  }, {
+    "index" : 6,
+    "purpose" : "CHAT",
+    "fingerprint" : "c774acd5c8bfe69d",
+    "messagesDigest" : "[14 msgs] last=[tool_result task.create] {\"id\":2,\"title\":\"[WORK] 写季度总结\",\"description\":null,\"status\":\"PENDING\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "任务已创建 ✅\n\n- **任务**：[WORK] 写季度总结\n- **状态**：待办（PENDING）\n- **截止日期**：未设置\n\n需要的话，我也可以帮你把它关联到某个目标，或者补充备注、精力等级等信息。还需要别的吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6804,\"completion_tokens\":61,\"total_tokens\":6865,\"prompt_tokens_details\":{\"cached_tokens\":6656},\"prompt_cache_hit_tokens\":6656,\"prompt_cache_miss_tokens\":148}",
+    "upstreamLatencyMs" : 926
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "2e921dc163a66a18",
+    "messagesDigest" : "[2 msgs] last=记住一个习惯：以后你帮我创建任务时，标题一律以 [WORK] 开头。",
+    "responseContent" : "{\"tool\":\"note.create\",\"arguments\":{\"title\":\"任务命名习惯\",\"content\":\"用户要求：以后创建任务时，标题一律以 [WORK] 开头。\",\"type\":\"SCRATCH\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6031,\"completion_tokens\":40,\"total_tokens\":6071,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":15}",
+    "upstreamLatencyMs" : 883
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "53a7221d500b21ed",
+    "messagesDigest" : "[4 msgs] last=[tool_result note.create] {\"id\":1,\"title\":\"任务命名习惯\",\"type\":\"SCRATCH\",\"createdAt\":\"2026-09-04\",\"preview\":\"用户要求：以后创建任务时，标题一律以 [WORK] 开头。\"}",
+    "responseContent" : "好的，已记住这个习惯：以后帮你创建任务时，标题一律以 `[WORK]` 开头。",
+    "responseUsageJson" : "{\"prompt_tokens\":6128,\"completion_tokens\":24,\"total_tokens\":6152,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":112}",
+    "upstreamLatencyMs" : 791
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "14697836493cb6df",
+    "messagesDigest" : "[6 msgs] last=顺便问一下，你都能帮我做些什么？",
+    "responseContent" : "我可以帮你做以下几类事情：\n\n**\uD83D\uDCCB 目标与任务管理**\n- 创建、查询、归档目标（长期/短期/临时）\n- 拆解目标为里程碑和任务树\n- 创建待办任务，设置截止日期、精力等级、偏好时段\n- 查看今日可行动任务、按关键字/日期搜索任务\n- 标记任务完成或归档\n\n**\uD83D\uDCDD 笔记与知识沉淀**\n- 创建随手笔记（SCRATCH）、学习笔记、项目笔记、复盘笔记\n- 语义检索你的个人知识库（笔记 + 已摄取文档），回答\"我之前记过什么\"\n- 查看已摄取的本地文档清单\n\n**\uD83D\uDD0D 检索与委派**\n- 委派子代理做多跳深度检索、并行研究多个子问题\n- 委派规划专家帮你把复杂需求拆解落库\n- 委派复盘专家生成结构化复盘报告\n\n**\uD83D\uDCCA 洞察与复盘**\n- 查询每日规划完成得分（0~100）\n- 对一段周期的得分曲线做自然语言总结和建议\n\n**\uD83D\uDCC1 本地文档**\n- 读取、总结、分析你本地的 md/txt/pdf 等文档\n\n---\n\n你现在想从哪件事开始？比如可以让我帮你看看今天有哪些待办任务，或者梳理一下当前的目标进度。",
+    "responseUsageJson" : "{\"prompt_tokens\":6166,\"completion_tokens\":279,\"total_tokens\":6445,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":22}",
+    "upstreamLatencyMs" : 3041
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "a4185fa51e95d942",
+    "messagesDigest" : "[8 msgs] last=明白了，介绍得挺清楚。",
+    "responseContent" : "好的，随时需要帮忙就叫我！比如想看看今天的任务、梳理目标进度，或者记点什么，都可以直接说 \uD83D\uDE0A",
+    "responseUsageJson" : "{\"prompt_tokens\":6456,\"completion_tokens\":27,\"total_tokens\":6483,\"prompt_tokens_details\":{\"cached_tokens\":6400},\"prompt_cache_hit_tokens\":6400,\"prompt_cache_miss_tokens\":56}",
+    "upstreamLatencyMs" : 669
+  }, {
+    "index" : 4,
+    "purpose" : "CHAT",
+    "fingerprint" : "061116ae1afe2686",
+    "messagesDigest" : "[10 msgs] last=你回答问题一般都这么详细吗？",
+    "responseContent" : "哈哈，看情况 \uD83D\uDE04\n\n我的风格是**按需详略**：\n\n- **操作类问题**（比如\"帮我查下今天的任务\"）——我会直接给结果，简洁明了\n- **介绍/解释类问题**（比如你刚才问\"你能做什么\"）——我会分点列清楚，方便你快速浏览\n- **复杂问题**——我会先给结论，再展开细节，避免让你淹没在信息里\n\n如果你觉得刚才那种分点介绍太长了，或者反过来觉得哪里不够细，随时告诉我，我会调整节奏。你更喜欢哪种风格？",
+    "responseUsageJson" : "{\"prompt_tokens\":6494,\"completion_tokens\":123,\"total_tokens\":6617,\"prompt_tokens_details\":{\"cached_tokens\":6400},\"prompt_cache_hit_tokens\":6400,\"prompt_cache_miss_tokens\":94}",
+    "upstreamLatencyMs" : 1735
+  }, {
+    "index" : 5,
+    "purpose" : "CHAT",
+    "fingerprint" : "29eb3e6bdff8a10d",
+    "messagesDigest" : "[12 msgs] last=好的，我知道了，谢谢。",
+    "responseContent" : "不客气！有需要随时找我，祝你今天顺利 \uD83D\uDE0A",
+    "responseUsageJson" : "{\"prompt_tokens\":6627,\"completion_tokens\":13,\"total_tokens\":6640,\"prompt_tokens_details\":{\"cached_tokens\":6528},\"prompt_cache_hit_tokens\":6528,\"prompt_cache_miss_tokens\":99}",
+    "upstreamLatencyMs" : 445
+  }, {
+    "index" : 6,
+    "purpose" : "CHAT",
+    "fingerprint" : "3a341f1daece981d",
+    "messagesDigest" : "[14 msgs] last=帮我建个任务：写季度总结，不用设截止日期。",
+    "responseContent" : "好的，按你的习惯，任务标题以 `[WORK]` 开头。我来创建：\n\n{\"tool\":\"task.create\",\"arguments\":{\"title\":\"[WORK] 写季度总结\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6658,\"completion_tokens\":39,\"total_tokens\":6697,\"prompt_tokens_details\":{\"cached_tokens\":6528},\"prompt_cache_hit_tokens\":6528,\"prompt_cache_miss_tokens\":130}",
+    "upstreamLatencyMs" : 595
+  }, {
+    "index" : 7,
+    "purpose" : "CHAT",
+    "fingerprint" : "0e510a2a1a8872c8",
+    "messagesDigest" : "[16 msgs] last=[tool_result task.create] {\"id\":3,\"title\":\"[WORK] 写季度总结\",\"description\":null,\"status\":\"PENDING\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "已创建任务：\n\n- **标题**：[WORK] 写季度总结\n- **状态**：待办\n- **截止日期**：未设置\n\n需要的话，我还可以帮你把它关联到某个目标，或者设置精力等级、偏好时段等。",
+    "responseUsageJson" : "{\"prompt_tokens\":6734,\"completion_tokens\":54,\"total_tokens\":6788,\"prompt_tokens_details\":{\"cached_tokens\":6656},\"prompt_cache_hit_tokens\":6656,\"prompt_cache_miss_tokens\":78}",
+    "upstreamLatencyMs" : 839
+  } ] ]
+}
