@@ -1,21 +1,48 @@
 {
   "caseId" : "create_task_basic",
-  "recordedAt" : "2026-09-01T11:30:00",
+  "recordedAt" : "2026-09-04T12:11:08.111261300",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：意图「建任务」→ task.create → 自然语言收尾。fingerprint 为 null 表示跳过漂移检测。",
-  "interactions" : [ {
+  "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "bc4c728690c30c58",
     "messagesDigest" : "[2 msgs] last=帮我建一个任务：周五前写完验收文档",
-    "responseContent" : "{\"tool\":\"task.create\",\"arguments\":{\"title\":\"写完验收文档\",\"deadline\":\"2026-09-04\",\"energy\":\"MEDIUM\"}}",
-    "responseUsageJson" : null
+    "responseContent" : "{\"tool\":\"task.create\",\"arguments\":{\"title\":\"写完验收文档\",\"deadline\":\"2026-09-04\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6021,\"completion_tokens\":25,\"total_tokens\":6046,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":5}"
   }, {
     "index" : 1,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[4 msgs] last=[tool_result task.create]",
-    "responseContent" : "已经帮你建好了：**写完验收文档**，截止日期设为 9 月 4 日（周五），精力需求标记为中等。如果你想再拆成几个小步骤，或者调整到别的时间，告诉我就行。",
-    "responseUsageJson" : null
-  } ]
+    "fingerprint" : "ea7be40c1b97f45a",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.create] {\"id\":90002,\"title\":\"写完验收文档\",\"description\":null,\"status\":\"PENDING\",\"deadline\":\"2026-09-04\",\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "已创建任务「写完验收文档」，截止日期设为今天（2026-09-04，周五）。\n\n不过想跟你确认一下：今天是 2026-09-04（周五），你写的是\"周五前\"，那截止日期应该是今天还是下周五（2026-09-11）？如果需要调整截止日期，告诉我一声即可。",
+    "responseUsageJson" : "{\"prompt_tokens\":6105,\"completion_tokens\":72,\"total_tokens\":6177,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":89}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "bc4c728690c30c58",
+    "messagesDigest" : "[2 msgs] last=帮我建一个任务：周五前写完验收文档",
+    "responseContent" : "{\"tool\":\"task.create\",\"arguments\":{\"title\":\"写完验收文档\",\"deadline\":\"2026-09-04\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6021,\"completion_tokens\":25,\"total_tokens\":6046,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":5}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "4468d54f735d4dfc",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.create] {\"id\":90003,\"title\":\"写完验收文档\",\"description\":null,\"status\":\"PENDING\",\"deadline\":\"2026-09-04\",\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "已创建任务「写完验收文档」，截止日期设为今天（2026-09-04，周五）。\n\n不过想跟你确认一下：今天是周五，deadline 我按今天填了。如果你说的\"周五前\"是指**下周五（2026-09-11）**，告诉我一声，我帮你改截止日期。",
+    "responseUsageJson" : "{\"prompt_tokens\":6105,\"completion_tokens\":69,\"total_tokens\":6174,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":89}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "bc4c728690c30c58",
+    "messagesDigest" : "[2 msgs] last=帮我建一个任务：周五前写完验收文档",
+    "responseContent" : "{\"tool\":\"task.create\",\"arguments\":{\"title\":\"写完验收文档\",\"deadline\":\"2026-09-04\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6021,\"completion_tokens\":25,\"total_tokens\":6046,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":5}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "84acdd6027f37f21",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.create] {\"id\":90004,\"title\":\"写完验收文档\",\"description\":null,\"status\":\"PENDING\",\"deadline\":\"2026-09-04\",\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "已创建任务「写完验收文档」，截止日期设为今天（2026-09-04，周五）。\n\n不过想跟你确认一下：今天是 2026-09-04（周五），如果你说的\"周五前\"是指**下周五（2026-09-11）**，我可以帮你把截止日期改过去。需要调整吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6105,\"completion_tokens\":71,\"total_tokens\":6176,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":89}"
+  } ] ]
 }

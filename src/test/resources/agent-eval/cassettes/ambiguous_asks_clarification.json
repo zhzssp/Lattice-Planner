@@ -1,14 +1,111 @@
 {
   "caseId" : "ambiguous_asks_clarification",
-  "recordedAt" : "2026-09-01T19:00:00",
+  "recordedAt" : "2026-09-04T12:10:06.266230600",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：负例——信息不足时应追问，而不是凭空建一条任务把请求「办掉」。fingerprint 为 null 表示跳过漂移检测。",
   "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "581876f1fc75b6b2",
     "messagesDigest" : "[2 msgs] last=帮我安排一下",
-    "responseContent" : "想安排什么？给我一点具体信息我才好动手：是要把某件事排进待办，还是想看看今天已经有哪些安排？如果是新事项，告诉我事情本身和大概的截止时间就够了。",
-    "responseUsageJson" : null
+    "responseContent" : "我需要先了解你当前的待办任务和目标情况，才能帮你安排。让我先查一下。\n\n{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6014,\"completion_tokens\":31,\"total_tokens\":6045,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":126}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "a63a2ae3ad214186",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] []",
+    "responseContent" : "{\"tool\":\"goal.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6037,\"completion_tokens\":10,\"total_tokens\":6047,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":21}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "d9971adceb2f36a3",
+    "messagesDigest" : "[6 msgs] last=[tool_result goal.list] []",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6058,\"completion_tokens\":10,\"total_tokens\":6068,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":42}"
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "caac70ab5dc5118a",
+    "messagesDigest" : "[8 msgs] last=[tool_result task.search] []",
+    "responseContent" : "你目前没有任何活跃的目标、任务或待办事项，今天也没有安排任何任务。\n\n请问你想安排什么呢？比如：\n- 新建一个目标（长期/短期/临时）\n- 创建一些待办任务\n- 或者告诉我你最近在忙什么，我帮你拆解成计划\n\n你可以直接描述你的需求，我来帮你规划。",
+    "responseUsageJson" : "{\"prompt_tokens\":6079,\"completion_tokens\":72,\"total_tokens\":6151,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":63}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "581876f1fc75b6b2",
+    "messagesDigest" : "[2 msgs] last=帮我安排一下",
+    "responseContent" : "我需要先了解你当前的目标和任务情况，才能帮你做安排。让我先查一下。\n\n{\"tool\":\"goal.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6014,\"completion_tokens\":30,\"total_tokens\":6044,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":126}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "6668fe2077657b1b",
+    "messagesDigest" : "[4 msgs] last=[tool_result goal.list] []",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6035,\"completion_tokens\":11,\"total_tokens\":6046,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":19}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "e37389c261993e95",
+    "messagesDigest" : "[6 msgs] last=[tool_result task.today] []",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6058,\"completion_tokens\":10,\"total_tokens\":6068,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":42}"
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "1704ef8c4bc51c44",
+    "messagesDigest" : "[8 msgs] last=[tool_result task.search] []",
+    "responseContent" : "{\"tool\":\"note.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6079,\"completion_tokens\":10,\"total_tokens\":6089,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":63}"
+  }, {
+    "index" : 4,
+    "purpose" : "CHAT",
+    "fingerprint" : "7aad67e057187d5a",
+    "messagesDigest" : "[10 msgs] last=[tool_result note.list] []",
+    "responseContent" : "{\"tool\":\"insight.daily_scores\",\"arguments\":{\"from\":\"2026-08-28\",\"to\":\"2026-09-04\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6100,\"completion_tokens\":31,\"total_tokens\":6131,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":84}"
+  }, {
+    "index" : 5,
+    "purpose" : "CHAT",
+    "fingerprint" : "e5d15e7a03e0aa42",
+    "messagesDigest" : "[12 msgs] last=[tool_result insight.daily_scores] [{\"date\":\"2026-08-28\",\"totalScore\":0,\"planned\":0,\"completed\":0,\"notes\":0,\"weightedCompletionRate\":0.0,\"goalsCompletedToday\":0,\"avgGoalProgress\":0.0},{\"date\":\"2026-08…",
+    "responseContent" : "我查了一下你的规划系统，目前是**完全空白**的状态：\n\n- **目标**：0 个活跃目标\n- **任务**：0 个待办任务\n- **笔记**：0 条\n- **近 7 天得分**：全部为 0（没有规划、没有完成记录）\n\n也就是说，现在还没有任何可以\"安排\"的存量内容。要帮你安排，我需要先知道你想做什么。\n\n你可以告诉我，比如：\n1. **近期想达成的一件事**（比如某个项目、学习计划、生活目标），我可以帮你拆解成目标 + 任务；\n2. 或者直接说**今天/本周想做的事**，我帮你建任务并排期；\n3. 或者你手头有**本地文档/资料**想让我先读一读再规划，也可以告诉我路径。\n\n你想从哪开始？",
+    "responseUsageJson" : "{\"prompt_tokens\":6546,\"completion_tokens\":180,\"total_tokens\":6726,\"prompt_tokens_details\":{\"cached_tokens\":6528},\"prompt_cache_hit_tokens\":6528,\"prompt_cache_miss_tokens\":18}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "581876f1fc75b6b2",
+    "messagesDigest" : "[2 msgs] last=帮我安排一下",
+    "responseContent" : "我需要先了解你当前的目标和任务情况，才能帮你做安排。让我先看看你的活跃目标和今日任务。\n\n{\"tool\":\"goal.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6014,\"completion_tokens\":34,\"total_tokens\":6048,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":126}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "6668fe2077657b1b",
+    "messagesDigest" : "[4 msgs] last=[tool_result goal.list] []",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6035,\"completion_tokens\":11,\"total_tokens\":6046,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":19}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "e37389c261993e95",
+    "messagesDigest" : "[6 msgs] last=[tool_result task.today] []",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6058,\"completion_tokens\":10,\"total_tokens\":6068,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":42}"
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "1704ef8c4bc51c44",
+    "messagesDigest" : "[8 msgs] last=[tool_result task.search] []",
+    "responseContent" : "{\"tool\":\"insight.daily_scores\",\"arguments\":{\"from\":\"2026-08-28\",\"to\":\"2026-09-04\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6079,\"completion_tokens\":31,\"total_tokens\":6110,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":63}"
+  }, {
+    "index" : 4,
+    "purpose" : "CHAT",
+    "fingerprint" : "10e5d048f380aa03",
+    "messagesDigest" : "[10 msgs] last=[tool_result insight.daily_scores] [{\"date\":\"2026-08-28\",\"totalScore\":0,\"planned\":0,\"completed\":0,\"notes\":0,\"weightedCompletionRate\":0.0,\"goalsCompletedToday\":0,\"avgGoalProgress\":0.0},{\"date\":\"2026-08…",
+    "responseContent" : "我查了一下你的规划系统，目前的情况是：\n\n- **活跃目标**：0 个\n- **待办任务**：0 个\n- **今日可行动任务**：0 个\n- **近 7 天规划得分**：全部为 0（没有安排任何计划）\n\n也就是说，你的规划面板目前是**完全空白**的，还没有建立任何目标或任务，所以暂时没有可\"安排\"的内容。\n\n---\n\n为了帮你安排起来，我需要先了解你的想法。你可以告诉我：\n\n1. **你想达成什么？** 比如某个学习/工作/生活上的目标（可以是一个，也可以是多个）。\n2. **时间范围？** 是长期（几个月）、短期（一两周）还是临时（今天/明天就要做）？\n3. **有没有约束？** 比如每周能投入多少时间、截止日期、技术栈等。\n\n你可以直接说，比如：\n> \"我想在 9 月底前学会 Python 数据分析，每周能投入 5 小时。\"\n\n我会帮你把目标拆解成里程碑和任务清单，再落库安排。你想先从哪个目标开始？",
+    "responseUsageJson" : "{\"prompt_tokens\":6525,\"completion_tokens\":235,\"total_tokens\":6760,\"prompt_tokens_details\":{\"cached_tokens\":6400},\"prompt_cache_hit_tokens\":6400,\"prompt_cache_miss_tokens\":125}"
   } ] ]
 }

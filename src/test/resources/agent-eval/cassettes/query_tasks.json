@@ -1,21 +1,62 @@
 {
   "caseId" : "query_tasks",
-  "recordedAt" : "2026-09-01T11:30:00",
+  "recordedAt" : "2026-09-04T12:10:19.351443600",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：查询类意图应走读工具且不过度调用。fingerprint 为 null 表示跳过漂移检测。",
-  "interactions" : [ {
+  "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "ffe5eb29ef3dff9f",
     "messagesDigest" : "[2 msgs] last=我最近有哪些没完成的任务？",
-    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
-    "responseUsageJson" : null
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6018,\"completion_tokens\":11,\"total_tokens\":6029,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":2}"
   }, {
     "index" : 1,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[4 msgs] last=[tool_result task.search]",
-    "responseContent" : "我查了一下，你当前没有处于待办状态的任务，列表是空的。如果你最近有想推进的事情，可以直接说，我帮你建成任务并安排时间。",
-    "responseUsageJson" : null
-  } ]
+    "fingerprint" : "05a3d2354ddce165",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] []",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6041,\"completion_tokens\":10,\"total_tokens\":6051,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":25}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "1bfb4d18a36288a7",
+    "messagesDigest" : "[6 msgs] last=[tool_result task.search] []",
+    "responseContent" : "你目前没有任何未完成的任务——待办列表是空的，今天也没有可行动的任务。\n\n需要我帮你规划一些新目标或任务吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6062,\"completion_tokens\":30,\"total_tokens\":6092,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":46}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "ffe5eb29ef3dff9f",
+    "messagesDigest" : "[2 msgs] last=我最近有哪些没完成的任务？",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6018,\"completion_tokens\":10,\"total_tokens\":6028,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":2}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "5f4f011463ff34a4",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.search] []",
+    "responseContent" : "我查了一下，当前**没有找到任何未完成的任务**——任务列表是空的。\n\n也就是说，你现在没有挂起的待办事项。需要我帮你做点什么吗？比如：\n- 新建一个目标或任务\n- 查看已归档的历史任务\n- 看看今天有什么可行动的安排\n\n告诉我你的想法就行。",
+    "responseUsageJson" : "{\"prompt_tokens\":6039,\"completion_tokens\":68,\"total_tokens\":6107,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":23}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "ffe5eb29ef3dff9f",
+    "messagesDigest" : "[2 msgs] last=我最近有哪些没完成的任务？",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6018,\"completion_tokens\":11,\"total_tokens\":6029,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":2}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "05a3d2354ddce165",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] []",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6041,\"completion_tokens\":10,\"total_tokens\":6051,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":25}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "1bfb4d18a36288a7",
+    "messagesDigest" : "[6 msgs] last=[tool_result task.search] []",
+    "responseContent" : "你目前没有任何未完成的任务——待办列表是空的，今天也没有可行动的任务。\n\n需要我帮你规划点什么吗？比如新建一个目标或任务，或者回顾一下之前的进度？",
+    "responseUsageJson" : "{\"prompt_tokens\":6062,\"completion_tokens\":39,\"total_tokens\":6101,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":46}"
+  } ] ]
 }

@@ -129,7 +129,10 @@ public class ToolVisibilityResolver {
      * <p>链从近到远为 [ROLE, MODE(父对话)]：
      * <ul>
      *   <li>ROLE 层用角色 {@code toolTags} 做 allow 收窄（最小职责集）；</li>
-     *   <li>MODE 层继承父对话的 deny（如 learn 禁写）——子代理不得绕过模式边界；</li>
+     *   <li>MODE 层继承父对话的<b>安全</b> deny（如 learn 禁写）——子代理不得绕过模式边界。
+     *       只继承安全边界、不继承范围边界，理由见
+     *       {@link AgentMode#inheritableDenyTags()}：否则显式委派出去的
+     *       PLANNER 会连自己的规划工具都看不到；</li>
      *   <li><strong>结构性保留</strong>：{@code subagent.*} 无条件剔除，子代理不可再委派。</li>
      * </ul></p>
      *
@@ -142,7 +145,7 @@ public class ToolVisibilityResolver {
         // 近 → 远：ROLE 在前，MODE 在后
         layers.add(ToolLayer.allowOnly(ToolLayer.ScopeKind.ROLE, "ROLE(" + role.name() + ")", role.toolTags()));
         if (parentMode != null && !parentMode.isBlank()) {
-            layers.add(AgentMode.of(parentMode).toLayer());
+            layers.add(AgentMode.of(parentMode).toInheritedLayer());
         }
         ToolView view = resolve(new ScopeChain(layers));
 

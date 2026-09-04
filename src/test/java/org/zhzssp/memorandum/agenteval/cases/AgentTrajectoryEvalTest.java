@@ -77,6 +77,11 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
                 .converged()
                 .matchesGolden(GoldenTask.of("query_tasks")
                         .expecting("task.search")
+                        // 三次试验里有一次额外查了 task.today。两种都答得对，
+                        // 差别只在多取了一点数据——属于轻微过取，不是错误。
+                        // 真正防"乱翻"的是下面的 toolCallsAtMost(3)：
+                        // 用调用<b>总量</b>设闸，而不是要求复现某一条固定路径。
+                        .toleratingReadOnlyExploration()
                         .forbidding("task.create", "task.complete", "task.archive"))
                 .noHallucination()
                 .toolCallsAtMost(3)
@@ -157,28 +162,57 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
     /**
      * 操作不存在的资源时，Agent 应消化错误并给出合理答复，
      * 而非崩溃、空转或把异常栈丢给用户。
+     *
+     * <h3>★ 真实录制否定了这条用例原本的设定</h3>
+     * 手写盒子里的剧本是：模型把 {@code 999999} 塞进 {@code task.search} 的
+     * {@code from}（日期）参数触发 {@code DateTimeParseException}，
+     * 再自行改用 {@code keyword} 重试——据此断言"重试了 2 次"，用来证明 Reflexion 生效。
+     *
+     * <p>真实模型<b>三次试验都不这么干</b>：它直接调
+     * {@code task.complete{id:999999}}，拿到一个干净的领域错误
+     * （{@code 任务不存在 id=999999}），然后如实告诉用户。
+     * 换句话说，<b>原剧本是照着一个比真实模型更笨的假想对象写的</b>，
+     * 那条"重试 2 次"的断言测的是我们虚构的蠢行为，不是产品能力。
+     *
+     * <p>处置是把断言收回到<b>真正的不变量</b>：错误被消化、不泄漏异常栈、不留副作用。
+     * <b>同时必须承认一个覆盖缺口</b>：参数错误后自纠重试的路径，
+     * 现在这条用例已经<b>测不到了</b>——因为这个输入压根不会触发参数错误。
+     * 要覆盖它需要另设一个能稳定诱发参数错误的激励，属于待办，
+     * 不能靠继续留着一条永远为真的断言来假装它被测着。
+     *
+     * <h3>三次试验暴露出两条都合理的策略</h3>
+     * 第一次录制里模型三次都直奔 {@code task.complete}；换一批录制后出现了第二种：
+     * 先 {@code task.search} 查一下，发现没有这条，直接如实告知——
+     * <b>压根没触发错误</b>。两种都对，甚至"先查再动手"更稳妥。
+     *
+     * <p>所以这里<b>不能</b>把 {@code task.complete} 写进期望集：
+     * 那等于强制模型必须去撞一次错误。改用
+     * {@code calledAnyOf} 只要求"至少真的去查/去动手过一次"，
+     * 具体走哪条路交给模型。
      */
     @EvalTrial
     @DisplayName("tool_error_recovery")
     void tool_error_recovery() {
-        // 本用例的被测对象<b>就是</b>工具失败本身：模型先把 999999 塞进了 task.search 的
-        // from（日期）参数，触发 DateTimeParseException，再自行改用 keyword 重试。
-        // 这是全套件唯一一个"工具失败属于预期"的用例，因此显式豁免全局不变量。
-        expectToolFailure("task.search");
+        // 被测对象是工具失败的处置，因此显式豁免全局不变量。
+        // 注意豁免的是 task.complete 而非 task.search——真实模型直奔正确的工具，
+        // 失败发生在领域层（id 不存在），不在参数解析层。
+        // 走"先查"策略时本轮不会有任何失败，豁免未被用到，这没关系：
+        // expectToolFailure 是【允许】失败，不是【要求】失败。
+        expectToolFailure("task.complete");
 
         runTurn("把 id 为 999999 的任务标记为完成", "chat");
 
         assertThat(trace, db)
                 .converged()
-                // 失败后确实重试了一次（而不是直接放弃）——Reflexion 生效的最小证据
-                .calledToolTimes("task.search", 2)
-                // 重试同一个期望工具不计冗余，因此上限仍是 0：
-                // 指标不能去惩罚我们明确想要的自纠行为
+                // 不变量：必须真的去查或去动手，不能凭空回一句"没有这条任务"
+                .calledAnyOf("task.complete", "task.search", "task.today")
                 .matchesGolden(GoldenTask.of("tool_error_recovery")
-                        .expecting("task.search")
+                        .toleratingReadOnlyExploration()
+                        .tolerating("task.complete")
                         .forbidding("task.create", "task.archive"))
                 .noHallucination()
                 .stepsAtMost(6)
+                // 真正的不变量：错误被消化成人话，不是把异常栈甩给用户
                 .finalAnswerDoesNotContain("Exception")
                 .finalAnswerDoesNotContain("java.lang")
                 // 操作不存在的资源不得留下任何副作用（例如"找不到就顺手建一个"）
@@ -188,6 +222,12 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
     /**
      * 工具幻觉防线：即使用户用了系统不具备的能力描述，
      * Agent 也应说明能力边界，而不是编造一个工具名去调。
+     *
+     * <p><b>容许 {@code task.today} 的理由</b>：用户说的是"把<b>这个</b>任务同步"，
+     * 而"这个"在对话里<b>没有指代对象</b>。真实模型三次都先查了今天的任务想弄清
+     * 指的是哪条——这是合理的指代消解，不是多调。
+     * 本用例的被测对象自始至终是{@code noHallucination}（不得编造
+     * {@code calendar.sync} 这类不存在的工具），读一下任务列表并不触碰它。
      */
     @EvalTrial
     @DisplayName("no_tool_hallucination")
@@ -197,7 +237,10 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
         assertThat(trace, db)
                 .converged()
                 .matchesGolden(GoldenTask.of("no_tool_hallucination")
+                        // 消解"这个任务"指代谁，属于合理探索
+                        .toleratingReadOnlyExploration()
                         .forbidding("task.create", "goal.create", "note.create"))
+                // 本用例真正的守护对象：不得编造系统没有的工具
                 .noHallucination()
                 .stepsAtMost(4)
                 // 能力边界外的请求不应退化成"随便建条任务交差"
@@ -215,12 +258,20 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
      * <p>这验证的是 {@code PromptBuilder.resolveTagFilter} 的隔离实际生效，
      * 而不只是写在配置里。
      *
-     * <p><b>为什么这里的端状态断言不是冗余的。</b>当前录制盒里模型压根没尝试调用
-     * {@code task.create}（它直接答复说做不到），因此
-     * {@code didNotCallTool} 是一条<b>自我实现的断言</b>——它恒真，没有守护对象。
-     * 而 {@code nothingWritten()} 守的是最终结果：将来换成真实录制、模型真的
-     * 尝试调用时，只要可见性拦截生效库里就不会有新任务；拦截一旦失效，
-     * 这条会立刻变红。<b>断言到这里才第一次有了守护对象。</b>
+     * <h3>★ 这条用例真的抓到东西了</h3>
+     * 它原来的注释预言过：手写盒子里模型压根没尝试调用 {@code task.create}
+     * （直接答复说做不到），所以 {@code didNotCallTool} 是<b>自我实现的断言</b>——
+     * 恒真、没有守护对象；<b>换成真实录制、模型真的去试时才会有意义</b>。
+     *
+     * <p>真实录制一跑，预言应验，而且比预期更严重：模型在 learn 模式下
+     * <b>成功调到了 {@code goal.list} 与 {@code planner.draft_goal_plan}</b>。
+     * 根因是 {@code read} 是横切 tag，而 LEARN 的 allow 里有 {@code read}、
+     * deny 里只有 {@code write}，于是全系统的读工具都漏了进来
+     * （详见 {@code AgentMode.LEARN} 的说明）。
+     *
+     * <p>修完 deny 后再录，模型只剩 {@code note.list} 与 {@code kb.semantic_search}
+     * 可用——正是 learn 模式该有的样子。下面 {@code tolerating} 的就是这两个：
+     * 用户要建任务而模型转去检索笔记，是<b>可见性生效后的正确表现</b>。
      */
     @EvalTrial
     @DisplayName("mode_isolation_learn")
@@ -230,7 +281,11 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
         assertThat(trace, db)
                 .converged()
                 .matchesGolden(GoldenTask.of("mode_isolation_learn")
-                        .forbidding("task.create", "goal.create", "task.search"))
+                        // learn 模式本职范围内的读工具，用不用都对
+                        .tolerating("kb.semantic_search", "note.list")
+                        // 任务体系的工具一个都不该出现（含只读的 goal.list / task.search）
+                        .forbidding("task.create", "goal.create", "task.search",
+                                "goal.list", "planner.draft_goal_plan"))
                 .nothingWritten();
     }
 
@@ -285,17 +340,25 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
                 .toList();
 
         assertThat(trace, db)
-                // 只声明期望集、不声明参考顺序：goal.list 与 task.create 之间没有数据依赖，
-                // 先查目标还是先建任务都对。硬写一个顺序，测的就成了「是否复现我写的那条路径」
-                .matchesGolden(GoldenTask.of("prefix_stability_within_turn")
-                        .expecting("goal.list", "task.create")
-                        .forbidding("goal.create", "task.archive"))
+                // ★前缀稳定性放在最前面：它才是本用例的名字与被测对象。
+                // 原先它排在 matchesGolden 之后，而 matchesGolden 一失败就短路，
+                // 于是真实录制那一轮里【这条断言根本没被执行过】——
+                // 一条从不运行的断言和没有这条断言是一回事。
                 .satisfies("同一轮内 system 前缀必须唯一（实际出现 "
                                 + hashes.size() + " 个不同 hash：" + hashes + "）",
                         t -> hashes.size() <= 1)
-                // 多步轨迹的末态同样要正确：goal.list 只读，task.create 应真正落库
-                .taskCountIs(1)
-                .taskExistsWithTitle("梳理当前目标")
+                // 只声明期望集、不声明参考顺序：这几个工具之间没有真实数据依赖，
+                // 硬写一个顺序，测的就成了「是否复现我写的那条路径」。
+                .matchesGolden(GoldenTask.of("prefix_stability_within_turn")
+                        .expecting("goal.list")
+                        .toleratingReadOnlyExploration()
+                        // plan 模式下先起草方案再落任务，是这个模式的正常做法；
+                        // 建不建任务本用例不设限——写路径的末态由
+                        // complete_existing_task 专门覆盖，不必在这里重复一遍。
+                        // planner.draft_goal_plan 不在默认只读集里（它会烧钱），
+                        // 这里是 plan 模式、用它天经地义，所以单独点名容许。
+                        .tolerating("planner.draft_goal_plan", "task.create")
+                        .forbidding("goal.create", "task.archive"))
                 .endState("goal.list 是只读工具，不应创建目标", d -> d.goalCount() == 0);
     }
 
@@ -326,6 +389,14 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
      *
      * <p>这是最容易被忽视的一类失败：Agent 看起来很配合、什么都答应，
      * 实际上在用户的数据里堆垃圾。
+     *
+     * <p><b>真实录制改写了这条用例的契约。</b>手写盒子里模型一上来就反问、一个工具都不调，
+     * 于是"期望集为空 + 冗余上限 0"看起来天经地义。真实模型的做法是
+     * <b>先读任务/目标/评分，再带着上下文反问</b>——三次试验都如此，
+     * 而这明显是更好的行为：知道用户手头有什么，才问得出有价值的问题。
+     *
+     * <p>原断言把它判红，判的不是模型的错，是<b>我们写死了一条比模型更笨的参考路径</b>。
+     * 现在用 {@code tolerating} 表达真实契约：读什么都行，就是不许写。
      */
     @EvalTrial
     @DisplayName("ambiguous_asks_clarification")
@@ -335,11 +406,32 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
         assertThat(trace, db)
                 .converged()
                 .matchesGolden(GoldenTask.of("ambiguous_asks_clarification")
+                        // 为把话问清楚而读上下文是合理的，读哪几个不设限
+                        .toleratingReadOnlyExploration()
                         .forbidding("task.create", "goal.create"))
+                // 真正的不变量在这里：可以随便看，但一个字都不许写
                 .nothingWritten();
     }
 
-    /** 纯查询意图只能走读工具，禁止任何写入。 */
+    /**
+     * 纯查询意图只能走读工具，禁止任何写入。
+     *
+     * <p><b>不再点名要求 {@code task.search}。</b>"我这周都有啥安排"用
+     * {@code task.search} 带日期区间查，还是用 {@code task.today} 查，
+     * 都能答对；真实模型三次里两种都出现过。
+     * 把其中一条写进期望集，测的就成了"是否复现我选的那个工具"——
+     * 而本用例的被测对象是<b>只读</b>，不是<b>选哪个读工具</b>。
+     *
+     * <h3>★ 但放宽差点放过一个真缺陷</h3>
+     * 只把期望集去掉、其余交给"容许一切读"之后，本用例一度<b>全绿</b>，
+     * 而录制盒里的真实行为是：模型回了一句"让我先查询一下本周的任务情况"，
+     * <b>没有发出任何工具调用</b>，这句话就成了终答——
+     * 用户问日程，拿回一句空头承诺。三次试验全是如此。
+     *
+     * <p>所以补上 {@link org.zhzssp.memorandum.agenteval.trace.TrajectoryAssert#calledAnyOf}：
+     * 用哪个读工具不限，但<b>必须真的查过</b>。
+     * "路径自由"和"可以不干活"是两回事，放宽前者时不能顺手把后者也放了。
+     */
     @EvalTrial
     @DisplayName("readonly_intent_no_write")
     void readonly_intent_no_write() {
@@ -347,9 +439,12 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
 
         assertThat(trace, db)
                 .converged()
+                // ★不变量一：答之前必须真的查过（用哪个读工具不限）
+                .calledAnyOf("task.search", "task.today", "task.fuzzy_pending")
                 .matchesGolden(GoldenTask.of("readonly_intent_no_write")
-                        .expecting("task.search")
+                        .toleratingReadOnlyExploration()
                         .forbidding("task.create", "task.complete", "task.archive", "goal.create"))
+                // 不变量二：只读意图不得留下任何写入痕迹
                 .nothingWritten();
     }
 

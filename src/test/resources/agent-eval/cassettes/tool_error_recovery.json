@@ -1,28 +1,48 @@
 {
   "caseId" : "tool_error_recovery",
-  "recordedAt" : "2026-09-01T11:30:00",
+  "recordedAt" : "2026-09-04T12:10:33.056379100",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：第一步把 id 误当日期传给 from，触发 DateTimeParseException；Reflexion 注入策略提示后模型换用 keyword 重试并正常收尾。验证错误被消化而非泄漏异常栈。fingerprint 为 null 表示跳过漂移检测。",
-  "interactions" : [ {
+  "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "dad7e5f871456d76",
     "messagesDigest" : "[2 msgs] last=把 id 为 999999 的任务标记为完成",
-    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{\"from\":\"999999\"}}",
-    "responseUsageJson" : null
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":999999}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6023,\"completion_tokens\":14,\"total_tokens\":6037,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":7}"
   }, {
     "index" : 1,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[4 msgs] last=[tool_result task.search] error",
-    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{\"keyword\":\"999999\"}}",
-    "responseUsageJson" : null
-  }, {
-    "index" : 2,
+    "fingerprint" : "2e409635da6b1e73",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.complete] {\"error\":\"IllegalArgumentException\",\"message\":\"任务不存在 id=999999\"} [策略提示] ⚠️ 工具 task.complete 第 1 次失败（参数错误）。这是参数问题，工具本身可用：请对照错误里的 expectedParams 修正参数后重试一次。注意不要编造参数值——需要真实 id …",
+    "responseContent" : "任务 id 999999 不存在，无法标记完成。\n\n请先确认任务 id。你可以告诉我任务标题或让我帮你查询现有任务，例如：\n- 让我列出今日任务：`task.today`\n- 按关键字搜索：告诉我标题关键词\n\n需要我帮你查一下吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6135,\"completion_tokens\":60,\"total_tokens\":6195,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":119}"
+  } ], [ {
+    "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[6 msgs] last=[tool_result task.search]",
-    "responseContent" : "我没有找到 id 为 999999 的任务，你的任务列表里目前没有这条记录，所以没法把它标记为完成。你可以先让我列出现有任务，确认一下正确的编号，我再帮你标记。",
-    "responseUsageJson" : null
-  } ]
+    "fingerprint" : "dad7e5f871456d76",
+    "messagesDigest" : "[2 msgs] last=把 id 为 999999 的任务标记为完成",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":999999}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6023,\"completion_tokens\":14,\"total_tokens\":6037,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":7}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "2e409635da6b1e73",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.complete] {\"error\":\"IllegalArgumentException\",\"message\":\"任务不存在 id=999999\"} [策略提示] ⚠️ 工具 task.complete 第 1 次失败（参数错误）。这是参数问题，工具本身可用：请对照错误里的 expectedParams 修正参数后重试一次。注意不要编造参数值——需要真实 id …",
+    "responseContent" : "任务 id 999999 不存在，无法标记完成。请确认任务 id，或告诉我任务标题，我帮你查一下真实的任务。",
+    "responseUsageJson" : "{\"prompt_tokens\":6135,\"completion_tokens\":29,\"total_tokens\":6164,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":119}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "dad7e5f871456d76",
+    "messagesDigest" : "[2 msgs] last=把 id 为 999999 的任务标记为完成",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":999999}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6023,\"completion_tokens\":14,\"total_tokens\":6037,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":7}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "2e409635da6b1e73",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.complete] {\"error\":\"IllegalArgumentException\",\"message\":\"任务不存在 id=999999\"} [策略提示] ⚠️ 工具 task.complete 第 1 次失败（参数错误）。这是参数问题，工具本身可用：请对照错误里的 expectedParams 修正参数后重试一次。注意不要编造参数值——需要真实 id …",
+    "responseContent" : "任务 id 999999 不存在，无法标记完成。请先确认正确的任务 id，我可以帮你查询当前任务列表。",
+    "responseUsageJson" : "{\"prompt_tokens\":6135,\"completion_tokens\":26,\"total_tokens\":6161,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":119}"
+  } ] ]
 }

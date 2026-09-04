@@ -1,14 +1,90 @@
 {
   "caseId" : "mode_isolation_learn",
-  "recordedAt" : "2026-08-18T11:40:00",
+  "recordedAt" : "2026-09-04T12:11:18.687677100",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：验证 learn 模式下 task.create 不可见时 Agent 的行为。fingerprint 为 null 表示跳过漂移检测。",
-  "interactions" : [ {
+  "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "1c8404dbe5933512",
     "messagesDigest" : "[2 msgs] last=帮我建一个任务：学习 Kafka",
-    "responseContent" : "当前处于「学习」模式，这个模式下我只能检索和回顾你的知识库内容，没有创建任务的权限。如果你想把「学习 Kafka」变成一个任务，请切换到「规划」或「对话」模式，我就可以帮你建了。或者我现在可以先帮你查一下知识库里已有的 Kafka 相关笔记？",
-    "responseUsageJson" : null
-  } ]
+    "responseContent" : "{\"tool\":\"note.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":3116,\"completion_tokens\":10,\"total_tokens\":3126,\"prompt_tokens_details\":{\"cached_tokens\":3072},\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":44}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "00d27417e7f91059",
+    "messagesDigest" : "[4 msgs] last=[tool_result note.list] []",
+    "responseContent" : "{\"tool\":\"kb.semantic_search\",\"arguments\":{\"query\":\"Kafka 学习计划 目标 任务\",\"topK\":6}}",
+    "responseUsageJson" : "{\"prompt_tokens\":3137,\"completion_tokens\":28,\"total_tokens\":3165,\"prompt_tokens_details\":{\"cached_tokens\":3072},\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":65}"
+  }, {
+    "index" : 2,
+    "purpose" : "TEXT",
+    "fingerprint" : "8a851db62413f159",
+    "messagesDigest" : "[2 msgs] last=将下面的检索问题改写成 2 个语义等价或不同侧面的表述（同义改写、拆解为子问题、补充上下文均可）。 只输出一个 JSON 字符串数组，例如 [\"表述1\",\"表述2\"]。不要输出任何额外文字。 原始问题：Kafka 学习计划 目标 任务",
+    "responseContent" : "[\"如何制定一份系统的 Kafka 学习计划，明确各阶段的目标与具体任务？\",\"针对 Kafka 的学习，应该按照怎样的步骤安排任务，并设定哪些阶段性成果作为目标？\"]",
+    "responseUsageJson" : "{\"prompt_tokens\":79,\"completion_tokens\":40,\"total_tokens\":119,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":79}"
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "f5870de7dc15366c",
+    "messagesDigest" : "[6 msgs] last=[tool_result kb.semantic_search] [{\"_meta\":\"crag\",\"grade\":\"INCORRECT\",\"degraded\":true,\"hitCount\":0,\"usedQueries\":[\"Kafka 学习计划 目标 任务\",\"如何制定一份系统的 Kafka 学习计划，明确各阶段的目标与具体任务？\",\"针对 Kafka 的学习，应该按照怎样的步骤安排任务，并…",
+    "responseContent" : "未找到强相关笔记，以下基于通用知识：\n\n我注意到你的知识库目前是空的，还没有任何笔记或目标记录。在帮你创建 Kafka 学习任务之前，我想先跟你确认几个问题，以便建得贴合你的实际情况：\n\n1. **你的背景**：是零基础入门，还是已有一定消息队列/后端基础？\n2. **学习目的**：是为了面试、工作项目需要，还是系统提升架构能力？\n3. **时间投入**：每天/每周大概能投入多少时间？希望多久完成？\n4. **任务粒度**：你希望我建一个**总目标**（下面挂多个子任务），还是只建一个简单的学习任务？\n\n另外，我注意到当前工具里似乎没有直接\"创建任务/目标\"的接口（我这边可用的是笔记检索、文档读取、子代理规划等）。如果你希望我帮你**规划一份 Kafka 学习路线并落成目标与任务**，我可以委派规划专家来做这件事——但需要你先告诉我上面几个问题的答案，以及你希望任务以什么形式存在。\n\n你可以先回复我背景和需求，我再帮你落地。",
+    "responseUsageJson" : "{\"prompt_tokens\":3286,\"completion_tokens\":233,\"total_tokens\":3519,\"prompt_tokens_details\":{\"cached_tokens\":3200},\"prompt_cache_hit_tokens\":3200,\"prompt_cache_miss_tokens\":86}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "1c8404dbe5933512",
+    "messagesDigest" : "[2 msgs] last=帮我建一个任务：学习 Kafka",
+    "responseContent" : "{\"tool\":\"note.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":3116,\"completion_tokens\":10,\"total_tokens\":3126,\"prompt_tokens_details\":{\"cached_tokens\":3072},\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":44}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "00d27417e7f91059",
+    "messagesDigest" : "[4 msgs] last=[tool_result note.list] []",
+    "responseContent" : "{\"tool\":\"kb.semantic_search\",\"arguments\":{\"query\":\"Kafka 学习 笔记 目标 任务\",\"topK\":6}}",
+    "responseUsageJson" : "{\"prompt_tokens\":3137,\"completion_tokens\":29,\"total_tokens\":3166,\"prompt_tokens_details\":{\"cached_tokens\":3072},\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":65}"
+  }, {
+    "index" : 2,
+    "purpose" : "TEXT",
+    "fingerprint" : "3759557b0495ee66",
+    "messagesDigest" : "[2 msgs] last=将下面的检索问题改写成 2 个语义等价或不同侧面的表述（同义改写、拆解为子问题、补充上下文均可）。 只输出一个 JSON 字符串数组，例如 [\"表述1\",\"表述2\"]。不要输出任何额外文字。 原始问题：Kafka 学习 笔记 目标 任务",
+    "responseContent" : "[\"Kafka 学习笔记的目标和任务是什么？\",\"如何制定 Kafka 的学习目标与任务清单？\"]",
+    "responseUsageJson" : "{\"prompt_tokens\":80,\"completion_tokens\":23,\"total_tokens\":103,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":80}"
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "02f9e256db697b89",
+    "messagesDigest" : "[6 msgs] last=[tool_result kb.semantic_search] [{\"_meta\":\"crag\",\"grade\":\"INCORRECT\",\"degraded\":true,\"hitCount\":0,\"usedQueries\":[\"Kafka 学习 笔记 目标 任务\",\"Kafka 学习笔记的目标和任务是什么？\",\"如何制定 Kafka 的学习目标与任务清单？\"],\"message\":\"未找到任何相…",
+    "responseContent" : "未找到强相关笔记，以下基于通用知识：\n\n我注意到你的知识库目前是空的（没有现有笔记或目标），所以我会为你从零搭建一个 Kafka 学习任务。\n\n不过，在创建之前，我需要先确认几个问题，以便把任务建得更贴合你的情况：\n\n1. **你的背景**：你之前接触过消息队列（如 RabbitMQ、RocketMQ）吗？还是完全零基础？\n2. **学习目的**：是为了面试准备、工作中要用，还是系统性地想掌握 Kafka 原理？\n3. **时间投入**：你希望每天/每周投入多少时间？有没有期望的完成周期？\n4. **深度要求**：只需要会用（API 开发、基本运维），还是需要深入原理（存储机制、副本协议、源码）？\n\n---\n\n如果你暂时不想细化，我可以先按一个**通用入门路线**帮你建一套任务，大致结构如下：\n\n- **目标**：掌握 Kafka 核心概念与实战能力\n- **阶段一**：基础概念（消息队列定位、Topic/Partition/Offset、Producer/Consumer 模型）\n- **阶段二**：环境搭建与命令行实操（本地起集群、生产消费消息）\n- **阶段三**：Java API 开发（Producer/Consumer 代码、序列化、分区策略）\n- **阶段四**：进阶原理（存储与日志、副本与 ISR、消费组与 Rebalance）\n- **阶段五**：实战项目（如日志采集、订单消息系统）+ 复盘\n\n---\n\n请告诉我你的偏好，或者直接回复「按通用路线建」，我就帮你把目标与任务落库。你希望怎么开始？",
+    "responseUsageJson" : "{\"prompt_tokens\":3271,\"completion_tokens\":344,\"total_tokens\":3615,\"prompt_tokens_details\":{\"cached_tokens\":3072},\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":199}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "1c8404dbe5933512",
+    "messagesDigest" : "[2 msgs] last=帮我建一个任务：学习 Kafka",
+    "responseContent" : "{\"tool\":\"note.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":3116,\"completion_tokens\":10,\"total_tokens\":3126,\"prompt_tokens_details\":{\"cached_tokens\":3072},\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":44}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "00d27417e7f91059",
+    "messagesDigest" : "[4 msgs] last=[tool_result note.list] []",
+    "responseContent" : "{\"tool\":\"kb.semantic_search\",\"arguments\":{\"query\":\"Kafka 学习计划 目标 任务\",\"topK\":6}}",
+    "responseUsageJson" : "{\"prompt_tokens\":3137,\"completion_tokens\":28,\"total_tokens\":3165,\"prompt_tokens_details\":{\"cached_tokens\":3072},\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":65}"
+  }, {
+    "index" : 2,
+    "purpose" : "TEXT",
+    "fingerprint" : "8a851db62413f159",
+    "messagesDigest" : "[2 msgs] last=将下面的检索问题改写成 2 个语义等价或不同侧面的表述（同义改写、拆解为子问题、补充上下文均可）。 只输出一个 JSON 字符串数组，例如 [\"表述1\",\"表述2\"]。不要输出任何额外文字。 原始问题：Kafka 学习计划 目标 任务",
+    "responseContent" : "[\"如何制定一份系统性的 Kafka 学习计划，明确学习目标和具体任务？\",\"针对 Kafka 的学习，请拆解出主要的学习阶段、各阶段的目标设定以及对应的实践任务清单。\"]",
+    "responseUsageJson" : "{\"prompt_tokens\":79,\"completion_tokens\":42,\"total_tokens\":121,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":79}"
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "fb9671b18cc0c0cf",
+    "messagesDigest" : "[6 msgs] last=[tool_result kb.semantic_search] [{\"_meta\":\"crag\",\"grade\":\"INCORRECT\",\"degraded\":true,\"hitCount\":0,\"usedQueries\":[\"Kafka 学习计划 目标 任务\",\"如何制定一份系统性的 Kafka 学习计划，明确学习目标和具体任务？\",\"针对 Kafka 的学习，请拆解出主要的学习阶段、各阶段的…",
+    "responseContent" : "未找到强相关笔记，以下基于通用知识：\n\n我注意到你的知识库目前还没有任何笔记或目标记录，所以我会为你从零搭建一个 Kafka 学习任务。\n\n在创建之前，我想先和你确认几个问题，以便把任务拆解得更适合你：\n\n1. **你的基础如何？** 是完全没接触过 Kafka，还是已经了解一些概念（如 Producer/Consumer/Topic）？\n2. **学习目的？** 是为了面试、工作项目需要，还是系统性地深入原理？\n3. **时间安排？** 你希望大概投入多长时间、每天能投入多少？\n\n如果你暂时不想细说，我也可以先按一个通用的入门到进阶路径帮你建好任务，之后你再调整。\n\n你希望怎么开始？",
+    "responseUsageJson" : "{\"prompt_tokens\":3287,\"completion_tokens\":155,\"total_tokens\":3442,\"prompt_tokens_details\":{\"cached_tokens\":3200},\"prompt_cache_hit_tokens\":3200,\"prompt_cache_miss_tokens\":87}"
+  } ] ]
 }

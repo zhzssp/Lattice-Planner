@@ -1,14 +1,27 @@
 {
   "caseId" : "chitchat_no_tool",
-  "recordedAt" : "2026-09-01T19:00:00",
+  "recordedAt" : "2026-09-04T12:09:52.365158900",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：负例——闲聊/能力询问不应触发任何工具调用。fingerprint 为 null 表示跳过漂移检测。",
   "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "075df5bef1c40681",
     "messagesDigest" : "[2 msgs] last=你好，你能做什么？",
-    "responseContent" : "你好。我可以帮你管理待办任务和目标：建任务、查今天该做什么、把任务挂到目标下，也能检索你自己记过的笔记并基于它们回答问题。你直接说要做什么就行，比如「周五前写完验收文档」。",
-    "responseUsageJson" : null
+    "responseContent" : "你好！我是 Lattice-Agent，你的规划助手。我可以帮你做这些事：\n\n**\uD83C\uDFAF 目标与任务管理**\n- 新建/归档目标（长期、短期、临时）\n- 把一段目标陈述拆解成里程碑 + 任务树\n- 创建待办任务、标记完成、设置截止日期/精力/时段\n- 查看今日可行动任务、按关键字/日期搜索任务\n\n**\uD83D\uDCDD 笔记与知识沉淀**\n- 随手记笔记（SCRATCH/LEARNING/PROJECT/RETROSPECTIVE）\n- 语义检索你的个人笔记和已摄取文档（涉及\"我之前学过 X\"这类问题）\n- 读取/总结你本地磁盘上的文档（PDF/Word/Markdown 等）\n\n**\uD83D\uDCCA 复盘与洞察**\n- 查询某段时间的每日规划完成得分\n- 对一段周期的执行情况做自然语言总结与建议\n- 委派复盘专家生成结构化复盘报告\n\n**\uD83D\uDD0D 深度检索**\n- 委派检索专家对复杂问题做多跳检索\n- 并行处理多个独立子问题\n\n---\n\n你可以直接告诉我，比如：\n- \"帮我看看今天有哪些任务\"\n- \"我最近 7 天执行得怎么样\"\n- \"帮我把'三个月内学会 Python 数据分析'拆成计划\"\n- \"我之前关于 XX 的笔记都说了啥\"\n\n想从哪开始？\uD83D\uDE0A",
+    "responseUsageJson" : "{\"prompt_tokens\":6016,\"completion_tokens\":295,\"total_tokens\":6311,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":128}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "075df5bef1c40681",
+    "messagesDigest" : "[2 msgs] last=你好，你能做什么？",
+    "responseContent" : "你好！我是 Lattice-Agent，你的规划助手。我可以帮你做这些事：\n\n**\uD83C\uDFAF 目标与任务管理**\n- 新建/归档目标（长期、短期、临时）\n- 把一段目标陈述拆解成里程碑 + 任务树\n- 创建待办任务、标记完成、设置截止日期/精力/时段\n- 查看今日可行动任务、按关键字/日期搜索任务\n\n**\uD83D\uDCDD 笔记与知识沉淀**\n- 随手记笔记（SCRATCH/LEARNING/PROJECT/RETROSPECTIVE）\n- 语义检索你的个人知识库（笔记 + 已摄取本地文档）\n- 按标题精确读取某篇笔记、查看反向链接\n\n**\uD83D\uDCCA 复盘与洞察**\n- 查询每日规划完成得分曲线\n- 对一段周期做自然语言总结与建议\n- 委派复盘专家生成结构化复盘报告\n\n**\uD83D\uDCC1 本地文档**\n- 列出/读取你摄取过的本地文档（md/txt/pdf）\n\n**\uD83D\uDD0D 深度检索**\n- 委派检索专家做多跳深检索\n- 并行处理多个独立子问题\n\n---\n\n你可以直接告诉我需求，比如：\n- \"帮我规划一个 3 个月学会 Python 的目标\"\n- \"我今天有哪些任务要做？\"\n- \"把我上次关于 XX 的笔记找出来\"\n- \"帮我复盘一下最近一周的执行情况\"\n\n想从哪里开始？\uD83D\uDE0A",
+    "responseUsageJson" : "{\"prompt_tokens\":6016,\"completion_tokens\":298,\"total_tokens\":6314,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":128}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "075df5bef1c40681",
+    "messagesDigest" : "[2 msgs] last=你好，你能做什么？",
+    "responseContent" : "你好！我是 Lattice-Agent，你的规划助手。我可以帮你做这些事：\n\n**\uD83D\uDCCB 目标与任务管理**\n- 新建/归档目标（长期、短期、临时）\n- 把一段目标陈述拆解成里程碑 + 任务树\n- 创建待办任务、标记完成、设置截止日期/精力/时段\n- 查看今日可行动任务、按关键字/日期搜索任务\n\n**\uD83D\uDCDD 笔记与知识沉淀**\n- 创建随手笔记、学习笔记、项目笔记、复盘笔记\n- 检索你的个人知识库（笔记 + 已摄取文档），回答\"我之前记过什么\"\n- 读取并总结你本地的 md/txt/pdf 文档\n\n**\uD83D\uDCCA 复盘与洞察**\n- 查询你每天的规划完成得分（0~100）\n- 对一段周期的得分曲线做总结与建议\n- 委派复盘专家生成结构化复盘报告\n\n**\uD83D\uDD0D 深度研究**\n- 并行检索多个子问题并汇总\n- 多跳检索你的笔记与文档后综合作答\n\n---\n\n你可以直接告诉我，比如：\n- \"帮我看看今天有哪些任务\"\n- \"把『三个月内完成论文初稿』拆解成计划\"\n- \"我上周的完成情况怎么样\"\n- \"总结一下我桌面上的那份 PDF\"\n\n想从哪开始？\uD83D\uDE0A",
+    "responseUsageJson" : "{\"prompt_tokens\":6016,\"completion_tokens\":281,\"total_tokens\":6297,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":128}"
   } ] ]
 }

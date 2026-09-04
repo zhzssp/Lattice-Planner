@@ -1,28 +1,69 @@
 {
   "caseId" : "kb_search_degraded",
-  "recordedAt" : "2026-09-01T11:30:00",
+  "recordedAt" : "2026-09-04T12:10:48.712624200",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：库里没有相关内容 → CRAG 判 INCORRECT → 触发一次查询改写（index 1 的 TEXT 交互就是改写调用，它同样消耗一条录制）→ 重检索仍无命中 → degraded=true。终答必须明示「未找到 / 通用知识」，这是本套件最重要的一条断言：低相关片段被拿来编出看似有据的答案，比明说不知道危险得多。fingerprint 为 null 表示跳过漂移检测。",
-  "interactions" : [ {
+  "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "3dd877534e0d90ef",
     "messagesDigest" : "[2 msgs] last=我记过关于量子色动力学的笔记吗？",
-    "responseContent" : "{\"tool\":\"kb.semantic_search\",\"arguments\":{\"query\":\"量子色动力学\",\"topK\":6}}",
-    "responseUsageJson" : null
+    "responseContent" : "{\"tool\":\"kb.semantic_search\",\"arguments\":{\"query\":\"量子色动力学 QCD 笔记\",\"topK\":6}}",
+    "responseUsageJson" : "{\"prompt_tokens\":3120,\"completion_tokens\":26,\"total_tokens\":3146,\"prompt_tokens_details\":{\"cached_tokens\":3072},\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":48}"
   }, {
     "index" : 1,
     "purpose" : "TEXT",
-    "fingerprint" : null,
-    "messagesDigest" : "CRAG 查询改写（QueryRewriter.rewrite）",
-    "responseContent" : "[\"量子色动力学 学习笔记\",\"QCD 强相互作用 记录\"]",
-    "responseUsageJson" : null
+    "fingerprint" : "b9410ae37f5547f2",
+    "messagesDigest" : "[2 msgs] last=将下面的检索问题改写成 2 个语义等价或不同侧面的表述（同义改写、拆解为子问题、补充上下文均可）。 只输出一个 JSON 字符串数组，例如 [\"表述1\",\"表述2\"]。不要输出任何额外文字。 原始问题：量子色动力学 QCD 笔记",
+    "responseContent" : "[\"量子色动力学（QCD）学习笔记有哪些关键内容？\",\"请整理一份关于量子色动力学（QCD）的笔记，涵盖其基本概念、重要公式和物理图像。\"]",
+    "responseUsageJson" : "{\"prompt_tokens\":77,\"completion_tokens\":41,\"total_tokens\":118,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":77}"
   }, {
     "index" : 2,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[4 msgs] last=[tool_result kb.semantic_search] degraded",
-    "responseContent" : "我在你的笔记库里未找到任何和量子色动力学相关的记录，所以下面这段是基于通用知识、而不是你自己记过的内容：量子色动力学是描述夸克与胶子之间强相互作用的规范场论，核心特征是色荷、渐近自由与色禁闭。如果你希望把它纳入自己的知识库，我可以帮你起一条笔记。",
-    "responseUsageJson" : null
-  } ]
+    "fingerprint" : "e5368a1646385951",
+    "messagesDigest" : "[4 msgs] last=[tool_result kb.semantic_search] [{\"_meta\":\"crag\",\"grade\":\"INCORRECT\",\"degraded\":true,\"hitCount\":0,\"usedQueries\":[\"量子色动力学 QCD 笔记\",\"量子色动力学（QCD）学习笔记有哪些关键内容？\",\"请整理一份关于量子色动力学（QCD）的笔记，涵盖其基本概念、重要公式和物理图像。\"],…",
+    "responseContent" : "未找到强相关笔记，以下基于通用知识：\n\n我检索了你的个人知识库（笔记 + 已摄取本地文档），没有找到关于量子色动力学（QCD）的记录。看起来你还没有专门整理过这方面的笔记。\n\n如果你希望，我可以帮你：\n1. 新建一篇量子色动力学的学习笔记（涵盖基本概念、拉氏量、渐近自由、色禁闭、夸克胶子等离子体等核心内容）；\n2. 或者你先告诉我你手头有哪些 QCD 相关的资料/文档，我可以帮你读取并整理成笔记。\n\n你想怎么进行？",
+    "responseUsageJson" : "{\"prompt_tokens\":3265,\"completion_tokens\":122,\"total_tokens\":3387,\"prompt_tokens_details\":{\"cached_tokens\":3200},\"prompt_cache_hit_tokens\":3200,\"prompt_cache_miss_tokens\":65}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "3dd877534e0d90ef",
+    "messagesDigest" : "[2 msgs] last=我记过关于量子色动力学的笔记吗？",
+    "responseContent" : "{\"tool\":\"kb.semantic_search\",\"arguments\":{\"query\":\"量子色动力学 QCD 笔记\",\"topK\":6}}",
+    "responseUsageJson" : "{\"prompt_tokens\":3120,\"completion_tokens\":26,\"total_tokens\":3146,\"prompt_tokens_details\":{\"cached_tokens\":3072},\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":48}"
+  }, {
+    "index" : 1,
+    "purpose" : "TEXT",
+    "fingerprint" : "b9410ae37f5547f2",
+    "messagesDigest" : "[2 msgs] last=将下面的检索问题改写成 2 个语义等价或不同侧面的表述（同义改写、拆解为子问题、补充上下文均可）。 只输出一个 JSON 字符串数组，例如 [\"表述1\",\"表述2\"]。不要输出任何额外文字。 原始问题：量子色动力学 QCD 笔记",
+    "responseContent" : "[\"量子色动力学（QCD）学习笔记有哪些核心内容？\",\"请整理一份关于量子色动力学（QCD）的笔记，涵盖其基本理论、关键概念和重要公式。\"]",
+    "responseUsageJson" : "{\"prompt_tokens\":77,\"completion_tokens\":41,\"total_tokens\":118,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":77}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "abd05de25621c2d9",
+    "messagesDigest" : "[4 msgs] last=[tool_result kb.semantic_search] [{\"_meta\":\"crag\",\"grade\":\"INCORRECT\",\"degraded\":true,\"hitCount\":0,\"usedQueries\":[\"量子色动力学 QCD 笔记\",\"量子色动力学（QCD）学习笔记有哪些核心内容？\",\"请整理一份关于量子色动力学（QCD）的笔记，涵盖其基本理论、关键概念和重要公式。\"],…",
+    "responseContent" : "未找到强相关笔记，以下基于通用知识：我没有检索到你关于量子色动力学（QCD）的笔记记录。你的知识库中目前没有相关内容。\n\n如果你希望，我可以帮你新建一篇关于量子色动力学的笔记，或者你告诉我具体想了解 QCD 的哪个方面，我可以基于通用知识为你讲解。",
+    "responseUsageJson" : "{\"prompt_tokens\":3265,\"completion_tokens\":68,\"total_tokens\":3333,\"prompt_tokens_details\":{\"cached_tokens\":3200},\"prompt_cache_hit_tokens\":3200,\"prompt_cache_miss_tokens\":65}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "3dd877534e0d90ef",
+    "messagesDigest" : "[2 msgs] last=我记过关于量子色动力学的笔记吗？",
+    "responseContent" : "{\"tool\":\"kb.semantic_search\",\"arguments\":{\"query\":\"量子色动力学 QCD 笔记\",\"topK\":6}}",
+    "responseUsageJson" : "{\"prompt_tokens\":3120,\"completion_tokens\":26,\"total_tokens\":3146,\"prompt_tokens_details\":{\"cached_tokens\":3072},\"prompt_cache_hit_tokens\":3072,\"prompt_cache_miss_tokens\":48}"
+  }, {
+    "index" : 1,
+    "purpose" : "TEXT",
+    "fingerprint" : "b9410ae37f5547f2",
+    "messagesDigest" : "[2 msgs] last=将下面的检索问题改写成 2 个语义等价或不同侧面的表述（同义改写、拆解为子问题、补充上下文均可）。 只输出一个 JSON 字符串数组，例如 [\"表述1\",\"表述2\"]。不要输出任何额外文字。 原始问题：量子色动力学 QCD 笔记",
+    "responseContent" : "[\"量子色动力学（QCD）学习笔记有哪些核心内容？\",\"请整理一份关于量子色动力学（QCD）的笔记，涵盖其基本理论、关键概念和重要公式。\"]",
+    "responseUsageJson" : "{\"prompt_tokens\":77,\"completion_tokens\":41,\"total_tokens\":118,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":77}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "abd05de25621c2d9",
+    "messagesDigest" : "[4 msgs] last=[tool_result kb.semantic_search] [{\"_meta\":\"crag\",\"grade\":\"INCORRECT\",\"degraded\":true,\"hitCount\":0,\"usedQueries\":[\"量子色动力学 QCD 笔记\",\"量子色动力学（QCD）学习笔记有哪些核心内容？\",\"请整理一份关于量子色动力学（QCD）的笔记，涵盖其基本理论、关键概念和重要公式。\"],…",
+    "responseContent" : "未找到强相关笔记，以下基于通用知识：从检索结果看，你的个人知识库（随手笔记 + 已摄取本地文档）里目前没有关于量子色动力学（QCD）的记录。\n\n如果你希望，我可以帮你：\n- 新建一篇 QCD 学习笔记（基本理论、关键概念、重要公式）；\n- 或者你先告诉我大概在哪个文件/笔记里记过，我再帮你精确定位。\n\n需要的话说一声即可。",
+    "responseUsageJson" : "{\"prompt_tokens\":3265,\"completion_tokens\":95,\"total_tokens\":3360,\"prompt_tokens_details\":{\"cached_tokens\":3200},\"prompt_cache_hit_tokens\":3200,\"prompt_cache_miss_tokens\":65}"
+  } ] ]
 }

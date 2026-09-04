@@ -98,6 +98,13 @@ class SessionAndSubAgentVisibilityTest {
     @DisplayName("K5：子代理继承 mode")
     class SubAgentInheritsMode {
 
+        /**
+         * <p>这条用例区分了 mode deny 里混着的两类语义，见
+         * {@code AgentMode.inheritableDenyTags()}：
+         * {@code write} 是安全边界必须继承，{@code planner} 是范围边界不该继承。
+         * 补 LEARN 越界时给它加了域 deny，本用例立刻变红——
+         * 是它逼出了这个区分。</p>
+         */
         @Test
         @DisplayName("learn 模式委派 PLANNER，写工具仍不可见")
         void plannerInheritsLearnDeny() {
@@ -105,6 +112,38 @@ class SessionAndSubAgentVisibilityTest {
             assertFalse(view.contains("task.create"), "learn 下 PLANNER 不应看到写任务");
             assertFalse(view.contains("goal.create"));
             assertTrue(view.contains("planner.draft_goal_plan"), "PLANNER 的只读规划工具可见");
+        }
+
+        /**
+         * ★安全边界那一半：委派<b>不得</b>成为提权路径。
+         *
+         * <p>与上一条正好互补。上一条保证「别管太宽」，这一条保证「别放太松」——
+         * 只有两条同时在，{@code inheritableDenyTags} 的取舍才被真正钉住。
+         * 只留其一的话，把它实现成「全不继承」或「全继承」都能过测。</p>
+         */
+        @Test
+        @DisplayName("★委派不得绕过父模式的写禁令（安全边界必须继承）")
+        void delegationIsNotPrivilegeEscalation() {
+            for (String readOnlyMode : List.of("learn", "reflect", "study")) {
+                ToolView view = resolver.resolveSubAgent(SubAgentRole.PLANNER, readOnlyMode);
+                assertFalse(view.contains("task.create"),
+                        readOnlyMode + " 禁写，委派出去的子代理也不得写任务——"
+                                + "否则「委派一个子代理」就是一条提权路径");
+                assertFalse(view.contains("goal.create"), readOnlyMode + " 下不得写目标");
+                assertFalse(view.contains("note.create"), readOnlyMode + " 下不得写笔记");
+            }
+        }
+
+        /** 范围边界确实没被继承下去（对照组，防止实现退化成「全继承」）。 */
+        @Test
+        @DisplayName("范围边界不继承：learn 的域 deny 不该让 PLANNER 变成空壳")
+        void scopeDenyIsNotInherited() {
+            assertFalse(org.zhzssp.memorandum.feature.agent.runtime.AgentMode.LEARN
+                            .inheritableDenyTags().contains("planner"),
+                    "planner 是范围边界，不该出现在可继承集合里");
+            assertTrue(org.zhzssp.memorandum.feature.agent.runtime.AgentMode.LEARN
+                            .inheritableDenyTags().contains("write"),
+                    "write 是安全边界，必须在可继承集合里");
         }
 
         @Test

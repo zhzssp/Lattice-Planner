@@ -46,10 +46,15 @@ class CodexModeVisibilityTest {
         var tools = List.of(
                 def("task.create", "task", "write"),
                 def("task.search", "task", "read"),
+                def("task.today", "task", "read"),
                 def("goal.create", "goal", "write"),
+                def("goal.list", "goal", "read"),
                 def("note.create", "note", "write"),
                 def("kb.semantic_search", "kb", "read"),
                 def("insight.daily_scores", "insight", "read"),
+                // 带 read 的规划工具：它是 learn 越界里代价最大的一个
+                // （draft_goal_plan 会起子规划器，一次 5~9 次 LLM 调用）
+                def("planner.draft_goal_plan", "planner", "read"),
                 def("subagent.plan", "subagent"),
                 // ---- V4 Codex ----
                 def("repo.list", "codex", "read"),
@@ -188,6 +193,93 @@ class CodexModeVisibilityTest {
             ToolView learn = resolver.resolveMode("learn");
             assertTrue(learn.contains("kb.semantic_search"));
             assertFalse(learn.contains("note.create"), "learn 仍应禁写（V3 行为）");
+        }
+    }
+
+    /* ================= read 横切 tag 造成的越界 ================= */
+
+    /**
+     * ★由<b>真实录制</b>查出的一类越界，此前从未被任何测试覆盖。
+     *
+     * <h3>症状</h3>
+     * learn 模式下模型成功调到了 {@code goal.list} 与 {@code planner.draft_goal_plan}，
+     * 而该模式的承诺是「纯检索问答（kb/note 读）」。
+     *
+     * <h3>根因</h3>
+     * tag 过滤是 OR 语义，而 {@code read} 挂在<b>每个域的每个读工具</b>上。
+     * allow 里只要出现 {@code read}，全系统的读工具就全部命中，
+     * 除非把每个业务域逐个 deny。LEARN 原先只 deny 了 {@code write}。
+     *
+     * <h3>为什么以前测不出来</h3>
+     * 两层原因叠加，缺一都不会漏这么久：
+     * <ul>
+     *   <li>单测这边：从没有一条断言检查过 learn 的<b>读</b>侧边界，
+     *       只查了「写工具不可见」；</li>
+     *   <li>评测那边：{@code mode_isolation_learn} 用的是<b>手写</b>录制盒，
+     *       盒子里模型直接答复「做不到」、压根没尝试调用，
+     *       于是 {@code didNotCallTool} 恒真——<b>一条没有守护对象的断言</b>。
+     *       换成真实录制后模型真的去试了，洞立刻现形。</li>
+     * </ul>
+     */
+    @Nested
+    @DisplayName("★read 横切 tag：只读模式不得因此看到别的业务域")
+    class ReadTagLeak {
+
+        /** learn 的承诺是「纯检索问答」，任务体系的读工具同样不该出现。 */
+        @Test
+        @DisplayName("learn 看不到任务/目标/insight 的读工具")
+        void learnExcludesTaskDomainReads() {
+            ToolView view = resolver.resolveMode("learn");
+            for (String tool : List.of("task.search", "task.today",
+                    "goal.list", "insight.daily_scores")) {
+                assertFalse(view.contains(tool),
+                        "learn 是纯检索问答模式，不应看到 " + tool
+                                + "（它靠 read tag 命中 allow，只能靠 deny 剔除）");
+            }
+            // 机制校验：确认是被 deny 掉的，而不是碰巧没命中 allow。
+            // 后者将来会因为有人给某个工具补 tag 而重新泄漏。
+            assertTrue(view.reasonOf("goal.list").contains("deny"),
+                    "必须是 deny 生效；goal.list 带 read，一定命中了 allow");
+        }
+
+        /**
+         * 代价最大的一条：起草会起子规划器，一次 5~9 次 LLM 调用。
+         * 与 STUDY 当初 deny {@code doc} 挡住 {@code distill.draft} 是同一个理由。
+         */
+        @Test
+        @DisplayName("★三个只读模式都看不到 planner.draft_goal_plan（随口一问就会花钱）")
+        void readOnlyModesExcludeCostlyPlanner() {
+            for (String mode : List.of("learn", "study", "reflect")) {
+                ToolView view = resolver.resolveMode(mode);
+                assertFalse(view.contains("planner.draft_goal_plan"),
+                        mode + " 不该能触发子规划器：一次起草是 5~9 次 LLM 调用，"
+                                + "与只读模式的承诺不符");
+            }
+        }
+
+        /** study 原先只 deny 了 task/goal，insight 是同一个洞里漏掉的第三个域。 */
+        @Test
+        @DisplayName("study 看不到 insight 读工具")
+        void studyExcludesInsight() {
+            assertFalse(resolver.resolveMode("study").contains("insight.daily_scores"));
+        }
+
+        /** 边界另一侧：修 deny 不能把模式本职的工具一起挡掉。 */
+        @Test
+        @DisplayName("修复不得误伤：learn 仍看得到知识检索，plan 仍看得到规划工具")
+        void fixDoesNotOverReach() {
+            ToolView learn = resolver.resolveMode("learn");
+            assertTrue(learn.contains("kb.semantic_search"), "learn 的本职就是检索笔记");
+            assertTrue(learn.contains("subagent.plan"), "子代理不在收窄范围内");
+
+            ToolView plan = resolver.resolveMode("plan");
+            assertTrue(plan.contains("planner.draft_goal_plan"),
+                    "plan 模式 allow 里有 planner，本就该看得到");
+            assertTrue(plan.contains("task.create"));
+
+            ToolView reflect = resolver.resolveMode("reflect");
+            assertTrue(reflect.contains("task.search"), "复盘要读任务，allow 里有 task");
+            assertTrue(reflect.contains("insight.daily_scores"), "复盘要读 insight");
         }
     }
 

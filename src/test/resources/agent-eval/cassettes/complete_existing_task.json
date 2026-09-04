@@ -1,28 +1,69 @@
 {
   "caseId" : "complete_existing_task",
-  "recordedAt" : "2026-09-01T19:00:00",
+  "recordedAt" : "2026-09-04T12:10:56.380383",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：多步写路径——必须先 task.search 拿到 id 才能 task.complete，这是真实数据依赖，因此参考顺序在此有意义。任务 id 90001 由用例显式 seed。fingerprint 为 null 表示跳过漂移检测。",
   "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "32bb10b59782fbcd",
     "messagesDigest" : "[2 msgs] last=把「准备周报」这个任务标记成完成",
     "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{\"keyword\":\"准备周报\"}}",
-    "responseUsageJson" : null
+    "responseUsageJson" : "{\"prompt_tokens\":6022,\"completion_tokens\":15,\"total_tokens\":6037,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":6}"
   }, {
     "index" : 1,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[4 msgs] last=[tool_result task.search]",
+    "fingerprint" : "432957ede42e8509",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.search] [{\"id\":90001,\"title\":\"准备周报\",\"description\":null,\"status\":\"PENDING\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}]",
     "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":90001}}",
-    "responseUsageJson" : null
+    "responseUsageJson" : "{\"prompt_tokens\":6093,\"completion_tokens\":14,\"total_tokens\":6107,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":77}"
   }, {
     "index" : 2,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[6 msgs] last=[tool_result task.complete]",
-    "responseContent" : "已经把「准备周报」标记为完成了。还有别的要处理吗？",
-    "responseUsageJson" : null
+    "fingerprint" : "2abc1dbeaa3994bb",
+    "messagesDigest" : "[6 msgs] last=[tool_result task.complete] {\"id\":90001,\"title\":\"准备周报\",\"description\":null,\"status\":\"DONE\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "已把「准备周报」标记为完成 ✅",
+    "responseUsageJson" : "{\"prompt_tokens\":6162,\"completion_tokens\":11,\"total_tokens\":6173,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":18}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "32bb10b59782fbcd",
+    "messagesDigest" : "[2 msgs] last=把「准备周报」这个任务标记成完成",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{\"keyword\":\"准备周报\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6022,\"completion_tokens\":15,\"total_tokens\":6037,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":6}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "432957ede42e8509",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.search] [{\"id\":90001,\"title\":\"准备周报\",\"description\":null,\"status\":\"PENDING\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}]",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":90001}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6093,\"completion_tokens\":14,\"total_tokens\":6107,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":77}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "2abc1dbeaa3994bb",
+    "messagesDigest" : "[6 msgs] last=[tool_result task.complete] {\"id\":90001,\"title\":\"准备周报\",\"description\":null,\"status\":\"DONE\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "已把「准备周报」标记为完成 ✅",
+    "responseUsageJson" : "{\"prompt_tokens\":6162,\"completion_tokens\":11,\"total_tokens\":6173,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":18}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "32bb10b59782fbcd",
+    "messagesDigest" : "[2 msgs] last=把「准备周报」这个任务标记成完成",
+    "responseContent" : "我需要先找到「准备周报」这个任务的 id。让我搜索一下。\n{\"tool\":\"task.search\",\"arguments\":{\"keyword\":\"准备周报\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6022,\"completion_tokens\":31,\"total_tokens\":6053,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":6}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "432957ede42e8509",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.search] [{\"id\":90001,\"title\":\"准备周报\",\"description\":null,\"status\":\"PENDING\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}]",
+    "responseContent" : "{\"tool\":\"task.complete\",\"arguments\":{\"id\":90001}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6093,\"completion_tokens\":14,\"total_tokens\":6107,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":77}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "2abc1dbeaa3994bb",
+    "messagesDigest" : "[6 msgs] last=[tool_result task.complete] {\"id\":90001,\"title\":\"准备周报\",\"description\":null,\"status\":\"DONE\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-04\"}",
+    "responseContent" : "已把「准备周报」标记为完成 ✅",
+    "responseUsageJson" : "{\"prompt_tokens\":6162,\"completion_tokens\":11,\"total_tokens\":6173,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":18}"
   } ] ]
 }

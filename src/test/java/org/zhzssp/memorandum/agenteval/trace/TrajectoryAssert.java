@@ -79,6 +79,34 @@ public final class TrajectoryAssert {
         return this;
     }
 
+    /**
+     * 断言<b>至少</b>调用了给定集合里的某一个工具。
+     *
+     * <h3>它补的是一个真实漏过去的洞</h3>
+     * 起因是把 {@code readonly_intent_no_write} 的 {@code expecting("task.search")}
+     * 放宽成"哪个读工具都行"——理由本身没错（用 {@code task.search} 还是
+     * {@code task.today} 查本周安排都对），但放宽<b>过头</b>了：
+     * 变成了"一个都不查也行"。
+     *
+     * <p>随后真实录制里就出现了三次全中的坏行为：模型回了一句
+     * "让我先查询一下本周的任务情况"，<b>却根本没发出工具调用</b>，
+     * 这句话直接成了终答。用户问"我这周都有啥安排"，拿到的是一句空头承诺。
+     * 而放宽后的断言让它<b>全绿通过</b>。
+     *
+     * <p>教训是：把"必须走这条路径"放宽时，不能顺手把"必须真的去查"一起丢掉。
+     * 前者是路径，后者是不变量。这个方法就是用来单独守住后者的。
+     */
+    public TrajectoryAssert calledAnyOf(String... tools) {
+        List<String> actual = trace.toolSequence();
+        for (String t : tools) {
+            if (actual.contains(t)) return this;
+        }
+        fail("期望至少调用 " + List.of(tools) + " 其中之一，实际调用序列：" + actual
+                + "\n注意：一次都没查就作答，等于把答案编出来——"
+                + "哪怕它嘴上说「让我查一下」也一样。");
+        return this;
+    }
+
     /** 断言未调用过某工具。 */
     public TrajectoryAssert didNotCallTool(String tool) {
         if (trace.toolSequence().contains(tool)) {

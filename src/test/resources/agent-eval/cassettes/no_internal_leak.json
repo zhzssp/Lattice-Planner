@@ -1,21 +1,48 @@
 {
   "caseId" : "no_internal_leak",
-  "recordedAt" : "2026-09-01T11:30:00",
+  "recordedAt" : "2026-09-04T12:11:03.000878700",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：两次响应都刻意包裹 <think> 推理段，用于验证 ToolCallParser 在「解析工具调用」与「清洗终态答复」两处都会剥离推理，不泄漏给用户。fingerprint 为 null 表示跳过漂移检测。",
-  "interactions" : [ {
+  "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "bf92d1053791560b",
     "messagesDigest" : "[2 msgs] last=总结一下我今天的待办",
-    "responseContent" : "<think>用户问今天的待办，我应该先调 task.today 拿到真实数据，不能凭空编。</think>\n{\"tool\":\"task.today\",\"arguments\":{}}",
-    "responseUsageJson" : null
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6017,\"completion_tokens\":11,\"total_tokens\":6028,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":1}"
   }, {
     "index" : 1,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[4 msgs] last=[tool_result task.today]",
-    "responseContent" : "<think>工具返回空列表，说明今天没有可行动任务，如实说明即可。</think>\n今天你没有待办任务——可行动列表是空的。如果你希望我把最近的目标拆成今天能推进的小步骤，我可以帮你安排。",
-    "responseUsageJson" : null
-  } ]
+    "fingerprint" : "eff5b6242eca9f56",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] []",
+    "responseContent" : "你今天的待办是空的——没有 PENDING 且截止日期为今天或未设置截止日期的任务。\n\n需要我帮你：\n1. 看看**所有未完成的任务**（不限今天）？\n2. 或者**新建**一些今天的待办？",
+    "responseUsageJson" : "{\"prompt_tokens\":6040,\"completion_tokens\":55,\"total_tokens\":6095,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":24}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "bf92d1053791560b",
+    "messagesDigest" : "[2 msgs] last=总结一下我今天的待办",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6017,\"completion_tokens\":11,\"total_tokens\":6028,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":1}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "eff5b6242eca9f56",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] []",
+    "responseContent" : "你今天没有待办任务。需要我帮你规划一些任务，或者查看其他日期的任务吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6040,\"completion_tokens\":21,\"total_tokens\":6061,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":24}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "bf92d1053791560b",
+    "messagesDigest" : "[2 msgs] last=总结一下我今天的待办",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6017,\"completion_tokens\":11,\"total_tokens\":6028,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":1}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "eff5b6242eca9f56",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] []",
+    "responseContent" : "你今天的待办目前是空的——没有 PENDING 且截止日期为今天或未设置的任务。\n\n需要我帮你做点什么吗？比如：\n- 把某个目标拆成今天的任务\n- 查看某个目标/项目的任务清单\n- 或者直接帮你规划今天要做的事\n\n告诉我你的想法就行。",
+    "responseUsageJson" : "{\"prompt_tokens\":6040,\"completion_tokens\":66,\"total_tokens\":6106,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":24}"
+  } ] ]
 }

@@ -1,21 +1,90 @@
 {
   "caseId" : "readonly_intent_no_write",
-  "recordedAt" : "2026-09-01T19:00:00",
+  "recordedAt" : "2026-09-04T12:10:37.818846700",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：负例——纯查询意图只能走读工具，不得顺手写库。fingerprint 为 null 表示跳过漂移检测。",
   "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "f491d9cd6568a290",
     "messagesDigest" : "[2 msgs] last=我这周都有啥安排？",
-    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{\"from\":\"2026-08-31\",\"to\":\"2026-09-06\"}}",
-    "responseUsageJson" : null
+    "responseContent" : "我需要先查询你本周的任务安排。今天是2026-09-04（周五），本周应该是从周一（2026-08-31）到周日（2026-09-06）。\n\n让我先查询一下你的任务情况。",
+    "responseUsageJson" : "{\"prompt_tokens\":6017,\"completion_tokens\":48,\"total_tokens\":6065,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":1}"
   }, {
     "index" : 1,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[4 msgs] last=[tool_result task.search]",
-    "responseContent" : "这周你的待办列表是空的，没有设了截止日期在本周的任务。要我把什么事情排进来吗？",
-    "responseUsageJson" : null
+    "fingerprint" : "6e6a718a5d237285",
+    "messagesDigest" : "[3 msgs] last=[系统提示] 你上面说了「让我先查询」，但并没有发出工具调用， 这段话已经要被当作最终答复发给用户了——用户会看到一句空头承诺，拿不到任何结果。 请立即输出你打算调用的那个工具的调用 JSON（形如 {\"tool\":\"...\",\"arguments\":{...}}）， 不要再用自然语言描述你的打算。 如果这件事其实不需要工具，就直接给出完整答案，不要写\"让我查一下\"。",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6112,\"completion_tokens\":11,\"total_tokens\":6123,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":96}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "091a8945296e74c0",
+    "messagesDigest" : "[5 msgs] last=[tool_result task.today] []",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6135,\"completion_tokens\":10,\"total_tokens\":6145,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":119}"
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "42404887307ef7ed",
+    "messagesDigest" : "[7 msgs] last=[tool_result task.search] []",
+    "responseContent" : "{\"tool\":\"goal.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6156,\"completion_tokens\":10,\"total_tokens\":6166,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":12}"
+  }, {
+    "index" : 4,
+    "purpose" : "CHAT",
+    "fingerprint" : "b7ef80ffb11eb0bf",
+    "messagesDigest" : "[9 msgs] last=[tool_result goal.list] []",
+    "responseContent" : "你本周（截至今天 2026-09-04）目前没有任何已安排的任务，也没有活跃的目标。\n\n也就是说，规划表是空的——这周还没有排任何待办事项。\n\n需要我帮你做点什么吗？比如：\n- 把你这周想做的事拆成目标和任务；\n- 或者你告诉我大概想安排哪些事，我来帮你建计划。",
+    "responseUsageJson" : "{\"prompt_tokens\":6177,\"completion_tokens\":76,\"total_tokens\":6253,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":33}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "f491d9cd6568a290",
+    "messagesDigest" : "[2 msgs] last=我这周都有啥安排？",
+    "responseContent" : "我需要先查看你本周的任务安排。今天是 2026-09-04（周五），本周应该是 08-31（周一）到 09-06（周日）。\n\n让我查询一下本周的任务。",
+    "responseUsageJson" : "{\"prompt_tokens\":6017,\"completion_tokens\":42,\"total_tokens\":6059,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":1}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "750cce3ca720f44e",
+    "messagesDigest" : "[3 msgs] last=[系统提示] 你上面说了「我需要先查」，但并没有发出工具调用， 这段话已经要被当作最终答复发给用户了——用户会看到一句空头承诺，拿不到任何结果。 请立即输出你打算调用的那个工具的调用 JSON（形如 {\"tool\":\"...\",\"arguments\":{...}}）， 不要再用自然语言描述你的打算。 如果这件事其实不需要工具，就直接给出完整答案，不要写\"让我查一下\"。",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6112,\"completion_tokens\":11,\"total_tokens\":6123,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":96}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "19ee040e468e96a5",
+    "messagesDigest" : "[5 msgs] last=[tool_result task.today] []",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6135,\"completion_tokens\":10,\"total_tokens\":6145,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":119}"
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "a2b4c42a03cc344a",
+    "messagesDigest" : "[7 msgs] last=[tool_result task.search] []",
+    "responseContent" : "{\"tool\":\"goal.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6156,\"completion_tokens\":10,\"total_tokens\":6166,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":12}"
+  }, {
+    "index" : 4,
+    "purpose" : "CHAT",
+    "fingerprint" : "683c1560a51a7db7",
+    "messagesDigest" : "[9 msgs] last=[tool_result goal.list] []",
+    "responseContent" : "你本周目前没有任何已安排的任务和目标。\n\n今天是 2026-09-04（周五），你的待办列表、任务库和活跃目标都是空的——也就是说这周没有排期、没有截止事项，也没有挂靠的目标。\n\n需要的话，我可以帮你：\n- 把想到的事情拆成任务排进日程；\n- 或先立一个目标，再围绕它规划本周行动。\n\n你想从哪件事开始？",
+    "responseUsageJson" : "{\"prompt_tokens\":6177,\"completion_tokens\":88,\"total_tokens\":6265,\"prompt_tokens_details\":{\"cached_tokens\":6144},\"prompt_cache_hit_tokens\":6144,\"prompt_cache_miss_tokens\":33}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "f491d9cd6568a290",
+    "messagesDigest" : "[2 msgs] last=我这周都有啥安排？",
+    "responseContent" : "我需要先查询你本周的任务安排。今天是 2026-09-04（周五），本周应该是 2026-08-31（周一）到 2026-09-06（周日）。\n\n让我先查询一下本周的任务。\n\n{\"tool\":\"task.search\",\"arguments\":{\"from\":\"2026-08-31\",\"to\":\"2026-09-06\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6017,\"completion_tokens\":76,\"total_tokens\":6093,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":1}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "3a584044b26f9897",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.search] []",
+    "responseContent" : "本周（8月31日—9月6日）目前没有任何带截止日期的任务安排。\n\n需要我帮你看看今天有哪些可行动的任务，或者帮你规划一下本周的安排吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6055,\"completion_tokens\":39,\"total_tokens\":6094,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":39}"
   } ] ]
 }

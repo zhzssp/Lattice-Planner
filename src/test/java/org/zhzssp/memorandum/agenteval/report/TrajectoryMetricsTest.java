@@ -24,6 +24,63 @@ class TrajectoryMetricsTest {
         return GoldenTask.of("t");
     }
 
+    /**
+     * ★"容许"这一档是真实录制逼出来的，见 {@link GoldenTask} 的说明。
+     *
+     * <p>它的取舍很容易实现错，所以正反两面都要钉死：
+     * 容许集必须<b>真的中性</b>（不惩罚），但又不能<b>宽到把违规吞掉</b>。
+     */
+    @Nested
+    @DisplayName("★容许集：中性，但不得吞掉违规")
+    class Tolerated {
+
+        @Test
+        @DisplayName("容许工具不计冗余，也不拉低精确率")
+        void toleratedIsNeutral() {
+            var m = TrajectoryMetrics.of(List.of("task.create", "task.today"),
+                    task().expecting("task.create").tolerating("task.today"));
+
+            assertEquals(0, m.redundantCalls(), "容许的调用不算冗余");
+            assertEquals(1.0, m.precision(), "容许的调用不该进精确率分母");
+            assertEquals(1.0, m.recall());
+            assertTrue(m.unexpectedTools().isEmpty(), "容许的不算多调");
+            assertEquals(List.of("task.today"), m.toleratedCalled(), "但要如实列出来");
+        }
+
+        @Test
+        @DisplayName("期望集为空的负例：只读探索全部中性，指标不再判红")
+        void pureNegativeCaseWithExploration() {
+            var m = TrajectoryMetrics.of(List.of("goal.list", "task.today"),
+                    task().tolerating("goal.list", "task.today")
+                            .forbidding("task.create"));
+
+            assertEquals(0, m.redundantCalls(),
+                    "这正是手写盒子时代把 ambiguous_asks_clarification 判红的地方");
+            assertEquals(0, m.forbiddenHits());
+        }
+
+        @Test
+        @DisplayName("★容许不得越过禁止：同时出现在两个集合时，禁止优先")
+        void forbiddenWinsOverTolerated() {
+            var m = TrajectoryMetrics.of(List.of("task.create"),
+                    task().tolerating("task.create").forbidding("task.create"));
+
+            assertEquals(1, m.forbiddenHits(),
+                    "禁用命中必须照常记；否则一次误配就能让负例静默失守");
+            assertEquals(List.of("task.create"), m.forbiddenCalled());
+        }
+
+        @Test
+        @DisplayName("未声明容许的工具照旧计冗余（容许是白名单，不是开闸）")
+        void unlistedToolStillCounts() {
+            var m = TrajectoryMetrics.of(List.of("task.today", "insight.daily_scores"),
+                    task().tolerating("task.today"));
+
+            assertEquals(1, m.redundantCalls(), "只有列进容许集的才中性");
+            assertEquals(List.of("insight.daily_scores"), m.unexpectedTools());
+        }
+    }
+
     @Nested
     @DisplayName("精确率与召回率")
     class PrecisionRecall {

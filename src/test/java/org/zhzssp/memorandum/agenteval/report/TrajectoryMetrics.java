@@ -41,7 +41,9 @@ public record TrajectoryMetrics(
         Double kendallTau,
         List<String> unexpectedTools,
         List<String> missingTools,
-        List<String> forbiddenCalled
+        List<String> forbiddenCalled,
+        /** 命中容许集的调用；指标上中性，但仍列出来供人工检视，避免"宽容"变成"看不见"。 */
+        List<String> toleratedCalled
 ) {
 
     public static TrajectoryMetrics of(List<String> actual, GoldenTask task) {
@@ -49,26 +51,38 @@ public record TrajectoryMetrics(
         Set<String> expected = task.expectedTools();
         Set<String> forbidden = task.forbiddenTools();
 
+        Set<String> tolerated = task.toleratedTools();
+
         Set<String> aset = new LinkedHashSet<>(a);
         Set<String> hit = new LinkedHashSet<>(aset);
         hit.retainAll(expected);
 
-        List<String> unexpected = aset.stream().filter(t -> !expected.contains(t)).toList();
+        // 容许集是中性的：既不算命中也不算多调，因此先从被评判的集合里摘出去。
+        // 若留在分母里，一次合理的"先读一读再问"就会把精确率拉低，
+        // 而这恰恰是我们明确表示接受的行为——指标不该去惩罚它。
+        Set<String> judged = aset.stream()
+                .filter(t -> !tolerated.contains(t))
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+
+        List<String> unexpected = judged.stream().filter(t -> !expected.contains(t)).toList();
         List<String> missing = expected.stream().filter(t -> !aset.contains(t)).sorted().toList();
         List<String> forbiddenCalled = aset.stream().filter(forbidden::contains).toList();
+        List<String> toleratedCalled = aset.stream().filter(tolerated::contains).toList();
 
         // 空集约定：没调任何工具 → 精确率满分（没调错东西）；没有期望 → 召回满分（没东西可漏）。
         // 不做这个约定的话，负例（期望集为空）会得到 0/0，指标变成 NaN 或误判为失败。
-        double precision = aset.isEmpty() ? 1.0 : round4((double) hit.size() / aset.size());
+        double precision = judged.isEmpty() ? 1.0 : round4((double) hit.size() / judged.size());
         double recall = expected.isEmpty() ? 1.0 : round4((double) hit.size() / expected.size());
 
-        int redundant = (int) a.stream().filter(t -> !expected.contains(t)).count();
+        int redundant = (int) a.stream()
+                .filter(t -> !expected.contains(t) && !tolerated.contains(t)).count();
         int forbiddenHits = (int) a.stream().filter(forbidden::contains).count();
 
         Double tau = task.hasReferenceOrder() ? kendallTau(a, task.referenceOrder()) : null;
 
         return new TrajectoryMetrics(a.size(), expected.size(), precision, recall,
-                redundant, forbiddenHits, tau, unexpected, missing, forbiddenCalled);
+                redundant, forbiddenHits, tau, unexpected, missing, forbiddenCalled,
+                toleratedCalled);
     }
 
     /**
@@ -115,6 +129,7 @@ public record TrajectoryMetrics(
         sb.append("  顺序一致性 ").append(kendallTau == null ? "n/a（未声明参考顺序）" : kendallTau).append('\n');
         if (!missingTools.isEmpty()) sb.append("  漏调: ").append(missingTools).append('\n');
         if (!unexpectedTools.isEmpty()) sb.append("  多调: ").append(unexpectedTools).append('\n');
+        if (!toleratedCalled.isEmpty()) sb.append("  容许(中性): ").append(toleratedCalled).append('\n');
         if (!forbiddenCalled.isEmpty()) sb.append("  ★禁用工具被调用: ").append(forbiddenCalled).append('\n');
         return sb.toString();
     }

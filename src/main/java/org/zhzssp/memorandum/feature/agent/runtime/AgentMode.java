@@ -49,15 +49,46 @@ public enum AgentMode {
             Set.of("task", "goal", "planner", "kb", "read", "write", "subagent", "mcp"),
             Tags.CODEX_FAMILY),
 
-    /** 复盘：只读（任务/目标/insight/笔记/kb 读 + 子代理 + MCP），禁写。 */
+    /**
+     * 复盘：只读（任务/目标/insight/笔记/kb 读 + 子代理 + MCP），禁写。
+     *
+     * <p><strong>补 deny {@code planner}</strong>：allow 集里刻意没有 {@code planner}，
+     * 但 {@code planner.draft_goal_plan} 带 {@code read}，靠 {@code read} 就能命中 allow。
+     * 见 {@link #LEARN} 上的说明——同一个洞。</p>
+     */
     REFLECT("reflect",
             Set.of("task", "goal", "insight", "note", "kb", "read", "subagent", "mcp"),
-            Tags.plus("write")),
+            Tags.plus("write", "planner")),
 
-    /** 学习：纯检索问答（kb/note 读 + 子代理 + MCP），禁写。 */
+    /**
+     * 学习：纯检索问答（kb/note 读 + 子代理 + MCP），禁写。
+     *
+     * <p><strong>★ 真实录制查出的越界（原先 deny 只有 write）。</strong>
+     * 症状：learn 模式下模型成功调到了 {@code goal.list} 与
+     * {@code planner.draft_goal_plan}，与本模式「纯检索问答」的承诺不符。</p>
+     *
+     * <h3>根因：{@code read} 是一个横切 tag</h3>
+     * tag 过滤是 OR 语义，而 {@code read} 挂在<strong>每个域的每个读工具</strong>上：
+     * {@code goal.list}={goal,read}、{@code task.today}={task,read}、
+     * {@code insight.daily_scores}={insight,read}、
+     * {@code planner.draft_goal_plan}={planner,read}。
+     * 于是 allow 里只要有 {@code read}，全系统的读工具就<strong>全部命中</strong>，
+     * 除非把每个域逐个 deny 掉。
+     *
+     * <p>这正是 {@link Tags#CODEX_FAMILY} 注释里点名的失效方式——
+     * 「忘记同步 deny 列表」。当时只为 V4 的 Codex 族建了族常量，
+     * <strong>V3 的业务域 tag 没做同样的事</strong>，于是 LEARN 漏到今天。
+     * {@link #STUDY} 是 V4 才加的，作者当时补对了 {@code task}/{@code goal}，
+     * 但那份修正<strong>没有回填到 LEARN</strong>。
+     *
+     * <h3>为什么 {@code planner} 必须一起 deny</h3>
+     * {@code planner.draft_goal_plan} 会起一个子规划器，<strong>一次 5~9 次 LLM 调用</strong>。
+     * 在一个「纯检索问答」的模式里放一个随口一问就会花钱的工具，
+     * 与 STUDY 当初 deny {@code doc} 的理由逐字相同。
+     */
     LEARN("learn",
             Set.of("kb", "note", "read", "subagent", "mcp"),
-            Tags.plus("write")),
+            Tags.plus("write", "task", "goal", "insight", "planner")),
 
     /**
      * 研读（V4）：面向知识仓库的纯检索问答。
@@ -75,7 +106,9 @@ public enum AgentMode {
      */
     STUDY("study",
             Set.of("codex", "kb", "note", "read", "subagent", "mcp"),
-            Set.of("write", "task", "goal", "exec", "doc")),
+            // 补 insight / planner：与 LEARN 同因——两者都只带 {域, read}，
+            // 靠 read 命中 allow。原先只 deny 了 task/goal，等于漏了另外两个域。
+            Set.of("write", "task", "goal", "insight", "planner", "exec", "doc")),
 
     /**
      * 策展（V4）：整理知识仓库（挂域、补引用、修死链、开 PR、蒸馏、出题）。
@@ -119,6 +152,16 @@ public enum AgentMode {
         static final Set<String> CODEX_FAMILY =
                 Set.of("codex", "doc", "git", "checkpoint", "lab", "exec");
 
+        /**
+         * 安全边界 tag：子代理必须无条件继承的那一类 deny。
+         *
+         * <p>判据是「绕过它能不能造成父模式明令禁止的<b>副作用</b>」：
+         * {@code write} 会落库/写文件，{@code exec} 会在用户机器上跑命令，
+         * 二者都能。而域 tag（task/goal/planner/…）绕过后只是多读了点东西，
+         * 属于范围问题，不属于安全问题。</p>
+         */
+        static final Set<String> SAFETY = Set.of("write", "exec");
+
         /** CODEX_FAMILY 加上若干额外 deny tag。 */
         static Set<String> plus(String... extra) {
             java.util.Set<String> s = new java.util.LinkedHashSet<>(CODEX_FAMILY);
@@ -149,6 +192,38 @@ public enum AgentMode {
 
     public Set<String> denyTags() {
         return denyTags;
+    }
+
+    /**
+     * 子代理从父对话<b>继承</b>的 deny 子集。
+     *
+     * <h3>为什么不是全量继承</h3>
+     * mode 的 deny 其实混着两类语义，它们对「显式委派」的态度正好相反：
+     * <ul>
+     *   <li><b>安全边界</b>（{@code write} / {@code exec}）——<b>必须</b>继承。
+     *       否则「learn 模式不能写，但我委派个子代理就能写了」，
+     *       委派本身就成了一条提权路径，K5 这层设计的意义也就没了。</li>
+     *   <li><b>范围边界</b>（{@code task}/{@code goal}/{@code insight}/{@code planner} 等域 tag）——
+     *       <b>不该</b>继承。它表达的是「本模式的<i>对话</i>不谈这个」，
+     *       而不是「这个能力有危险」。用户经 {@code subagent.plan} 显式委派一个
+     *       PLANNER 时，正是明确要它去规划；此时再把 {@code planner} 挡掉，
+     *       这个角色就成了空壳。</li>
+     * </ul>
+     *
+     * <p>这个区分是补 LEARN 越界时逼出来的：给 LEARN 加上域 deny 之后，
+     * 「learn 委派 PLANNER」的既有用例立刻变红，说明<b>两类语义此前被混在一个集合里</b>，
+     * 只是以前 LEADN 的 deny 里恰好只有 {@code write}（纯安全边界），才一直没暴露。
+     */
+    public Set<String> inheritableDenyTags() {
+        Set<String> s = new java.util.LinkedHashSet<>(denyTags);
+        s.retainAll(Tags.SAFETY);
+        return java.util.Collections.unmodifiableSet(s);
+    }
+
+    /** 生成供<b>子代理继承</b>的 MODE 层：只带安全边界，不带范围边界。 */
+    public ToolLayer toInheritedLayer() {
+        return ToolLayer.of(ToolLayer.ScopeKind.MODE, "MODE(" + label + ")继承",
+                allowTags, inheritableDenyTags());
     }
 
     /** 由 mode 字符串解析，未知回退到 {@link #CHAT}。 */

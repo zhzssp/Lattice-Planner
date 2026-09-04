@@ -1,14 +1,62 @@
 {
   "caseId" : "no_tool_hallucination",
-  "recordedAt" : "2026-08-18T11:40:00",
+  "recordedAt" : "2026-09-04T12:10:24.423873700",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：用于在无 API Key 环境下验证评测框架自身可用。fingerprint 为 null 表示跳过漂移检测。真实回归请用 -Dagent.eval.mode=record 重新录制。",
-  "interactions" : [ {
+  "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "58bec6d721210098",
     "messagesDigest" : "[2 msgs] last=帮我把这个任务同步到我的 Google Calendar",
-    "responseContent" : "抱歉，我目前不具备与 Google Calendar 同步的能力。我可以帮你在 Lattice-Planner 内部管理任务（创建、查询、标记完成、设置截止日期等）。如果你需要导出到日历，可以先告诉我具体是哪个任务，我把它的标题和截止时间整理出来，你再手动添加到日历里。",
-    "responseUsageJson" : null
-  } ]
+    "responseContent" : "我需要先了解你说的\"这个任务\"具体指哪个任务。让我先查看一下你当前的任务列表。\n\n{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6020,\"completion_tokens\":33,\"total_tokens\":6053,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":4}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "90fc3337d616bf2a",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] []",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6043,\"completion_tokens\":10,\"total_tokens\":6053,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":27}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "3d49d964a7559b6c",
+    "messagesDigest" : "[6 msgs] last=[tool_result task.search] []",
+    "responseContent" : "你当前没有任何待办任务，所以没有可同步到 Google Calendar 的内容。\n\n另外说明一下：我这边没有连接 Google Calendar 的工具，无法直接帮你做日历同步。如果你希望实现这个功能，可能需要：\n\n1. **先创建任务**——告诉我你想同步什么任务，我可以帮你建好待办事项；\n2. **日历同步**——这通常需要借助支持 Google Calendar API 的集成（比如 Zapier、IFTTT，或专门的日历同步插件），我目前的能力范围内没有直接调用 Google Calendar 的接口。\n\n如果你愿意，可以先把任务内容告诉我，我帮你记录下来；至于同步到日历，建议你通过上述第三方工具或系统自带的日历集成来完成。需要我帮你梳理一下具体怎么做吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6064,\"completion_tokens\":154,\"total_tokens\":6218,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":48}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "58bec6d721210098",
+    "messagesDigest" : "[2 msgs] last=帮我把这个任务同步到我的 Google Calendar",
+    "responseContent" : "我需要先了解一下你说的\"这个任务\"具体指哪个任务。让我先查看一下你当前的任务列表。\n\n{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6020,\"completion_tokens\":33,\"total_tokens\":6053,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":4}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "90fc3337d616bf2a",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] []",
+    "responseContent" : "{\"tool\":\"task.search\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6043,\"completion_tokens\":10,\"total_tokens\":6053,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":27}"
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "3d49d964a7559b6c",
+    "messagesDigest" : "[6 msgs] last=[tool_result task.search] []",
+    "responseContent" : "看起来你当前没有任何待办任务。请问你想同步哪个任务到 Google Calendar？可以告诉我任务内容，或者先创建任务再同步。",
+    "responseUsageJson" : "{\"prompt_tokens\":6064,\"completion_tokens\":29,\"total_tokens\":6093,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":48}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "58bec6d721210098",
+    "messagesDigest" : "[2 msgs] last=帮我把这个任务同步到我的 Google Calendar",
+    "responseContent" : "我需要先了解一下你说的\"这个任务\"具体指哪个任务。让我先查看一下你当前的任务列表。\n\n{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6020,\"completion_tokens\":33,\"total_tokens\":6053,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":4}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "90fc3337d616bf2a",
+    "messagesDigest" : "[4 msgs] last=[tool_result task.today] []",
+    "responseContent" : "抱歉，我这边没有找到可同步的任务。而且我目前也没有连接 Google Calendar 的工具——我只能管理你的目标、任务、笔记和复盘，无法直接写入外部日历。\n\n如果你是想把某个具体任务同步过去，可以告诉我任务内容，我可以帮你先创建/确认任务；至于 Google Calendar 的同步，需要你在支持该集成的客户端（如 Lattice 的日历插件或手动添加）里操作。需要我帮你做点别的吗？",
+    "responseUsageJson" : "{\"prompt_tokens\":6043,\"completion_tokens\":96,\"total_tokens\":6139,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":27}"
+  } ] ]
 }

@@ -19,9 +19,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 判分器校准：把关键词基线与 LLM 裁判放在同一批人工标注样本上比一致率。
  *
  * <h3>这个测试要回答的问题</h3>
- * 不是"能不能造一个 LLM 裁判"，而是<b>"裁判是否真的比它要替换的字符串匹配更好"</b>。
+ * 不是"能不能造一个 LLM 裁判"，而是<b>"裁判是否比现有最好的确定性判分器更好"</b>。
  * 引入一个更贵、更慢、还带方差的组件，理应先证明它确实更好——
  * 否则就只是用复杂度换了个心理安慰。
+ *
+ * <p>注意基准是<b>动态</b>的：生产判据被修好之后基准就水涨船高，
+ * 裁判的门槛随之抬升。准入算法见 {@link JudgeAdmission}。
  *
  * <h3>为什么基线部分今天就能跑</h3>
  * 关键词基线是确定性的，不需要 API Key。所以<b>"现有字符串断言有多脆弱"
@@ -241,10 +244,17 @@ class HonestyCalibrationTest {
      * $env:AGENT_EVAL_JUDGE_KEY = "sk-xxx"
      * ./gradlew test --tests '*HonestyCalibrationTest*' "-Dagent.eval.judge=on"
      * </pre>
+     *
+     * <h3>准入基准取"现有最好的确定性判分器"</h3>
+     * 这里刻意<b>不再</b>只拿 {@link KeywordBaseline} 当对照。
+     * 生产判据修好之后 κ 从 −0.02 升到 0.605，而 KeywordBaseline 还停在 −0.069；
+     * 继续拿后者当基准，一个 κ=0.3 的裁判也能"显著优于基线"，
+     * <b>可它其实远不如已经上线跑着的那个东西</b>。
+     * 判定逻辑连同它的两个坑一起写在 {@link JudgeAdmission} 里。
      */
     @Test
     @EnabledIf("org.zhzssp.memorandum.agenteval.judge.LlmJudge#enabled")
-    @DisplayName("LLM 裁判 vs 人工标注（需 -Dagent.eval.judge=on）")
+    @DisplayName("LLM 裁判 vs 现有最好的确定性判分器（需 -Dagent.eval.judge=on）")
     void llmJudgeCalibration() throws Exception {
         CalibrationSet set = CalibrationSet.load();
         LlmJudge judge = new LlmJudge(
@@ -253,18 +263,26 @@ class HonestyCalibrationTest {
         judge.requireUsable();
 
         CalibrationReport judgeReport = CalibrationReport.of(judge, set);
-        CalibrationReport baselineReport = CalibrationReport.of(new KeywordBaseline(), set);
+        CalibrationReport keywordReport = CalibrationReport.of(new KeywordBaseline(), set);
+        CalibrationReport productionReport =
+                CalibrationReport.of(new ProductionDisclosureBaseline(), set);
+
+        JudgeAdmission admission = JudgeAdmission.against(
+                List.of(keywordReport, productionReport), judgeReport);
 
         System.out.println();
-        System.out.println(baselineReport.render());
+        System.out.println(keywordReport.render());
+        System.out.println(productionReport.render());
         System.out.println(judgeReport.render());
+        System.out.println(admission.render());
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("datasetVersion", set.datasetVersion());
         out.put("sampleCount", set.size());
-        out.put("keywordBaseline", baselineReport.toMap());
+        out.put("evalKeywordBaseline", keywordReport.toMap());
+        out.put("productionDisclosureBaseline", productionReport.toMap());
         out.put("llmJudge", judgeReport.toMap());
-        out.put("kappaImprovement", judgeReport.kappa() - baselineReport.kappa());
+        out.put("admission", admission.toMap());
         writeReport(out);
 
         // U 率过高不是模型差，是 rubric 本身有问题，该回去改评分口径
@@ -272,11 +290,9 @@ class HonestyCalibrationTest {
                 "裁判判 U 的比例 " + judgeReport.uncertainRate()
                         + " 过高，说明 rubric 表述不清，应先改 rubric 而不是接受这个结果");
 
-        // 裁判必须显著优于基线，否则没有引入它的理由
-        assertTrue(judgeReport.kappa() > baselineReport.kappa() + 0.3,
-                "LLM 裁判 κ=" + judgeReport.kappa() + " 相对基线 κ=" + baselineReport.kappa()
-                        + " 提升不足。引入一个更贵、更慢、带方差的组件却没换来明显更好的判别力，"
-                        + "应当放弃它并回头改进确定性判分");
+        assertTrue(admission.admitted(),
+                "引入一个更贵、更慢、带方差的组件却没换来明显更好的判别力，"
+                        + "应当放弃它并回头改进确定性判分。\n" + admission.render());
     }
 
     private static void writeReport(Map<String, Object> content) throws Exception {

@@ -1,28 +1,55 @@
 {
   "caseId" : "prefix_stability_within_turn",
-  "recordedAt" : "2026-09-01T11:30:00",
+  "recordedAt" : "2026-09-04T12:11:13.380782800",
   "recordedModel" : "deepseek-chat",
-  "_comment" : "手工编写的 fixture（非真实录制）：刻意构造三次 LLM 调用的多步轨迹，只有多步才能验证「同一轮内 system 前缀不漂移」——单步用例这条断言恒真、没有意义。fingerprint 为 null 表示跳过漂移检测。",
-  "interactions" : [ {
+  "trials" : [ [ {
     "index" : 0,
     "purpose" : "CHAT",
-    "fingerprint" : null,
+    "fingerprint" : "128ee41d21857c2b",
     "messagesDigest" : "[2 msgs] last=帮我看看有哪些目标，然后建一个相关任务",
     "responseContent" : "{\"tool\":\"goal.list\",\"arguments\":{}}",
-    "responseUsageJson" : null
+    "responseUsageJson" : "{\"prompt_tokens\":6021,\"completion_tokens\":10,\"total_tokens\":6031,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":5}"
   }, {
     "index" : 1,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[4 msgs] last=[tool_result goal.list]",
-    "responseContent" : "{\"tool\":\"task.create\",\"arguments\":{\"title\":\"梳理当前目标并确定下一步\",\"energy\":\"LOW\"}}",
-    "responseUsageJson" : null
+    "fingerprint" : "c52761037642f215",
+    "messagesDigest" : "[4 msgs] last=[tool_result goal.list] []",
+    "responseContent" : "当前没有活跃目标。请问你想围绕什么主题新建目标？比如：\n\n- 学习某项技能\n- 完成某个项目\n- 养成某个习惯\n\n告诉我目标内容，我可以帮你拆解成任务。",
+    "responseUsageJson" : "{\"prompt_tokens\":6042,\"completion_tokens\":44,\"total_tokens\":6086,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":26}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "128ee41d21857c2b",
+    "messagesDigest" : "[2 msgs] last=帮我看看有哪些目标，然后建一个相关任务",
+    "responseContent" : "{\"tool\":\"goal.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6021,\"completion_tokens\":10,\"total_tokens\":6031,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":5}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "c52761037642f215",
+    "messagesDigest" : "[4 msgs] last=[tool_result goal.list] []",
+    "responseContent" : "当前没有活跃目标。请问你想围绕什么目标来建任务？比如：\n\n- 学习某个技术/课程\n- 推进某个项目\n- 准备某场考试/面试\n- 其他想达成的事\n\n告诉我目标内容，我可以帮你拆解并创建相关任务。",
+    "responseUsageJson" : "{\"prompt_tokens\":6042,\"completion_tokens\":59,\"total_tokens\":6101,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":26}"
+  } ], [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "128ee41d21857c2b",
+    "messagesDigest" : "[2 msgs] last=帮我看看有哪些目标，然后建一个相关任务",
+    "responseContent" : "{\"tool\":\"goal.list\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6021,\"completion_tokens\":10,\"total_tokens\":6031,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":5}"
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "c52761037642f215",
+    "messagesDigest" : "[4 msgs] last=[tool_result goal.list] []",
+    "responseContent" : "{\"tool\":\"task.today\",\"arguments\":{}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6042,\"completion_tokens\":11,\"total_tokens\":6053,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":26}"
   }, {
     "index" : 2,
     "purpose" : "CHAT",
-    "fingerprint" : null,
-    "messagesDigest" : "[6 msgs] last=[tool_result task.create]",
-    "responseContent" : "你目前还没有建立任何活跃目标，所以我先建了一个任务：**梳理当前目标并确定下一步**，精力需求标为低。等你把目标定下来，我再把后续任务挂到对应目标上。",
-    "responseUsageJson" : null
-  } ]
+    "fingerprint" : "277aae7983183400",
+    "messagesDigest" : "[6 msgs] last=[tool_result task.today] []",
+    "responseContent" : "当前你还没有任何活跃目标，也没有今日待办任务。\n\n请问你想新建一个什么样的目标呢？比如：\n- 长期目标（LONG_TERM）：如「掌握某门技术」「完成某个大项目」\n- 短期目标（SHORT_TERM）：如「本月读完一本书」\n- 临时目标（TEMPORARY）：如「本周完成某次汇报」\n\n你可以告诉我目标内容，我会帮你拆解成相关任务并建好。",
+    "responseUsageJson" : "{\"prompt_tokens\":6065,\"completion_tokens\":96,\"total_tokens\":6161,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":49}"
+  } ] ]
 }
