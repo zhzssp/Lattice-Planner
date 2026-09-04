@@ -356,6 +356,25 @@ public abstract class AgentEvalBase {
                 id, title, status, java.time.LocalDateTime.now(), testUser.getId());
     }
 
+    /**
+     * 带<b>截止日期</b>预置任务，供"筛选条件由数据决定"的用例使用。
+     *
+     * <p>与无日期的重载分开而不是加个可空参数：多数用例并不关心 deadline，
+     * 让它们都写一个 {@code null} 只会让"这个用例到底在乎不在乎日期"变得看不出来。
+     *
+     * <p>存 {@code atStartOfDay()}，与 {@code task.create} 的落库方式一致——
+     * 否则预置数据和 Agent 写入的数据在时分秒上不同构，
+     * 断言里就得为两者各写一套比对逻辑。
+     */
+    protected void seedTask(long id, String title, String status, java.time.LocalDate deadline) {
+        jdbcTemplate.update(
+                "insert into memo (id, title, status, deadline, created_at, user_id)"
+                        + " values (?, ?, ?, ?, ?, ?)",
+                id, title, status,
+                deadline == null ? null : deadline.atStartOfDay(),
+                java.time.LocalDateTime.now(), testUser.getId());
+    }
+
     /* ---- 内部 ---- */
 
     private void beginCassette(String caseId, int trial) {

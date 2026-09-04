@@ -7,6 +7,7 @@ import org.zhzssp.memorandum.feature.agent.llm.transport.LlmTransport;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -142,6 +143,54 @@ class BudgetGateTest {
 
             assertTrue(text.contains("agent.eval.budget=write"),
                     "不给出更新命令，下一个撞上它的人只会把断言注释掉");
+        }
+    }
+
+    @Nested
+    @DisplayName("基线文件")
+    class Baseline {
+
+        @Test
+        @DisplayName("★跑局部套件写基线时，未跑到的用例必须原样保留——否则门禁会静默消失")
+        void writeMergesInsteadOfReplacing() {
+            Map<String, Map<String, Long>> existing = Map.of(
+                    "regression_a", Map.of("requestChars", 1000L),
+                    "regression_b", Map.of("requestChars", 2000L));
+            // 模拟只跑了能力集：实测里一条回归用例都没有
+            Map<String, Map<String, Long>> capabilityOnly = Map.of(
+                    "capability_x", Map.of("requestChars", 500L));
+
+            var merged = BudgetBaseline.merge(existing, capabilityOnly);
+
+            assertTrue(merged.containsKey("regression_a"),
+                    "跑能力集写基线把回归集的门禁抹掉了——此后它们全判 UNTRACKED，"
+                            + "也就是不判，而且没有任何提示");
+            assertTrue(merged.containsKey("regression_b"));
+            assertTrue(merged.containsKey("capability_x"), "本次实测值应写入");
+            assertEquals(3, merged.size());
+        }
+
+        @Test
+        @DisplayName("同名用例以本次实测为准——合并不能变成「基线永远改不动」")
+        void writeOverwritesSameCase() {
+            var merged = BudgetBaseline.merge(
+                    Map.of("a", Map.of("requestChars", 1000L)),
+                    Map.of("a", Map.of("requestChars", 1500L)));
+
+            assertEquals(1500L, merged.get("a").get("requestChars"),
+                    "保守到连本次实测都覆盖不了的话，基线就再也更新不了了");
+        }
+
+        @Test
+        @DisplayName("未跑到的用例会被列出来，不静默保留")
+        void keptCasesAreReported() {
+            var kept = BudgetBaseline.keptFrom(
+                    Map.of("a", Map.of("requestChars", 1L), "b", Map.of("requestChars", 1L)),
+                    Map.of("a", Map.of("requestChars", 1L)));
+
+            assertEquals(Set.of("b"), kept,
+                    "保留是为了不误删门禁，但保留了什么必须说出来——"
+                            + "否则删掉的用例会永远滞留在基线里没人发现");
         }
     }
 

@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -90,8 +91,59 @@ public final class BudgetBaseline {
         }
     }
 
-    /** 把实测值写回源码树，供 {@code git diff} 审阅后提交。 */
+    /**
+     * 把实测值写回源码树，供 {@code git diff} 审阅后提交。
+     *
+     * <h4>★ 合并而不是覆盖</h4>
+     * 本次<b>没跑到</b>的用例，其基线原样保留。
+     *
+     * <p>因为写基线的入口对所有评测任务都开着，而套件是分开的
+     * （{@code agentEval} 跑回归集、{@code agentEvalCapability} 跑能力集）。
+     * 若照直覆盖，一句 {@code agentEvalCapability "-Dagent.eval.budget=write"}
+     * 就会把基线换成只剩能力集那几条——<b>13 条回归门禁全部静默失效</b>，
+     * 之后它们一律判为 UNTRACKED，也就是不判。
+     *
+     * <p>这与刚修掉的"空录制覆盖既有录制盒"是<b>同一类事故</b>：
+     * 整体重写 + 局部数据 = 静默的资产丢失。既然认得出这个形状，就不该再犯一次。
+     *
+     * <p>代价是删掉的用例会滞留在基线里。这个代价可以接受——
+     * 报告会把它们列为 {@code MISSING}，而滞留一条无害的多余数据，
+     * 远好过静默删掉一道门禁。<b>两类错误的代价不对称，就不该用对称的策略。</b>
+     */
     public static void write(Map<String, Map<String, Long>> actual, String mode) {
+        Map<String, Map<String, Long>> existing = load();
+        Set<String> kept = keptFrom(existing, actual);
+        if (!kept.isEmpty()) {
+            System.out.println("[AgentEval] 本次未跑到、基线原样保留的用例：" + kept
+                    + "\n           （若确已删除，请手工从基线里移除）");
+        }
+        writeAll(merge(existing, actual), mode);
+    }
+
+    /**
+     * 合并语义的<b>纯函数</b>形态：本次实测覆盖同名条目，其余原样保留。
+     *
+     * <p>单独提出来是为了能脱离文件系统单测——
+     * {@link #load()} 读 classpath 而 {@link #write} 写源码树，两者<b>不构成往返</b>，
+     * 想靠"写一遍再读一遍"验证合并逻辑，只会写出一条永远为真的空断言。
+     * （这条弯路是真走过的：第一版测试就是那么写的，两个断言里有一个是假的。）
+     */
+    static Map<String, Map<String, Long>> merge(Map<String, Map<String, Long>> existing,
+                                                Map<String, Map<String, Long>> actual) {
+        Map<String, Map<String, Long>> merged = new LinkedHashMap<>(existing);
+        merged.putAll(actual);
+        return merged;
+    }
+
+    /** 基线里有、本次没跑到的用例。 */
+    static Set<String> keptFrom(Map<String, Map<String, Long>> existing,
+                                Map<String, Map<String, Long>> actual) {
+        Set<String> kept = new java.util.LinkedHashSet<>(existing.keySet());
+        kept.removeAll(actual.keySet());
+        return kept;
+    }
+
+    private static void writeAll(Map<String, Map<String, Long>> actual, String mode) {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("_comment", List.of(
                 "Agent 评测的成本预算基线。★ 这份文件是给 code review 看的。",
