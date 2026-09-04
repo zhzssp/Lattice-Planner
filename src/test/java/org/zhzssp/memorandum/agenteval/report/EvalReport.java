@@ -2,6 +2,11 @@ package org.zhzssp.memorandum.agenteval.report;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.zhzssp.memorandum.agenteval.cost.BudgetBaseline;
+import org.zhzssp.memorandum.agenteval.cost.BudgetGate;
+import org.zhzssp.memorandum.agenteval.cost.CostModel;
+import org.zhzssp.memorandum.agenteval.cost.PriceTable;
+import org.zhzssp.memorandum.agenteval.cost.UsageSnapshot;
 import org.zhzssp.memorandum.agenteval.trace.CollectingTraceListener;
 
 import java.nio.file.Files;
@@ -62,10 +67,15 @@ public final class EvalReport {
      * @param endStateChecked 本用例是否做过端状态断言。为 false 说明该用例
      *                        仍只验证了"工具被调用过"，结论强度有限，报告里要标出来
      * @param driftWarnings   prompt 漂移警告
-     * @param elapsedMs       用例耗时
+     * @param elapsedMs       用例耗时（<b>本机墙钟</b>；回放下它衡量的是评测套件自身的速度，
+     *                        与线上响应时间无关，别拿它当延迟指标）
+     * @param usage           P5：token / 活体字符数 / 上游耗时
+     * @param model           计价所用模型名（回放时取自录制盒）
+     * @param recordedLatencies 录制盒里存下的<b>录制当时</b>各次调用的真实上游耗时
      */
     public void record(String caseId, int trial, CollectingTraceListener trace,
-                       boolean endStateChecked, List<String> driftWarnings, long elapsedMs) {
+                       boolean endStateChecked, List<String> driftWarnings, long elapsedMs,
+                       UsageSnapshot usage, String model, List<Long> recordedLatencies) {
         results.add(new CaseResult(
                 caseId,
                 trial,
@@ -81,8 +91,27 @@ public final class EvalReport {
                 new ArrayList<>(trace.failedTools()),
                 endStateChecked,
                 new ArrayList<>(driftWarnings),
-                elapsedMs
+                elapsedMs,
+                usage == null ? UsageSnapshot.EMPTY : usage,
+                model,
+                new ArrayList<>(recordedLatencies)
         ));
+    }
+
+    /**
+     * 本次运行各用例的实测预算指标（同一 caseId 的多个试次取<b>最大值</b>）。
+     *
+     * <p>取最大而不是平均：不同试次录到的回答长短不同，后续轮次的 prompt 也就不同。
+     * 基线是一条<b>上限</b>，用平均值当上限，等于让一半的试次天然踩线。
+     */
+    public Map<String, Map<String, Long>> budgetActuals() {
+        Map<String, Map<String, Long>> out = new java.util.TreeMap<>();
+        for (CaseResult r : results) {
+            Map<String, Long> m = out.computeIfAbsent(r.caseId(), k -> new LinkedHashMap<>());
+            m.merge("llmCalls", r.usage().llmCalls(), Math::max);
+            m.merge("requestChars", r.usage().requestChars(), Math::max);
+        }
+        return out;
     }
 
     /** 登记本用例的轨迹指标，由 {@code TrajectoryAssert.matchesGolden} 在测试体内调用。 */
@@ -108,7 +137,8 @@ public final class EvalReport {
                         c.caseId(), c.trial(), passed, c.trajectory(), c.converged(), c.exhausted(),
                         c.llmFailure(), c.usedSteps(), c.llmCalls(), c.toolSequence(),
                         c.hallucinatedTools(), c.failedTools(), c.endStateChecked(),
-                        c.driftWarnings(), c.elapsedMs()));
+                        c.driftWarnings(), c.elapsedMs(),
+                        c.usage(), c.model(), c.recordedLatenciesMs()));
                 return;
             }
         }
@@ -188,6 +218,9 @@ public final class EvalReport {
         efficiency.put("stepsMax", steps.isEmpty() ? 0 : steps.get(steps.size() - 1));
         m.put("efficiency", efficiency);
 
+        m.put("cost", cost());
+        m.put("budget", budget());
+
         Map<String, Object> freshness = new LinkedHashMap<>();
         freshness.put("casesWithPromptDrift", withDrift);
         freshness.put("hint", withDrift > 0
@@ -243,6 +276,139 @@ public final class EvalReport {
             m.put("hint", "k=1 时 pass@k 与 pass^k 必然相等，测不出稳定性。"
                     + "用 -Dagent.eval.trials=3 才有意义（需已录制 3 次试验）");
         }
+        return m;
+    }
+
+    /**
+     * 成本与延迟（P5）。
+     *
+     * <p><b>这一节的每个数字都带口径，读之前先看 {@code hint}。</b>
+     * 回放模式下 token 与成本来自录制盒，是<b>录制当天</b>的开销；
+     * 只有 {@code requestChars} 是当前代码算出来的活体值。
+     */
+    private Map<String, Object> cost() {
+        PriceTable prices = PriceTable.load();
+        boolean replay = !"record".equalsIgnoreCase(System.getProperty("agent.eval.mode", "replay"));
+
+        UsageSnapshot total = results.stream()
+                .map(CaseResult::usage)
+                .reduce(UsageSnapshot.EMPTY, UsageSnapshot::plus);
+
+        CostModel.CostEstimate totalCost = results.stream()
+                .map(r -> CostModel.estimate(r.usage(), r.model(), prices))
+                .reduce(CostModel.CostEstimate.ZERO, CostModel.CostEstimate::plus);
+
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("priceTableAsOf", prices.asOf());
+        m.put("llmCalls", total.llmCalls());
+        m.put("callsWithUsage", total.callsWithUsage());
+        // ★ 缺 usage 的调用会让成本偏低。偏低的成本指标没有门禁价值，所以必须亮出来。
+        if (!total.usageComplete()) {
+            m.put("usageIncompleteWarning", String.format(
+                    "%d/%d 次调用没有 usage，token 与成本均<偏低>，不可用于对账",
+                    total.llmCalls() - total.callsWithUsage(), total.llmCalls()));
+        }
+
+        Map<String, Object> tokens = new LinkedHashMap<>();
+        tokens.put("promptTokens", total.promptTokens());
+        tokens.put("completionTokens", total.completionTokens());
+        tokens.put("cacheHitTokens", total.cacheHitTokens());
+        tokens.put("cacheMissTokens", total.cacheMissTokens());
+        tokens.put("cacheHitRate", round4d(total.cacheHitRate()));
+        // ★ 这个命中率高得不诚实，警告必须与数字同行出现，
+        // 否则它一定会被当成"线上缓存命中率"引用出去。
+        tokens.put("cacheHitRateCaveat",
+                "★不可当作线上命中率：本批 token 录制于一次连续跑完 13 用例 × 3 试次的会话，"
+                        + "各用例共用同一段 system prompt，上游缓存自始至终是热的——"
+                        + "连每个用例的<第一次>调用都几乎全命中（实测 6016/6021）。"
+                        + "真实用户会话是分散的，首次调用必然冷启。"
+                        + "本项目架构保证的是<单轮内>前缀稳定（见 prefix_stability_within_turn），"
+                        + "跨会话的热缓存是这次测量方式的产物，不是系统属性。");
+        tokens.put("charsPerPromptToken", round4d(total.charsPerPromptToken()));
+        tokens.put("source", replay
+                ? "★录制盒（录制当天的值）——改了 prompt 这里<不会>变，看 liveSize"
+                : "本次真实调用");
+        m.put("tokens", tokens);
+
+        Map<String, Object> live = new LinkedHashMap<>();
+        live.put("requestChars", total.requestChars());
+        live.put("responseChars", total.responseChars());
+        live.put("avgRequestCharsPerCall", total.llmCalls() == 0 ? 0
+                : Math.round((double) total.requestChars() / total.llmCalls()));
+        live.put("source", "本次真实发出的 messages —— 两种模式下都反映当前代码");
+        m.put("liveSize", live);
+
+        Map<String, Object> usd = new LinkedHashMap<>();
+        usd.put("totalUsd", round6(totalCost.totalUsd()));
+        usd.put("withoutPrefixCacheUsd", round6(totalCost.totalWithoutCacheUsd()));
+        usd.put("savedByPrefixCacheUsd", round6(totalCost.savedByCacheUsd()));
+        usd.put("savedShare", totalCost.totalWithoutCacheUsd() == 0 ? null
+                : round4(totalCost.savedByCacheUsd() / totalCost.totalWithoutCacheUsd()));
+        if (totalCost.pricedByFallback()) {
+            usd.put("warning", "存在未登记单价的模型，已按最贵档高估计价");
+        }
+        usd.put("hint", "估算，不可对账；但可用于前后对比——门禁比的是比值，价错了会约掉");
+        // savedShare 直接由 cacheHitRate 推出，同一个偏高问题会原样传导到"省了 93%"这个结论上。
+        usd.put("savedShareCaveat", "★同样偏高：省下的比例由缓存命中率推出，见 tokens.cacheHitRateCaveat");
+        m.put("estimatedCost", usd);
+
+        // 延迟：只有真实联网过的那次运行才有意义
+        List<Long> lat = new ArrayList<>();
+        for (CaseResult r : results) lat.addAll(r.recordedLatenciesMs());
+        Long liveLatency = total.upstreamLatencyMs();
+
+        Map<String, Object> latency = new LinkedHashMap<>();
+        if (!lat.isEmpty()) {
+            List<Integer> sorted = lat.stream().map(Long::intValue).sorted().toList();
+            latency.put("source", "录制盒中存下的录制当时真实往返耗时");
+            latency.put("samples", sorted.size());
+            latency.put("p50Ms", percentile(sorted, 50));
+            latency.put("p95Ms", percentile(sorted, 95));
+            latency.put("maxMs", sorted.get(sorted.size() - 1));
+        } else if (liveLatency != null) {
+            latency.put("source", "本次录制的真实往返耗时");
+            latency.put("totalMs", liveLatency);
+        } else {
+            latency.put("source", "n/a");
+            latency.put("hint", "回放不联网，本机毫秒数只反映回放速度。"
+                    + "该批录制盒早于延迟字段引入，重新录制后即有数据");
+        }
+        m.put("upstreamLatency", latency);
+        return m;
+    }
+
+    /**
+     * 预算门禁汇总（P5）。
+     *
+     * <p>判红发生在<b>各用例自己的 tearDown</b> 里，不在这里——
+     * 报告是 JVM 退出时才产出的，那时早已没有任何测试可以被判失败。
+     * 这里只做全局视图：哪些用例超了、哪些基线该往下收。
+     */
+    private Map<String, Object> budget() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Map<String, Long>> actual = budgetActuals();
+
+        if (BudgetBaseline.isWriteMode()) {
+            BudgetBaseline.write(actual, System.getProperty("agent.eval.mode", "replay"));
+            m.put("mode", "write");
+            m.put("hint", "已重写预算基线，请 git diff 确认涨幅合理后提交");
+            return m;
+        }
+
+        Map<String, Map<String, Long>> baseline = BudgetBaseline.load();
+        if (baseline.isEmpty()) {
+            m.put("mode", "absent");
+            m.put("hint", "尚无预算基线。跑一次 -Dagent.eval.budget=write 生成并提交");
+            return m;
+        }
+
+        List<BudgetGate.Verdict> verdicts = BudgetGate.check(baseline, actual);
+        m.put("mode", "check");
+        m.put("gatedMetrics", BudgetBaseline.GATED_METRICS);
+        m.put("overruns", verdicts.stream().filter(v -> v.status() == BudgetGate.Status.OVER).toList());
+        m.put("staleBaselines", verdicts.stream().filter(v -> v.status() == BudgetGate.Status.STALE).toList());
+        m.put("untracked", verdicts.stream().filter(v -> v.status() == BudgetGate.Status.UNTRACKED)
+                .map(BudgetGate.Verdict::caseId).distinct().toList());
         return m;
     }
 
@@ -359,6 +525,8 @@ public final class EvalReport {
             sb.append(String.format("  ⚠ 录制漂移    %s 个用例%n", drift));
         }
 
+        printCost(sb, (Map<String, Object>) r.get("cost"), (Map<String, Object>) r.get("budget"));
+
         sb.append("──────────────────────────────────────────────────────────────\n");
         sb.append("  逐用例明细\n");
         for (CaseResult c : results) {
@@ -389,6 +557,63 @@ public final class EvalReport {
         System.out.println(sb);
     }
 
+    /**
+     * 成本区的控制台呈现。
+     *
+     * <p>刻意把「活体尺寸」排在「token」<b>前面</b>：token 那一行在回放下是历史值，
+     * 而先映入眼帘的数字最容易被当成结论。把当前有效的量放前面，是一种排版层面的防误读。
+     */
+    @SuppressWarnings("unchecked")
+    private void printCost(StringBuilder sb, Map<String, Object> cost, Map<String, Object> budget) {
+        if (cost == null) return;
+        sb.append("──────────────────────────────────────────────────────────────\n");
+
+        Map<String, Object> live = (Map<String, Object>) cost.get("liveSize");
+        sb.append(String.format("  prompt 活体   %s 字符（均 %s/次）  ← 当前代码，门禁看这个%n",
+                live.get("requestChars"), live.get("avgRequestCharsPerCall")));
+
+        Map<String, Object> tk = (Map<String, Object>) cost.get("tokens");
+        Object cpt = tk.get("charsPerPromptToken");
+        sb.append(String.format("  token         输入 %s（命中缓存 %s）／输出 %s%n",
+                tk.get("promptTokens"), pct(tk.get("cacheHitRate")), tk.get("completionTokens")));
+        if (cpt != null) {
+            sb.append(String.format("                实测 %.2f 字符 ≈ 1 输入 token%n",
+                    ((Number) cpt).doubleValue()));
+        }
+        Object incomplete = cost.get("usageIncompleteWarning");
+        if (incomplete != null) {
+            sb.append("  ⚠ ").append(incomplete).append('\n');
+        }
+
+        Map<String, Object> usd = (Map<String, Object>) cost.get("estimatedCost");
+        sb.append(String.format("  成本估算      $%s（若无前缀缓存则 $%s，省下 %s）%n",
+                usd.get("totalUsd"), usd.get("withoutPrefixCacheUsd"), pct(usd.get("savedShare"))));
+        if (tk.get("cacheHitRateCaveat") != null) {
+            sb.append("                ★命中率与省下比例均偏高，口径见 report.json 的 cacheHitRateCaveat\n");
+        }
+
+        Map<String, Object> lat = (Map<String, Object>) cost.get("upstreamLatency");
+        if (lat.get("p50Ms") != null) {
+            sb.append(String.format("  上游延迟      P50 %s ms / P95 %s ms（录制当时，%s 次采样）%n",
+                    lat.get("p50Ms"), lat.get("p95Ms"), lat.get("samples")));
+        } else {
+            sb.append("  上游延迟      n/a（回放不联网）\n");
+        }
+
+        if (budget == null) return;
+        Object mode = budget.get("mode");
+        if ("check".equals(mode)) {
+            List<?> over = (List<?>) budget.get("overruns");
+            List<?> stale = (List<?>) budget.get("staleBaselines");
+            List<?> untracked = (List<?>) budget.get("untracked");
+            sb.append(String.format("  预算门禁      超支 %d 项%s，基线偏高 %d 项，未登记 %d 个用例%n",
+                    over.size(), over.isEmpty() ? "" : "  ★必须为 0",
+                    stale.size(), untracked.size()));
+        } else {
+            sb.append("  预算门禁      ").append(budget.get("hint")).append('\n');
+        }
+    }
+
     private void writeJson(Map<String, Object> report) {
         try {
             Files.createDirectories(OUTPUT.getParent());
@@ -412,6 +637,15 @@ public final class EvalReport {
         return Math.round(v * 10000.0) / 10000.0;
     }
 
+    private static double round6(double v) {
+        return Math.round(v * 1_000_000.0) / 1_000_000.0;
+    }
+
+    /** null 要原样传下去：它表示「测不出」，与 0.0（「测出来是零」）是两回事。 */
+    private static Double round4d(Double v) {
+        return v == null ? null : round4(v);
+    }
+
     private static int percentile(List<Integer> sorted, int p) {
         if (sorted.isEmpty()) return 0;
         int idx = (int) Math.ceil(p / 100.0 * sorted.size()) - 1;
@@ -426,9 +660,10 @@ public final class EvalReport {
         return (v instanceof Number n) ? n.intValue() : 0;
     }
 
+    /** null 渲染为 n/a 而不是 0.0%——「测不出」和「测出来是零」必须看得出区别。 */
     private static String pct(Object v) {
-        double d = (v instanceof Number n) ? n.doubleValue() : 0.0;
-        return String.format("%.1f%%", d * 100);
+        if (!(v instanceof Number n)) return "n/a";
+        return String.format("%.1f%%", n.doubleValue() * 100);
     }
 
     private static String truncate(String s, int max) {
@@ -460,6 +695,12 @@ public final class EvalReport {
             List<String> failedTools,
             boolean endStateChecked,
             List<String> driftWarnings,
-            long elapsedMs
+            long elapsedMs,
+            /** P5：token（回放时为录制值）与活体字符数。 */
+            UsageSnapshot usage,
+            /** 计价用模型名。 */
+            String model,
+            /** 录制当时的真实上游耗时；回放旧盒子时为空。 */
+            List<Long> recordedLatenciesMs
     ) {}
 }

@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.zhzssp.memorandum.feature.agent.llm.LlmRouter;
 import org.zhzssp.memorandum.feature.agent.llm.transport.LlmTransport;
+import org.zhzssp.memorandum.feature.agent.llm.transport.TokenUsage;
 import org.zhzssp.memorandum.feature.agent.runtime.PrefixCacheMetrics;
 
 import java.util.List;
@@ -171,29 +172,16 @@ public class LlmGateway {
     /* ---- 内部 ---- */
 
     /**
-     * 从 usage 提取 prompt cache 命中/未命中 token 数，兼容两种上游格式：
-     * <ul>
-     *   <li>DeepSeek：{@code usage.prompt_cache_hit_tokens} / {@code usage.prompt_cache_miss_tokens}</li>
-     *   <li>OpenAI：{@code usage.prompt_tokens_details.cached_tokens}（未命中数用 prompt_tokens 相减）</li>
-     * </ul>
-     * 任何解析异常都静默忽略——观测不能影响主链路。
+     * 从 usage 提取 prompt cache 命中/未命中 token 数。
+     *
+     * <p>解析本身交给 {@link org.zhzssp.memorandum.feature.agent.llm.transport.TokenUsage}——
+     * 评测侧的成本核算读的是同一份实现。两边各写一份的话，
+     * 成本报告描述的就不是线上真正在跑的那个东西了。
      */
     private void recordPromptCacheUsage(JsonNode usage) {
-        if (usage == null || usage.isMissingNode() || usage.isNull()) return;
-        try {
-            long hit = usage.path("prompt_cache_hit_tokens").asLong(-1);
-            long miss = usage.path("prompt_cache_miss_tokens").asLong(-1);
-            if (hit >= 0 || miss >= 0) {
-                prefixMetrics.recordPromptCacheTokens(Math.max(0, hit), Math.max(0, miss));
-                return;
-            }
-            long cached = usage.path("prompt_tokens_details").path("cached_tokens").asLong(-1);
-            if (cached >= 0) {
-                long promptTokens = usage.path("prompt_tokens").asLong(0);
-                prefixMetrics.recordPromptCacheTokens(cached, Math.max(0, promptTokens - cached));
-            }
-        } catch (Exception ignore) {
-            // 观测失败不影响主流程
+        TokenUsage u = TokenUsage.parse(usage);
+        if (u.present()) {
+            prefixMetrics.recordPromptCacheTokens(u.cacheHitTokens(), u.cacheMissTokens());
         }
     }
 

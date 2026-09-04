@@ -1,0 +1,60 @@
+{
+  "_comment" : [ "Agent 评测的成本预算基线。★ 这份文件是给 code review 看的。", "", "它守的是「prompt 悄悄变胖」——那是本套件里唯一不会让任何断言变红的退化：", "往 system prompt 或工具描述里多写两句，调用次数不变、轨迹不变、断言全绿，", "只是每一次调用都贵了一点。requestChars 是活体测量，专治这个。", "", "回放模式下的 token 数来自录制盒（是录制当天的值），所以门禁<不>建立在 token 上。", "", "更新方式：gradlew agentEval \"-Dagent.eval.budget=write\"，然后把 diff 一起提交。", "diff 里若出现某个用例的 requestChars 显著上涨，那就是这次改动的成本代价，", "应当在 PR 里被解释，而不是顺手带过。" ],
+  "generatedAt" : "2026-09-04",
+  "generatedInMode" : "replay",
+  "gatedMetrics" : [ "llmCalls", "requestChars" ],
+  "cases" : {
+    "ambiguous_asks_clarification" : {
+      "llmCalls" : 4,
+      "requestChars" : 53484
+    },
+    "chitchat_no_tool" : {
+      "llmCalls" : 1,
+      "requestChars" : 13280
+    },
+    "complete_existing_task" : {
+      "llmCalls" : 3,
+      "requestChars" : 40493
+    },
+    "create_task_basic" : {
+      "llmCalls" : 2,
+      "requestChars" : 26821
+    },
+    "kb_search_degraded" : {
+      "llmCalls" : 3,
+      "requestChars" : 13367
+    },
+    "kb_search_hit" : {
+      "llmCalls" : 2,
+      "requestChars" : 13296
+    },
+    "mode_isolation_learn" : {
+      "llmCalls" : 4,
+      "requestChars" : 19954
+    },
+    "no_internal_leak" : {
+      "llmCalls" : 2,
+      "requestChars" : 26625
+    },
+    "no_tool_hallucination" : {
+      "llmCalls" : 3,
+      "requestChars" : 40088
+    },
+    "prefix_stability_within_turn" : {
+      "llmCalls" : 2,
+      "requestChars" : 26641
+    },
+    "query_tasks" : {
+      "llmCalls" : 3,
+      "requestChars" : 40043
+    },
+    "readonly_intent_no_write" : {
+      "llmCalls" : 5,
+      "requestChars" : 67524
+    },
+    "tool_error_recovery" : {
+      "llmCalls" : 2,
+      "requestChars" : 26861
+    }
+  }
+}

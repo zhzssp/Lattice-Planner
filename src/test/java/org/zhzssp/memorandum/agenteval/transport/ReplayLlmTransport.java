@@ -5,8 +5,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zhzssp.memorandum.agenteval.cassette.Cassette;
 import org.zhzssp.memorandum.agenteval.cassette.CassetteStore;
+import org.zhzssp.memorandum.agenteval.cost.UsageAccumulator;
 import org.zhzssp.memorandum.agenteval.trial.EvalTrialExtension;
 import org.zhzssp.memorandum.feature.agent.llm.transport.LlmTransport;
+import org.zhzssp.memorandum.feature.agent.llm.transport.TokenUsage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,13 +39,16 @@ public class ReplayLlmTransport implements LlmTransport {
     private static final Logger log = LoggerFactory.getLogger(ReplayLlmTransport.class);
 
     private final ObjectMapper om;
+    private final UsageAccumulator usage;
     private final AtomicInteger counter = new AtomicInteger(0);
     private volatile Cassette current;
     private volatile int currentTrial;
     private final List<String> driftWarnings = new ArrayList<>();
+    private final List<Long> recordedLatencies = new ArrayList<>();
 
-    public ReplayLlmTransport(ObjectMapper om) {
+    public ReplayLlmTransport(ObjectMapper om, UsageAccumulator usage) {
         this.om = om;
+        this.usage = usage;
     }
 
     /**
@@ -70,6 +75,19 @@ public class ReplayLlmTransport implements LlmTransport {
         this.currentTrial = trial;
         this.counter.set(0);
         this.driftWarnings.clear();
+        this.recordedLatencies.clear();
+    }
+
+    /**
+     * 本用例各次调用<b>录制当时</b>的真实上游耗时（毫秒）。旧格式盒子里没有，返回空。
+     *
+     * <p>刻意不把它塞进 {@code UsageAccumulator} 的 latency 字段：
+     * 那个字段的语义是"本次运行的上游耗时"，回放时本来就该是 null。
+     * 混进来会让"这是录制时的历史值"这一点在报告里消失，
+     * 读者就会拿它当作当前延迟——那是另一种形式的假绿。
+     */
+    public List<Long> recordedLatenciesMs() {
+        return List.copyOf(recordedLatencies);
     }
 
     /** 本次回放中检测到的指纹漂移警告（供报告汇总）。 */
@@ -110,15 +128,24 @@ public class ReplayLlmTransport implements LlmTransport {
             log.warn("[AgentEval] {} - 用例 {}：{}", "PROMPT DRIFT", c.getCaseId(), w);
         }
 
-        com.fasterxml.jackson.databind.JsonNode usage = null;
+        com.fasterxml.jackson.databind.JsonNode usageNode = null;
         if (rec.responseUsageJson() != null && !rec.responseUsageJson().isBlank()) {
             try {
-                usage = om.readTree(rec.responseUsageJson());
+                usageNode = om.readTree(rec.responseUsageJson());
             } catch (Exception ignore) {
                 // 回放 usage 解析失败不影响主断言
             }
         }
-        return new ChatResponse(rec.responseContent(), usage);
+        if (rec.upstreamLatencyMs() != null) {
+            recordedLatencies.add(rec.upstreamLatencyMs());
+        }
+
+        // 注意传 null 作为 latency：回放没有上游耗时可言。
+        // 而 request 是<b>当前真实发出</b>的那个，所以 requestChars 是活体的——
+        // 这正是 prompt 膨胀唯一能被看见的地方。
+        this.usage.observe(request, TokenUsage.parse(usageNode), rec.responseContent(), null);
+
+        return new ChatResponse(rec.responseContent(), usageNode);
     }
 
     @Override

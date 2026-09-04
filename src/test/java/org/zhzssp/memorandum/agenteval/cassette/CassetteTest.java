@@ -24,7 +24,7 @@ class CassetteTest {
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     private static Cassette.LlmInteraction interaction(String content) {
-        return new Cassette.LlmInteraction(0, "CHAT", null, "digest", content, null);
+        return new Cassette.LlmInteraction(0, "CHAT", null, "digest", content, null, null);
     }
 
     /* ---- 旧格式 ---- */

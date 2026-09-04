@@ -165,6 +165,11 @@ public class Cassette {
      * @param responseContent     上游返回的文本内容（回放时原样返回）
      * @param responseUsageJson   原始 usage JSON 字符串；回放时一并返回，
      *                            使 prompt cache 统计链路也能被测试覆盖。null 表示无
+     * @param upstreamLatencyMs   ★<b>录制时</b>这一次调用的真实往返耗时。
+     *                            回放不联网，本机那点毫秒只反映回放速度，与线上延迟无关；
+     *                            把真实耗时<b>存进盒子</b>，延迟才成为一个能长期追踪的量。
+     *                            旧格式录制盒里没有这个字段，读进来是 null，
+     *                            报告应如实标 n/a，而不是当成 0 混进分位数
      */
     public record LlmInteraction(
             int index,
@@ -172,6 +177,7 @@ public class Cassette {
             String fingerprint,
             String messagesDigest,
             String responseContent,
-            String responseUsageJson
+            String responseUsageJson,
+            Long upstreamLatencyMs
     ) {}
 }

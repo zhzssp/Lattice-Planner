@@ -55,10 +55,13 @@ dependencies {
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
-	// 默认跳过需要真实 MySQL / 外部服务的集成测试；用 -Pintegration 打开
-	if (!project.hasProperty('integration')) {
-		useJUnitPlatform {
+	useJUnitPlatform {
+		// 能力集永远不参与 `test`：它的用例<按定义>就是现在做不到的，
+		// 留在这里只会让 `gradlew test` 长期挂红，最后逼着人去改断言。
+		// 它有自己的入口：gradlew agentEvalCapability
+		excludeTags 'agent-eval-capability'
+		// 默认跳过需要真实 MySQL / 外部服务的集成测试；用 -Pintegration 打开
+		if (!project.hasProperty('integration')) {
 			excludeTags 'integration'
 		}
 	}
@@ -74,24 +77,56 @@ tasks.named('test') {
  *   ./gradlew agentEval                              回放模式（离线、零成本）
  *   ./gradlew agentEval -Dagent.eval.mode=record     录制模式（需 DEEPSEEK_API_KEY，产生真实调用）
  *   ./gradlew agentEval -Dagent.eval.trials=3        每个用例跑 3 次，产出 pass@k / pass^k
+ *   ./gradlew agentEval -Dagent.eval.budget=write    重写成本预算基线（P5），产出待评审的 diff
  *
  * 试次数需先有对应的多试次录制：
  *   ./gradlew agentEval -Dagent.eval.mode=record -Dagent.eval.trials=3
+ *
+ * ── 能力集 vs 回归集（P5）─────────────────────────────────────────
+ * agentEval          只跑<回归集>，判红即拦 PR。目标通过率≈100%，掉了就是 bug。
+ * agentEvalCapability 只跑<能力集>，ignoreFailures=true，永不拦 PR。
+ *                    目标通过率 30~60%——它存在的意义就是<现在做不到>，
+ *                    是一座要爬的山，不是一道要守的门。夜间 / 发版前跑。
+ *
+ * 为什么必须分开：两者混在一个套件里时，只有两种结局——
+ * 要么为了让 CI 变绿而把难用例的断言改松（于是它不再是山），
+ * 要么难用例根本不会被加进来（于是评测永远只覆盖已经做到的事）。
+ * 全绿的套件能追踪回归，但对「下一步该改进什么」零信号。
+ *
+ * 流转规则见 docs/Agent评测体系使用指南.md：稳定通过的<毕业>进回归集；
+ * 连续多月 100% 且不再变化的<退休>（防评测饱和）。
  */
-tasks.register('agentEval', Test) {
-	group = 'verification'
-	description = 'Run Agent evaluation suite (trajectory replay + metrics report)'
-	testClassesDirs = sourceSets.test.output.classesDirs
-	classpath = sourceSets.test.runtimeClasspath
-	useJUnitPlatform {
-		includeTags 'agent-eval'
-	}
-	systemProperty 'agent.eval.mode', System.getProperty('agent.eval.mode', 'replay')
-	systemProperty 'agent.eval.trials', System.getProperty('agent.eval.trials', '1')
-	testLogging {
+def configureAgentEval = { Test t ->
+	t.group = 'verification'
+	t.testClassesDirs = sourceSets.test.output.classesDirs
+	t.classpath = sourceSets.test.runtimeClasspath
+	t.systemProperty 'agent.eval.mode', System.getProperty('agent.eval.mode', 'replay')
+	t.systemProperty 'agent.eval.trials', System.getProperty('agent.eval.trials', '1')
+	t.systemProperty 'agent.eval.budget', System.getProperty('agent.eval.budget', '')
+	t.testLogging {
 		events 'passed', 'failed'
 		exceptionFormat = 'full'
 		showStandardStreams = true
 	}
-	outputs.upToDateWhen { false }
+	t.outputs.upToDateWhen { false }
+}
+
+tasks.register('agentEval', Test) {
+	description = 'Agent 回归集：判红即拦 PR'
+	configureAgentEval(it)
+	useJUnitPlatform {
+		includeTags 'agent-eval'
+		excludeTags 'agent-eval-capability'
+	}
+}
+
+tasks.register('agentEvalCapability', Test) {
+	description = 'Agent 能力集：只报不拦，目标通过率 30~60%'
+	configureAgentEval(it)
+	useJUnitPlatform {
+		includeTags 'agent-eval-capability'
+	}
+	// ★ 不拦 PR 是这个套件的<定义>，不是妥协。
+	// 一旦它能拦 PR，下一次它变红时被改的一定是断言，而不是 Agent。
+	ignoreFailures = true
 }

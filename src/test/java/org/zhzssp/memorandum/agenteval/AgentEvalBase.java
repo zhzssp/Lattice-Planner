@@ -11,6 +11,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.zhzssp.memorandum.agenteval.cost.BudgetBaseline;
+import org.zhzssp.memorandum.agenteval.cost.BudgetGate;
+import org.zhzssp.memorandum.agenteval.cost.UsageAccumulator;
+import org.zhzssp.memorandum.agenteval.cost.UsageSnapshot;
 import org.zhzssp.memorandum.agenteval.db.EvalDbProbe;
 import org.zhzssp.memorandum.agenteval.report.EvalReport;
 import org.zhzssp.memorandum.agenteval.trace.CollectingTraceListener;
@@ -68,6 +72,10 @@ public abstract class AgentEvalBase {
     @Autowired
     protected LlmTransport transport;
 
+    /** P5：token / 活体字符数 / 上游延迟的累计器。每个用例开始前清零。 */
+    @Autowired
+    protected UsageAccumulator usage;
+
     /** WebSocket 推送在评测中无意义，mock 掉避免真实发帧。 */
     @MockitoBean
     protected AgentChatWebSocketHandler webSocketHandler;
@@ -100,10 +108,19 @@ public abstract class AgentEvalBase {
     private int trial;
     private long caseStartMs;
 
+    /** 能力集标签，与 build.gradle 的 {@code agentEvalCapability} 任务对应。 */
+    static final String CAPABILITY_TAG = "agent-eval-capability";
+
     @BeforeEach
     void setUpEvalContext(TestInfo testInfo) {
+        // 显式置空：tearDown 靠它判断 setUp 是否走完（见那里的说明）。
+        // 不依赖"JUnit 每个方法新建实例"这一默认行为——它可以被 @TestInstance 改掉，
+        // 而那种改动不会有任何提示，只会让收尾逻辑在某天开始读到上一个用例的残留。
+        this.sessionId = null;
+
         // 用例 id 取自 @DisplayName 或方法名，作为录制盒文件名
         this.currentCaseId = resolveCaseId(testInfo);
+        skipIfCapabilityNotYetRecorded(testInfo);
         this.trial = EvalTrialExtension.currentTrial();
         // 让扩展知道本次跑的是哪个用例，它才能在 JUnit 生命周期结束后回填成败
         EvalTrialExtension.bindCaseId(currentCaseId);
@@ -123,6 +140,7 @@ public abstract class AgentEvalBase {
 
         expectedToolFailures.clear();
         trace.reset();
+        usage.reset();
         memory.clear(sessionId);
 
         // ReAct 循环依赖 ThreadLocal 上下文；测试直接在当前线程执行，需手工建立
@@ -133,6 +151,11 @@ public abstract class AgentEvalBase {
 
     @AfterEach
     void tearDownEvalContext() {
+        // setUp 中途中止（例如能力集用例尚未录制而被 assume 跳过）时，
+        // sessionId 等字段还是 null。此时若照常收尾，会以一个 NPE 收场——
+        // 而那个 NPE 会<b>盖掉真正的原因</b>，让"这个用例还没录"看起来像是代码崩了。
+        if (sessionId == null) return;
+
         long elapsed = System.currentTimeMillis() - caseStartMs;
         try {
             if (transport instanceof RecordingLlmTransport rec) {
@@ -140,8 +163,10 @@ public abstract class AgentEvalBase {
             }
             // 汇总指标：无论断言是否通过都记录，报告才有意义
             EvalReport.INSTANCE.record(currentCaseId, trial, trace,
-                    db != null && db.checkCount() > 0, driftWarnings(), elapsed);
+                    db != null && db.checkCount() > 0, driftWarnings(), elapsed,
+                    usage.snapshot(), recordedModel(), recordedLatenciesMs());
             assertNoUndeclaredToolFailure();
+            assertWithinBudget();
         } finally {
             AgentContext.clear();
             memory.clear(sessionId);
@@ -171,6 +196,48 @@ public abstract class AgentEvalBase {
                     + "\n若该失败确属用例意图（如错误恢复用例），请在用例内调用 expectToolFailure(工具名)。\n\n"
                     + trace.render()
                     + (db == null ? "" : "\n" + db.render()));
+        }
+    }
+
+    /** 基线只读一次：每个用例都去解析一遍 JSON 纯属浪费，且基线在一次运行内不会变。 */
+    private static final java.util.Map<String, java.util.Map<String, Long>> BUDGET_BASELINE =
+            BudgetBaseline.load();
+
+    /**
+     * <b>成本门禁</b>（P5）：本用例的活体开销不得超出已提交的预算基线。
+     *
+     * <h4>它守的是别处守不到的那一种退化</h4>
+     * 往 system prompt 或工具描述里多写两句话，会发生什么？
+     * 调用次数不变、工具序列不变、端状态不变、所有既有断言<b>全绿</b>——
+     * 只是从此每一次调用都贵了一点。这是本套件里<b>唯一不会让任何东西变红</b>的退化。
+     *
+     * <p>而基于 token 的门禁在回放下<b>结构上</b>看不见它：回放返回的 usage
+     * 来自录制盒，是录制当天的 token 数。所以这道门禁跑在
+     * {@code requestChars}——由本次真实发出的 messages 算出的活体字符数。
+     *
+     * <h4>为什么判定放在每个用例的 tearDown，而不是报告里</h4>
+     * 报告在 JVM 退出时才产出，那时已经没有任何测试可供判失败了。
+     * 放在这里还有个附带好处：<b>失败精确指向那个用例</b>，
+     * 而不是丢出一句"某处超支了"让人自己去翻。
+     *
+     * <p>写基线模式下不判——那次运行的<b>目的</b>就是产生新基线。
+     */
+    private void assertWithinBudget() {
+        if (BudgetBaseline.isWriteMode()) return;
+        java.util.Map<String, Long> base = BUDGET_BASELINE.get(currentCaseId);
+        if (base == null) return;   // 新用例尚未登记，报告里会列出来，但不判红
+
+        UsageSnapshot u = usage.snapshot();
+        java.util.Map<String, Long> actual = java.util.Map.of(
+                "llmCalls", u.llmCalls(),
+                "requestChars", u.requestChars());
+
+        List<BudgetGate.Verdict> over = BudgetGate.overruns(
+                BudgetGate.check(java.util.Map.of(currentCaseId, base),
+                        java.util.Map.of(currentCaseId, actual)));
+        if (!over.isEmpty()) {
+            throw new AssertionError("用例 [" + currentCaseId + "] 超出成本预算：\n"
+                    + BudgetGate.render(over));
         }
     }
 
@@ -213,9 +280,65 @@ public abstract class AgentEvalBase {
                 ? replay.driftWarnings() : java.util.List.of();
     }
 
+    /**
+     * 录制盒里存下的<b>录制当时</b>的上游耗时。
+     *
+     * <p>录制模式下返回空——那时的耗时由 {@code UsageAccumulator} 直接测到，
+     * 是"本次运行"的值，语义与"历史录制值"不同，不能混为一谈。
+     */
+    private java.util.List<Long> recordedLatenciesMs() {
+        return (transport instanceof ReplayLlmTransport replay)
+                ? replay.recordedLatenciesMs() : java.util.List.of();
+    }
+
+    /**
+     * 本用例计价所用的模型名。
+     *
+     * <p>回放时取自录制盒（当初真正调的那个模型），而不是当前配置——
+     * 因为要折算的 token 本来就是那次调用产生的。用当前配置计价，
+     * 会出现「换了模型配置，历史 token 就换了单价」这种前后不一致的成本曲线。
+     */
+    private String recordedModel() {
+        try {
+            return org.zhzssp.memorandum.agenteval.cassette.CassetteStore
+                    .exists(currentCaseId)
+                    ? org.zhzssp.memorandum.agenteval.cassette.CassetteStore
+                        .load(currentCaseId).getRecordedModel()
+                    : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** 当前是否录制模式（子类可据此跳过纯回放断言）。 */
     protected boolean isRecording() {
         return AgentEvalConfig.isRecordMode();
+    }
+
+    /**
+     * <b>能力集</b>用例尚无录制盒时跳过；回归集用例缺盒子仍然是硬错误。
+     *
+     * <h4>为什么两类套件在这里必须区别对待</h4>
+     * <ul>
+     *   <li><b>回归集</b>缺录制盒 = 有人删了资产，必须立刻炸响；</li>
+     *   <li><b>能力集</b>缺录制盒 = 这座山还没开始爬，是正常状态。</li>
+     * </ul>
+     *
+     * <p>能力集<b>本来就允许失败</b>，也正因如此更要区分两种红：
+     * 「Agent 做不到」有意义，「盒子还没录」没有意义且会污染通过率。
+     * 一个 30~60% 的目标通过率，只有在分母干净时才读得出东西。
+     *
+     * <p>判定必须放在 {@code @BeforeEach} 的<b>最前面</b>：
+     * 缺盒子的异常在 {@code beginCassette} 就抛了，等到测试方法体里再 assume 已经晚了。
+     */
+    private void skipIfCapabilityNotYetRecorded(TestInfo testInfo) {
+        if (isRecording()) return;   // 这次运行的目的就是去录它
+        if (!testInfo.getTags().contains(CAPABILITY_TAG)) return;
+
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                org.zhzssp.memorandum.agenteval.cassette.CassetteStore.exists(currentCaseId),
+                () -> "尚未录制：" + currentCaseId
+                        + "（跑 gradlew agentEvalCapability \"-Dagent.eval.mode=record\" 录制）");
     }
 
     /**

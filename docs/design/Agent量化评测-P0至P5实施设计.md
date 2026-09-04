@@ -103,7 +103,10 @@ row.deadline().toLocalDate().equals(LocalDate.of(2026, 9, 4))
 
 顺带避免了"deadline 带时分秒导致等值比对永远为假"这个坑。
 
-## BLOCKER-4 · 拿不到 token usage，P5 成本指标无处取数
+## BLOCKER-4 · 拿不到 token usage，P5 成本指标无处取数 · ✅ 已修
+
+> **实施结果**：`UsageAccumulator` 落在评测侧 transport，生产接口零改动。
+> 唯一的生产改动是把 usage 解析抽成共享的 `TokenUsage`（见下方"实施中的修正"）。
 
 `AgentTraceListener.onLlmCall(sessionId, step, prefixHash)` 没有 usage 参数。而 `Cassette.LlmInteraction` **存了 `responseUsageJson`**，回放时也会原样返回——数据是有的，只是没人接。
 
@@ -124,6 +127,14 @@ public final class UsageAccumulator {
 ```
 
 **为什么这么选**：给 `AgentTraceListener` 加 `onLlmUsage` 会改生产接口，所有实现类都要跟着动，而这个需求纯粹是测试侧的。传输层本来就是唯一看得见完整响应体的地方，放这里 blast radius 最小。这和"把可替换点设在 HTTP 边界"是同一条思路的延续。
+
+### 实施中的修正：usage 解析必须只有一份
+
+初稿打算在 `UsageAccumulator` 里自己解析 usage JSON。**放弃了**——生产的 `LlmGateway.recordPromptCacheUsage` 已经在解析同一份 JSON（DeepSeek 的 `prompt_cache_hit_tokens` 与 OpenAI 的 `prompt_tokens_details.cached_tokens` 是两套字段名）。两份解析各写一遍，迟早会在某个供应商的字段上分叉，那时**评测报的成本和生产报的缓存命中率会互相矛盾，而且没人知道该信哪个**。
+
+这个教训是 P4 现成的：`DisclosureInspector` 就是因为评测侧和生产侧各写了一套关键词判据才出的问题。
+
+所以抽了 `main/.../llm/transport/TokenUsage.java`：一个 record + 一个 `parse(JsonNode)`，生产和评测共用。这是 P5 **唯一**的生产侧新增。
 
 ---
 
@@ -1011,24 +1022,122 @@ Cohen's κ 的算术从 P3 的 `CalibrationReport` 抽成了泛型的 `Kappa.coh
 
 > **前置**：BLOCKER-4 已修（usage 在 transport 侧累计）。
 
-| 指标 | 门禁 |
-|---|---|
-| 每任务 LLM 调用数 | 回归集不得较基线上升 > 20% |
-| 每任务 prompt / completion token | 同上，分列 |
-| 每任务预估成本 | 记录，暂不设门禁 |
-| 端到端延迟 P50/P95 | 记录，暂不设门禁 |
-| **评测自身成本**（裁判调用） | 记录 —— 别让评测比被测系统还贵 |
+> **实施结果**：门禁已建成并**反向验证通过**——故意往 system prompt 加 5 行说明，
+> 13 个用例全部当场判红，且**功能断言无一变红**。
+> 实施中对初稿有一处**结构性推翻**（token 门禁不可行）和一处**参数大改**（容差 20% → 0.5%），见 §7.1、§7.2。
+> 全量单测 504 条绿（P5 新增 32 条）。
 
-## 能力集 vs 回归集
+## 7.1 推翻初稿：基于 token 的门禁在回放下**结构上不可能成立**
 
-| 套件 | 目标通过率 | 作用 | 何时跑 |
-|---|---|---|---|
-| **回归集** | 接近 100% | 掉了就是 bug | 每次 PR |
-| **能力集** | 30~60% | 给自己一座要爬的山 | 夜间 / 发版前 |
+初稿写的是"每任务 prompt / completion token 不得较基线上升 > 20%"。动手时才发现这条**测不出任何东西**：
 
-**流转规则**：能力集里稳定通过的**毕业**进回归集；回归集里连续多月 100% 且不再变化的**退休**（防评测饱和——全绿套件能追踪回归，但对改进零信号）。
+**回放模式下返回的 `usage` 来自录制盒，是录制当天的 token 数。** 改了 prompt，回放照样返回那个旧数字。也就是说，一道建立在 token 上的成本门禁，在唯一会被日常执行的模式下**永远是绿的**——它不是"不够灵敏"，是**结构上看不见**。
 
-能力集应放这些现在做不到或不稳定的：多步规划的端状态正确性、30+ 轮后早期约束仍被遵守（直接复用上下文工程基准的场景）、子代理结论回灌完整性、中途改变意图。
+这比没有门禁更糟：一个永远绿的成本门禁会让人真的以为成本受控了。
+
+**改法**：门禁改建在 `requestChars` 上——由**本次真实发出的 messages** 现算的活体字符数。它不受录制盒固定，两种模式下都反映当前代码。
+
+| 指标 | 口径 | 门禁 |
+|---|---|---|
+| `requestChars`（prompt 活体字符数） | **活体**，当前代码算出 | ✅ **基线 + max(0.5%, 64 字符)** |
+| `llmCalls` | 活体（回放下确定性） | ✅ **零容忍** |
+| prompt / completion token | ★录制值，回放下不反映当前代码 | ❌ 只报不禁（初稿要禁，已推翻） |
+| 预估成本 USD（含缓存分价） | 由录制 token 折算 | ❌ 只报不禁 |
+| 上游延迟 P50/P95 | ★**录制当时**的真实往返耗时 | ❌ 只报不禁 |
+| 缓存命中率 / 省下的钱 | 由录制 token 折算 | ❌ 只报不禁，**且带警告**（§7.4） |
+
+`llmCalls` 之所以也纳入门禁但零容忍：它在回放下是确定性的，多调一次就是行为真的变了；而在 1→2 这种小整数上算百分比没有意义。（严格说它有点冗余——多调一次会先因**录制耗尽**而报错。留着是为了在报告里留下明确的一行。）
+
+## 7.2 容差从 20% 砍到 0.5%：因为实测发现这个量**没有噪声**
+
+反向验证时做了一次对照：往 system prompt 加 5 行说明，重跑，逐用例比对字符数增量——
+
+```
+case                              calls     base      now   delta      pct
+chitchat_no_tool                      1    13280    13429     149    1.12%
+create_task_basic                     2    26821    27119     298    1.11%
+complete_existing_task                3    40493    40940     447    1.10%
+ambiguous_asks_clarification          4    53484    54080     596    1.11%
+readonly_intent_no_write              5    67524    68269     745    1.10%
+```
+
+增量**恰好都是 149 × 该用例的调用次数**，一个字符不多不少。两次运行之间除了我改的那 5 行，**没有任何东西变化**（录制盒固定了模型回复，H2 每用例清库固定了工具结果）。
+
+两个结论：
+
+1. **测量零噪声，容差就不该是"给成长留的预算"**，只该覆盖真实抖动——prompt 里的日期串跨过 10 号多一个字符、工具结果里的自增 id 多一位。撑死几个字符，给 64 已经很宽。
+2. **初稿的 20% 会连续放过十几次这样的改动**。每一次都不让任何断言变红，等它终于触线，早没人说得清这 20% 是哪几次攒出来的。
+
+> **预算门禁的价值不在于拦住暴涨，而在于让每一次"顺手加两句"都当场显形。**
+
+最终判据：`allowed = baseline + max(64, baseline × 0.5%)`。取两者较大是因为小 prompt 的用例按比例算余量太小（200 字符的 0.5% 只有 1，一个 id 多一位就红了）。
+
+## 7.3 基线是一份**提交进仓库**的数据文件
+
+`src/test/resources/agent-eval/budget-baseline.json`，更新方式是一条命令：
+
+```bash
+gradlew agentEval "-Dagent.eval.budget=write"    # 重写基线，然后 git diff 审阅后提交
+```
+
+**为什么不写成代码常量**：因为预算的**放宽必须是一次可评审的动作**。写在常量里，改它和改任何一行代码没区别，review 时混在 diff 里根本注意不到；写成独立数据文件，"这次改动把 A 用例的 prompt 预算提高了 35%" 会作为一条孤零零的数据 diff 出现在 PR 里，想装看不见都难。
+
+这与"发现缺陷后写成断言而不是记进 issue"是同一条思路：**把判断固化成一个会自己说话的东西**。
+
+写盘时按用例名排序（`TreeMap`），否则 JUnit 换个执行顺序就会产生一份内容相同但 diff 满屏的文件——而基线文件的全部价值就在于它的 diff 可读。
+
+**基线也会腐烂**：只查"超没超"不够。改动让成本降下来后若没人更新基线，基线就停在高位，等于给未来的回退预留了一大截白跑空间。所以实测低于基线 20% 时报 `STALE`，提醒回收。（这一侧阈值刻意比涨幅侧松得多：超支要判红所以宁可严，过时只多印一行提示，严了纯属噪声。）
+
+## 7.4 ★ 报告里最容易被误读的一个数：99.1% 的缓存命中率
+
+实测报告：命中率 **99.06%**，估算成本 $0.0028，"若无前缀缓存则 $0.0421，**省下 93.3%**"。
+
+这个数**高得不诚实**，原因查清楚了：本批 token 录制于一次**连续跑完 13 用例 × 3 试次**的会话，各用例共用同一段 system prompt，上游缓存自始至终是热的。查录制盒可见，连每个用例的**第一次**调用都几乎全命中：
+
+```json
+{"index":0, "prompt_tokens":6021, "prompt_cache_hit_tokens":6016, "prompt_cache_miss_tokens":5}
+```
+
+真实用户的会话是分散的，**首次调用必然冷启**。
+
+本项目架构真正保证的是**单轮内前缀稳定**（这一条有 `prefix_stability_within_turn` 专门守着），跨会话的热缓存是**这次测量方式的产物，不是系统属性**。
+
+所以 `cacheHitRateCaveat` 与 `savedShareCaveat` 被**写进了报告 JSON 本身**，控制台也同步印一行提示——不是写进文档了事。放在文档里的警告和数字会走散，而数字是会被单独截图引用的。
+
+## 7.5 能力集 vs 回归集
+
+| 套件 | Gradle 任务 | 目标通过率 | 变红意味着 | 拦不拦 PR |
+|---|---|---|---|---|
+| **回归集** | `agentEval` | ≈100% | 出 bug 了 | 拦 |
+| **能力集** | `agentEvalCapability` | 30~60% | 本来就没做到 | **不拦**（`ignoreFailures`） |
+
+**为什么必须物理隔开**：一个全绿的套件对"下一步该改什么"零信号——它能告诉你有没有退步，不能告诉你还差多远。而把难用例混进会拦 PR 的套件里只有两种结局，且都不是"把 Agent 改好"：要么为了让 CI 变绿把断言改松（于是它不再是一座山），要么干脆不加这个用例（于是评测永远只覆盖已经做到的事）。两种结局都以"评测很健康"的样子呈现。
+
+**隔离不是流程洁癖，是为了让"做不到"能被如实记录而不被修正压力扭曲。**
+
+三处配套细节：
+
+- `test` 任务也 `excludeTags 'agent-eval-capability'`，否则 `gradlew test` 会长期挂红，最后逼着人去改断言。
+- 能力集用例**缺录制盒时跳过**（回归集缺盒子仍是硬错误——那是有人删了资产）。能力集允许变红，但必须为"Agent 做不到"变红；为"盒子还没录"变红会污染通过率，而 30~60% 这个数只有在分母干净时才读得出东西。
+- 日期类断言钉死成常量而非 `LocalDate.now()`：录制盒里的回答是录制当天生成的，用 `now()` 会让断言从第二天起必然失败——那不是能力不足，是断言自己坏了。
+
+**流转规则**：能力集里连续多次 `pass^3 = 100%` 的**毕业**进回归集；回归集里连续多月 100% 且相关代码不再变动的**退休**（防评测饱和，每个用例都有回放成本，长期零信号的用例是纯负债）。
+
+**当前状态**：首个能力集用例 `multi_step_write_end_state`（单轮内 search → complete → create 三步写入 + 日期推算，三条端状态断言缺一不可）已建好，**但尚未录制**——录制时上游返回 HTTP 402 余额不足。它现在处于"已跳过"状态，充值后一条命令即可激活。
+
+## 7.6 顺带查出的第七个缺陷：**失败的录制会毁掉既有录制盒**
+
+就是上面那次 402 暴露的。录制写盘是**整盒重写**（一个 caseId 一个文件，含全部试次），于是一次上游失败让本次试验录到 0 条交互后，照常写盘就会把磁盘上那盒历史录制**覆盖成一个只剩两个字段的空壳**：
+
+```json
+{ "caseId" : "multi_step_write_end_state", "recordedAt" : "2026-09-04T16:16:29.696" }
+```
+
+那次恰好是新用例、没有存量可毁。**换成任一既有用例就是无法挽回的丢失**——录制要花真金白银，且模型行为不可复现，重录也回不到原样。
+
+更危险的是它**不以"数据丢失"的形式暴露**：测试早就因为"LLM 调用失败"红了，注意力全在余额上，根本不会想到红色背后还顺手抹掉了几十条真实轨迹。
+
+**修法**：本次试验一条都没录到就放弃写盘（`RecordingLlmTransport.flush`），并打警告。宁可少一次录制，不可毁一盒历史。配 `EmptyRecordingGuardTest` 三条断言钉住：失败不覆盖、成功照常写、延迟确实落盘。
 
 ---
 
@@ -1078,7 +1187,21 @@ src/test/java/.../agenteval/
   resources/agent-eval/rag/golden-set.json            ✅ [P4] 10 语料 / 15 问题
   resources/agent-eval/rag/faithfulness-calibration.json ✅ [P4] 人工标注集 n=16
 
-  transport/UsageAccumulator.java     [P5 新增] token 累计（避免改生产接口）← 未开工
+  cost/UsageAccumulator.java       ✅ [P5] token/活体字符/延迟累计（不改生产接口）
+  cost/UsageSnapshot.java          ✅ [P5] 只读快照，区分「录制 token」与「活体字符」
+  cost/PriceTable.java             ✅ [P5] 价目表加载，未知模型按最贵档高估
+  cost/CostModel.java              ✅ [P5] 分价折算 + 前缀缓存省了多少钱（纯函数）
+  cost/BudgetGate.java             ✅ [P5] 预算判定（含 STALE 检测）纯函数
+  cost/BudgetBaseline.java         ✅ [P5] 基线读写，按用例名排序保证 diff 可读
+  cost/CostModelTest.java          ✅ [P5] 折算算术 + TokenUsage 解析（19 条）
+  cost/BudgetGateTest.java         ✅ [P5] 判定与误报边界（11 条）
+  cases/AgentCapabilityEvalTest.java ✅ [P5] 能力集首个用例（待录制）
+  cassette/EmptyRecordingGuardTest.java ✅ [P5] 空录制不得覆盖既有盒子（3 条）
+  resources/agent-eval/pricing.json        ✅ [P5] 价目表（估算口径，非账单）
+  resources/agent-eval/budget-baseline.json ✅ [P5] 13 用例预算基线（随代码提交）
+
+main/.../llm/transport/TokenUsage.java  ✅ [P5] usage 解析的唯一真源
+                                   （P5 唯一的生产侧新增：避免评测与生产各写一套解析）
 
   AgentEvalBase.java               ✅ [P0] 全局不变量 + probe 注入 + 每用例清库
                                    ✅ [P1] 试次注入、按试次隔离 session、caseId 解析加固
@@ -1091,15 +1214,23 @@ src/test/java/.../agenteval/
                                    ✅ [P2] toolSelection 分区 + 修掉明细行的报告级假绿
                                       [P4/P5 改] 新指标分区
   cassette/Cassette.java           ✅ [P1] trials[][]，兼容旧 interactions[]
+                                   ✅ [P5] LlmInteraction 增 upstreamLatencyMs
   transport/ReplayLlmTransport.java   ✅ [P1] beginCase(caseId, trial)，缺试次即报错
+                                   ✅ [P5] 活体请求尺寸度量 + 录制延迟回放
   transport/RecordingLlmTransport.java ✅ [P1] 跨试次累积同一个盒子
+                                   ✅ [P5] 记录真实往返耗时；空录制拒绝写盘
   build.gradle                     ✅ [P1] 透传 -Dagent.eval.trials
+                                   ✅ [P5] -Dagent.eval.budget + agentEvalCapability 任务
 ```
 
 P0~P4 的**建设过程**没有任何生产代码改动。这是有意的：
 评测体系的改造不应该有能力去弄坏被测系统。
-（P5 的 BLOCKER-4 也按这个原则设计——在评测侧 transport 累计 usage，而不是给
-`AgentTraceListener` 加方法。但 **P5 尚未开工**，`UsageAccumulator` 还不存在。）
+
+P5 打破了这条，但只破了一处、且是被迫的：`TokenUsage`。
+原因见 BLOCKER-4 的"实施中的修正"——生产已在解析同一份 usage JSON，
+再写第二份解析，迟早会在某个供应商的字段上分叉，
+到那时**评测报的成本和生产报的缓存命中率会互相矛盾，且没人知道该信哪个**。
+这条教训是 P4 的 `DisclosureInspector` 现成的，不该再犯第二遍。
 
 ## 8.1 缺陷修复（评测建成之后，单独一次改动）
 
@@ -1150,7 +1281,7 @@ main/resources/application.properties
 | **P4 ✅** | RAG 检索指标 + 金标集 + 忠实度 | P3 | 已完成 | **高于预期**：查出多跳被 100% 假降级、检索无分数下限，都是真实产品缺陷 |
 | **缺陷修复 ✅** | 修掉 P3/P4 查出的三条 | P4 | 已完成 | **这是整套体系的第一笔实际回报**：假降级 4/4→0、precision@6 0.167→0.833、判据 κ −0.02→0.605 |
 | **缺陷修复 ✅** | 修掉真实录制查出的三条 | P1 录制 | 已完成 | LEARN 模式 `read` 横切泄漏（含子代理 deny 继承的语义拆分）；空头承诺（宣告要查却零工具调用）；漂移警告恒为假警报（量具自身），见 §3.7 |
-| **P5** | 成本延迟门禁 + 能力/回归分离 + BLOCKER-4 | P2 | 半天 | 中：防"对但太贵" |
+| **P5 ✅** | 成本延迟门禁 + 能力/回归分离 + BLOCKER-4 | P2 | 已完成 | **高于预期**：初稿的 token 门禁被证明结构上不可行（回放返回录制值，永远绿），改建在活体字符数上；顺带查出第七个缺陷——失败的录制会毁掉既有录制盒 |
 
 > **P2 的依赖被证明是错的**：原设计写「P2 依赖 P1」，实则不然。轨迹指标是纯函数，负例是新用例，两者都不需要真实录制就能落地并验证。真正需要 P1 的只有「指标数值的可信度」——现在算出的 precision=1.0 反映的是手写录制盒，不是模型真实表现。
 

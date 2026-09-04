@@ -1,0 +1,47 @@
+{
+  "_comment": [
+    "LLM 价目表。单位：美元 / 每百万 token。",
+    "",
+    "★ 这是估算表，不是账单。看 costUsd 之前请先读 CostModel 的类注释。",
+    "",
+    "刻意不做的两件事：",
+    "  1. 不实现分时计价（峰谷）。同一次评测在不同时刻跑出不同成本，",
+    "     门禁就没法用了——确定性比账单保真度重要。",
+    "  2. 不追新价。价格变了这里可能没跟上，但门禁比的是「相对基线涨了多少」，",
+    "     前后用同一份价表，价错了也会约掉。",
+    "",
+    "标价日期：2026-09-04；口径：off-peak 标准价。",
+    "cacheHit 与 cacheMiss 是输入侧的两个价，两者相加等于 prompt_tokens。"
+  ],
+  "asOf": "2026-09-04",
+  "currency": "USD",
+  "unit": "per 1M tokens",
+  "models": {
+    "deepseek-chat": {
+      "inputCacheMiss": 0.22,
+      "inputCacheHit": 0.007,
+      "output": 0.66
+    },
+    "deepseek-v4-flash": {
+      "inputCacheMiss": 0.22,
+      "inputCacheHit": 0.007,
+      "output": 0.66
+    },
+    "deepseek-v4-pro": {
+      "inputCacheMiss": 0.66,
+      "inputCacheHit": 0.022,
+      "output": 1.98
+    },
+    "deepseek-reasoner": {
+      "inputCacheMiss": 0.66,
+      "inputCacheHit": 0.022,
+      "output": 1.98
+    }
+  },
+  "fallback": {
+    "_comment": "未知模型按最贵的一档算——成本宁可高估，不可低估。低估的成本指标没有门禁价值。",
+    "inputCacheMiss": 0.66,
+    "inputCacheHit": 0.022,
+    "output": 1.98
+  }
+}
