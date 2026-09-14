@@ -13,14 +13,9 @@ public class NoCacheConfig implements WebMvcConfigurer {
     private static class NoCacheInterceptor implements HandlerInterceptor {
         @Override
         public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-            String uri = request.getRequestURI();
-            boolean staticAsset = uri.startsWith("/css/") || uri.startsWith("/js/")
-                    || uri.startsWith("/images/");
-            if (!staticAsset) {
-                response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-                response.setHeader("Pragma", "no-cache");
-                response.setDateHeader("Expires", 0);
-            }
+            response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            response.setHeader("Pragma", "no-cache");
+            response.setDateHeader("Expires", 0);
             return true;
         }
     }
@@ -28,7 +23,6 @@ public class NoCacheConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new NoCacheInterceptor())
-                .addPathPatterns("/**")
-                .excludePathPatterns("/css/**", "/js/**", "/images/**");
+                .addPathPatterns("/**");
     }
 }

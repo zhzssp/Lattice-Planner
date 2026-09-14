@@ -1297,9 +1297,21 @@ li:hover {
     min-width: 0;
     overflow: auto;
 }
+html.lp-agent-open .lp-page-main,
+html:has(#lp-agent-panel.open) .lp-page-main {
+    max-width: calc(100% - var(--lp-agent-width, 440px));
+}
 html.lp-agent-open #lp-agent-panel,
 html:has(#lp-agent-panel.open) #lp-agent-panel {
     position: relative !important;
     right: auto !important;
     top: auto !important;
+    left: auto !important;
+    inset: auto !important;
+}
+html.lp-agent-open .container,
+html:has(#lp-agent-panel.open) .container {
+    max-width: none !important;
+    width: auto !important;
+    box-sizing: border-box !important;
 }

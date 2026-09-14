@@ -44,9 +44,12 @@ html.lp-agent-open .lp-page-shell,
     overflow: hidden;
 }
 html.lp-agent-open .lp-agent-mount,
+html.lp-agent-open #lp-agent-host,
+html:has(#lp-agent-panel.open) .lp-agent-mount,
 .lp-page-shell:has(#lp-agent-panel.open) .lp-agent-mount {
     flex: 0 0 var(--lp-agent-width);
     width: var(--lp-agent-width);
+    max-width: var(--lp-agent-width);
 }
 html.lp-agent-open .lp-agent-mount > link,
 html.lp-agent-open .lp-agent-mount > script,
@@ -60,18 +63,41 @@ html.lp-agent-open #lp-agent-fab,
 }
 
 /* 打开后面板占满右栏；主栏里的居中卡片取消 max-width，跟着左栏变窄 */
-html.lp-agent-open .lp-page-main > .container,
-html.lp-agent-open .lp-page-main > .note-page,
-html.lp-agent-open .lp-page-main > .memo-form-container,
-html.lp-agent-open .lp-page-main > .mcp-container,
-.lp-page-shell:has(#lp-agent-panel.open) .lp-page-main > .container,
-.lp-page-shell:has(#lp-agent-panel.open) .lp-page-main > .note-page,
-.lp-page-shell:has(#lp-agent-panel.open) .lp-page-main > .memo-form-container,
-.lp-page-shell:has(#lp-agent-panel.open) .lp-page-main > .mcp-container {
+html.lp-agent-open .lp-page-main,
+html:has(#lp-agent-panel.open) .lp-page-main,
+.lp-page-shell:has(#lp-agent-panel.open) .lp-page-main {
+    max-width: calc(100% - var(--lp-agent-width, 440px));
+}
+html.lp-agent-open .container,
+html.lp-agent-open .note-page,
+html.lp-agent-open .memo-form-container,
+html.lp-agent-open .mcp-container,
+html:has(#lp-agent-panel.open) .container,
+html:has(#lp-agent-panel.open) .note-page,
+html:has(#lp-agent-panel.open) .memo-form-container,
+html:has(#lp-agent-panel.open) .mcp-container,
+.lp-page-shell:has(#lp-agent-panel.open) .container,
+.lp-page-shell:has(#lp-agent-panel.open) .note-page,
+.lp-page-shell:has(#lp-agent-panel.open) .memo-form-container,
+.lp-page-shell:has(#lp-agent-panel.open) .mcp-container {
     max-width: none;
     width: auto;
     margin: 24px 16px;
     box-sizing: border-box;
+}
+
+#lp-agent-layout-chip {
+    position: fixed;
+    left: 8px;
+    bottom: 8px;
+    z-index: 2147483646;
+    background: #111827;
+    color: #86efac;
+    font: 11px/1.2 ui-monospace, Consolas, monospace;
+    padding: 4px 7px;
+    border-radius: 4px;
+    pointer-events: none;
+    opacity: .85;
 }
 
 html.lp-agent-resizing .lp-agent-mount {
@@ -104,6 +130,9 @@ html.lp-agent-resizing .lp-agent-mount {
     position: relative;
     top: auto;
     right: auto;
+    left: auto;
+    inset: auto;
+    transform: none;
     width: var(--lp-agent-width);
     min-width: 0;
     max-width: none;

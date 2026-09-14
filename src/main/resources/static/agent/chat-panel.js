@@ -51,7 +51,9 @@
         }
         Array.from(document.body.children).forEach(function (el) {
             if (el === shell || el === mount) return;
-            if (el.id === 'contextMenu' || (el.classList && el.classList.contains('modal'))) return;
+            if (el.id === 'contextMenu' || el.id === 'lp-agent-layout-chip') return;
+            if (el.classList && el.classList.contains('modal')) return;
+            if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK') return;
             main.appendChild(el);
         });
         if (mount.parentElement !== shell) shell.appendChild(mount);
@@ -63,6 +65,10 @@
     }
 
     function applySplitLayout(open) {
+        if (typeof window.__lpAgentForceLayout === 'function') {
+            window.__lpAgentForceLayout(open);
+            return;
+        }
         ensurePageShell();
         const mount = document.querySelector('.lp-agent-mount');
         const shell = document.querySelector('.lp-page-shell');
@@ -81,6 +87,11 @@
         if (main) {
             main.style.setProperty('flex', '1 1 auto', 'important');
             main.style.setProperty('min-width', '0', 'important');
+            if (open) {
+                main.style.setProperty('max-width', 'calc(100% - ' + w + ')', 'important');
+            } else {
+                main.style.removeProperty('max-width');
+            }
         }
         if (mount) {
             if (open) {
@@ -92,13 +103,27 @@
             }
             mount.style.setProperty('overflow', 'hidden', 'important');
         }
+        document.querySelectorAll('.lp-page-main .container, .lp-page-main .note-page, .lp-page-main .memo-form-container, .lp-page-main .mcp-container').forEach(function (el) {
+            if (open) {
+                el.style.setProperty('max-width', 'none', 'important');
+                el.style.setProperty('width', 'auto', 'important');
+            } else {
+                el.style.removeProperty('max-width');
+                el.style.removeProperty('width');
+            }
+        });
     }
 
     function setPanelOpen(open) {
-        applySplitLayout(open);
         panel.classList.toggle('open', open);
         document.documentElement.classList.toggle('lp-agent-open', open);
+        applySplitLayout(open);
         panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+        if (typeof window.__lpAgentDumpLayout === 'function') {
+            window.__lpAgentDumpLayout(open ? 'setPanelOpen-true' : 'setPanelOpen-false');
+        } else {
+            console.log('[LP-Agent] setPanelOpen', open, 'layout-boot 未加载，当前 position=', getComputedStyle(panel).position);
+        }
         window.setTimeout(notifyHostResize, 40);
     }
 
