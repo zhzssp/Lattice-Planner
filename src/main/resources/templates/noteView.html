@@ -6,6 +6,8 @@
     <link rel="stylesheet" th:href="@{/css/note.css}">
 </head>
 <body>
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="note-page note-view">
     <header class="note-header">
         <h2 th:text="${note.title != null and !note.title.isBlank() ? note.title : '(无标题)'}"></h2>
@@ -42,7 +44,9 @@
     </aside>
 </div>
 
+</div>
 <!-- Lattice-Agent 对话面板 -->
 <div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 </body>
 </html>

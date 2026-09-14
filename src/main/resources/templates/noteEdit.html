@@ -8,6 +8,8 @@
     <link rel="stylesheet" th:href="@{/css/note.css}">
 </head>
 <body>
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="note-page note-edit">
     <header class="note-header">
         <h2 th:text="${isNew} ? '新建笔记' : '编辑笔记'"></h2>
@@ -83,7 +85,9 @@
 })();
 </script>
 
+</div>
 <!-- Lattice-Agent 对话面板 -->
 <div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 </body>
 </html>

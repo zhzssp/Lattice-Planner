@@ -6,6 +6,8 @@
     <link rel="stylesheet" th:href="@{/css/addMemo.css}">
 </head>
 <body>
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="memo-form-container">
     <h2>添加任务</h2>
     <form action="/memo/add" method="post">
@@ -67,8 +69,10 @@
     </form>
 </div>
 
+</div>
 <!-- Lattice-Agent 对话面板 -->
 <div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 
 </body>
 </html>

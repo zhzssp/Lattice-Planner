@@ -8,6 +8,8 @@
     <link rel="stylesheet" th:href="@{/css/selectFeatures.css}">
 </head>
 <body>
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="container">
     <h2>选择思维模式</h2>
     <form th:action="@{/select-features}" method="post">
@@ -44,8 +46,10 @@
     </form>
 </div>
 
+</div>
 <!-- Lattice-Agent 对话面板 -->
 <div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 
 </body>
 </html>

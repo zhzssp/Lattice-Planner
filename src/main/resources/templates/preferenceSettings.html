@@ -8,6 +8,8 @@
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
 </head>
 <body class="preference-settings-page" th:classappend="${theme == 'dark'} ? 'theme-dark' : ''" th:attr="data-selected-mode=${selectedMode}">
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="container">
     <div class="preference-header">
         <h2>偏好设置</h2>
@@ -201,8 +203,10 @@
 })();
 </script>
 
+</div>
 <!-- Lattice-Agent 对话面板 -->
 <div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 
 </body>
 </html>

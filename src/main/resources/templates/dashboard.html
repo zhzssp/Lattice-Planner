@@ -17,6 +17,8 @@
 </head>
 
 <body th:classappend="${theme == 'dark'} ? 'theme-dark' : ''">
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="container">
     <div class="top-bar">
         <span class="current-mode" th:text="${mindsetMode=='execute' ? '当前：执行模式' : (mindsetMode=='learn' ? '当前：学习模式' : '当前：规划模式')}"></span>
@@ -456,8 +458,10 @@
     </div>
 </div>
 
+</div>
 <!-- Lattice-Agent 对话面板 -->
 <div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 
 </body>
 </html>

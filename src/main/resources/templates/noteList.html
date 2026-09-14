@@ -8,6 +8,8 @@
     <meta name="_csrf_header" th:content="${_csrf != null ? _csrf.headerName : ''}"/>
 </head>
 <body>
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="note-page">
     <header class="note-header">
         <h2 th:text="${activeTag != null ? '#' + activeTag + ' · 我的笔记' : '我的笔记'}">我的笔记</h2>
@@ -60,8 +62,10 @@
     </div>
 </div>
 
+</div>
 <!-- Lattice-Agent 对话面板 -->
 <div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 
 <script>
 (function() {
