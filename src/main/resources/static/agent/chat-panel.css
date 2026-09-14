@@ -1,4 +1,24 @@
-/* Lattice-Agent 抽屉式对话面板 */
+/* Lattice-Agent 抽屉式对话面板
+   打开后以 --lp-agent-width 把宿主页向左推开，而不是盖住 dashboard。 */
+
+:root {
+    --lp-agent-width: 440px;
+}
+
+body {
+    /* 仅过渡右侧留白；关闭时 class 先移除，过渡仍落在这条常驻规则上 */
+    transition: margin-right .25s ease;
+}
+html.lp-agent-open {
+    overflow-x: hidden;
+}
+html.lp-agent-open body {
+    margin-right: var(--lp-agent-width);
+}
+html.lp-agent-resizing body,
+body.lp-agent-resizing {
+    transition: none;
+}
 
 #lp-agent-fab {
     position: fixed;
@@ -25,9 +45,8 @@
 #lp-agent-panel {
     position: fixed;
     top: 0;
-    right: -460px;
-    /* 宽度由 --lp-agent-width 驱动，可被拖拽手柄实时修改并记忆到 localStorage */
-    --lp-agent-width: 440px;
+    /* 关闭时整板移出视口；宽度记忆大于 460px 时也不能露出一截 */
+    right: calc(-1 * var(--lp-agent-width));
     width: var(--lp-agent-width);
     min-width: 320px;
     max-width: 96vw;

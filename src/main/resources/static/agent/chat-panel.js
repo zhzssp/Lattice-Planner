@@ -24,8 +24,20 @@
 
     if (!stream || !input || !sendBtn || !panel) return;
 
-    closeBtn.onclick = () => panel.classList.remove('open');
-    fab.onclick = () => panel.classList.add('open');
+    function notifyHostResize() {
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    function setPanelOpen(open) {
+        panel.classList.toggle('open', open);
+        document.documentElement.classList.toggle('lp-agent-open', open);
+        panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+        /* 过渡结束后再通知一次，让 Chart.js 等按最终宽度重绘 */
+        window.setTimeout(notifyHostResize, 280);
+    }
+
+    closeBtn.onclick = () => setPanelOpen(false);
+    fab.onclick = () => setPanelOpen(true);
 
     /* ------- 模型切换 ------- */
     if (modelSel) {
@@ -104,7 +116,8 @@
 
         function applyWidth(px) {
             const w = Math.max(MIN, Math.min(px, maxWidth()));
-            panel.style.setProperty('--lp-agent-width', w + 'px');
+            /* 写在 :root，面板宽度与宿主页 margin-right 共用同一变量 */
+            document.documentElement.style.setProperty('--lp-agent-width', w + 'px');
             return w;
         }
         // 恢复上次记忆的宽度
@@ -125,8 +138,10 @@
             resizer.classList.remove('dragging');
             panel.classList.remove('resizing');
             document.body.classList.remove('lp-agent-resizing');
+            document.documentElement.classList.remove('lp-agent-resizing');
             const cur = parseInt(getComputedStyle(panel).width, 10);
             if (!isNaN(cur)) localStorage.setItem(KEY, String(cur));
+            notifyHostResize();
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
             window.removeEventListener('touchmove', onMove);
@@ -137,6 +152,7 @@
             resizer.classList.add('dragging');
             panel.classList.add('resizing');
             document.body.classList.add('lp-agent-resizing');
+            document.documentElement.classList.add('lp-agent-resizing');
             window.addEventListener('mousemove', onMove);
             window.addEventListener('mouseup', onUp);
             window.addEventListener('touchmove', onMove, { passive: false });
