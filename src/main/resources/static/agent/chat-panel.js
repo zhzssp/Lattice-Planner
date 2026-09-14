@@ -28,11 +28,46 @@
         window.dispatchEvent(new Event('resize'));
     }
 
+    /* 无头浏览器复现：没有 .lp-page-shell 时 body 仍是 block，
+       打开后面板叠在卡片上（overlap>0）。模板漏套或缓存旧 HTML 时这里补壳。 */
+    function ensurePageShell() {
+        const mount = document.querySelector('.lp-agent-mount') || panel.parentElement;
+        if (!mount) return;
+        let shell = document.querySelector('.lp-page-shell');
+        if (shell && shell.contains(mount)) return;
+
+        if (!shell) {
+            shell = document.createElement('div');
+            shell.className = 'lp-page-shell';
+        }
+        let main = shell.querySelector('.lp-page-main');
+        if (!main) {
+            main = document.createElement('div');
+            main.className = 'lp-page-main';
+            shell.insertBefore(main, shell.firstChild);
+        }
+        if (!shell.parentElement) {
+            document.body.insertBefore(shell, mount.parentElement === document.body ? mount : document.body.firstChild);
+        }
+        Array.from(document.body.children).forEach(function (el) {
+            if (el === shell || el === mount) return;
+            if (el.id === 'contextMenu' || (el.classList && el.classList.contains('modal'))) return;
+            main.appendChild(el);
+        });
+        if (mount.parentElement !== shell) shell.appendChild(mount);
+    }
+
     function setPanelOpen(open) {
+        if (open) ensurePageShell();
         panel.classList.toggle('open', open);
         document.documentElement.classList.toggle('lp-agent-open', open);
         panel.setAttribute('aria-hidden', open ? 'false' : 'true');
         window.setTimeout(notifyHostResize, 40);
+    }
+
+    ensurePageShell();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ensurePageShell);
     }
 
     closeBtn.onclick = () => setPanelOpen(false);
