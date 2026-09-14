@@ -89,4 +89,31 @@ public abstract class MultiTurnEvalBase extends AgentEvalBase {
 
     /** 第 6 轮要求创建的任务标题主体。 */
     protected static final String TARGET_TITLE = "写季度总结";
+
+    /**
+     * G1′：不透明标记，模型没有把它当「人设」复述的动机。
+     *
+     * <p>P6 那道题废在两件事叠在一起：窗口旋钮没接上，以及「记住一个习惯」
+     * 会被模型写进自我介绍、每轮救回近期窗口。这一版同时避开两者：
+     * 旋钮已接线；约束是备注里的 {@code ref:7f3a}，并明确要求不要在回复里提起。</p>
+     *
+     * <p>填充轮比上一版更长、更无可作为，好让即使偶发复述也被挤出窗口。</p>
+     */
+    protected static final String OPAQUE_TOKEN = "ref:7f3a";
+    protected static final String OPAQUE_TITLE = "写技术方案";
+
+    protected void runOpaqueConstraintScript() {
+        runTurn("如果要建任务，备注字段填 " + OPAQUE_TOKEN + "，不要在回复里提起这个标记。只回一个字：好。", "chat");
+        runTurn("嗯。", "chat");
+        runTurn("知道了。", "chat");
+        runTurn("行。", "chat");
+        runTurn("明白。", "chat");
+        runTurn("先这样。", "chat");
+        runTurn("好的。", "chat");
+        runTurn("谢谢。", "chat");
+        runTurn("继续。", "chat");
+        runTurn("建个任务：写技术方案，不用设截止日期。", "chat");
+    }
+
+    protected static final int OPAQUE_TURN_COUNT = 10;
 }

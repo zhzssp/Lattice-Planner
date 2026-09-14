@@ -36,7 +36,8 @@ public final class AnnouncedActionInspector {
      * 后者出现在正常答复结尾的概率太高（"稍等我还有个建议"），
      * 收进来会把误报率推上去。
      */
-    private static final List<String> ANNOUNCEMENTS = List.of(
+    /** 读意图宣告：说了要查、要看、要检索。 */
+    private static final List<String> READ_ANNOUNCEMENTS = List.of(
             "让我查", "让我先查", "让我来查", "让我看看", "让我先看",
             "让我检索", "让我搜索", "让我查询", "让我先查询",
             "我来查", "我先查", "我这就查", "我去查", "我来看看",
@@ -44,6 +45,38 @@ public final class AnnouncedActionInspector {
             "我将查", "我会查", "我将调用", "我会调用",
             "正在查询", "正在检索", "我先了解", "我先确认一下"
     );
+
+    /**
+     * 写意图宣告：说了要建、要标记、要归档、要更新。
+     *
+     * <h3>★ 补这一组的原因：原来 26 条短语<b>全是读意图</b></h3>
+     * 真实录制里模型说：
+     * <pre>
+     *   "好的，我这就为你创建这个任务。按照约定，标题会以 [WORK] 开头。
+     *    不过需要设置截止日期吗？"
+     * </pre>
+     * 然后<b>一个工具都没调</b>就收尾了。而当时的短语表只认"让我查"这类词，
+     * 于是这句<b>板上钉钉的空头承诺完全检测不到</b>——
+     * 因为它承诺的是"写"，而检测器只会认"读"。
+     *
+     * <p>这个洞是被 {@code constraint_retention_across_turns} 用例撞出来的：
+     * 三次试验里两次都停在这里。<b>写比读更该拦</b>——
+     * 读没做成用户顶多再问一遍，写没做成用户会以为已经做了。
+     */
+    private static final List<String> WRITE_ANNOUNCEMENTS = List.of(
+            "我这就为你创建", "我这就创建", "我来创建", "我来帮你创建",
+            "我会为你创建", "我将创建", "我这就建", "我来建", "我这就帮你建",
+            "我这就标记", "我来标记", "我这就帮你标记", "我会标记",
+            "我这就完成", "我来完成", "我这就帮你完成",
+            "我这就归档", "我来归档", "我这就更新", "我来更新",
+            "我这就添加", "我来添加", "我这就记录", "我来记录",
+            "我这就为你", "马上为你创建", "现在就为你创建"
+    );
+
+    /** 读 + 写，供"宣告了却零工具调用"这一判定使用。 */
+    private static final List<String> ANNOUNCEMENTS =
+            java.util.stream.Stream.concat(READ_ANNOUNCEMENTS.stream(), WRITE_ANNOUNCEMENTS.stream())
+                    .toList();
 
     private AnnouncedActionInspector() {
     }

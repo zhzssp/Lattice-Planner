@@ -152,7 +152,7 @@ GLOBAL（全量）→ MODE（模式）→ ROLE（子代理角色）→ SESSION�
 - 只收 `MEDIUM` 以上置信度——facts 注入每一轮，抽错的污染面比一次错误回答大得多
 - `stable-apply-granularity=DAY`：稳定 facts 只取今天零点前创建的，让 system 段全天字节恒定
 
-> **为什么 facts 默认关**：它写进 system prompt，抽错会污染每一轮，而"抽取准确率"目前没有离线证据——回放套件用的是录制响应，量不出真实模型的抽取质量。放开前需在 record 模式下用真 API 验证。
+> **为什么 facts 默认关**：它写进 system prompt，抽错会污染每一轮。2026-09-14 金标 P=1.0 / R=0.75 已过门槛，但打开会在每轮加抽取调用，且没有「只开 VOLATILE」的独立旋钮。评测 profile 锁死 `false`。报告见 `build/agent-eval/facts-extraction.json`。
 
 **效果实测**见 `build/agent-eval/context-engineering.md`（`./gradlew test --tests '*ContextEngineeringBenchmark*'` 可复现）。
 
@@ -210,7 +210,7 @@ RagSearchService（Hybrid 双通路）
 
 - **轨迹埋点**：`AgentTraceListener` + `AgentTraceMetrics`，生产与测试**共用同一套埋点**
 - **端点**：`GET /api/agent/trace/stats`、`/api/agent/prefix-cache/stats`、`/api/observability/stats`
-- **评测体系**：录制回放，9 个轨迹用例 + 3 个上下文工程基准，离线零成本。详见 [`../Agent评测体系使用指南.md`](../Agent评测体系使用指南.md)
+- **评测体系**：录制回放。回归集拦 PR；能力集（G1′ / Facts / 多步写入）只报不拦；另有 3 个上下文工程机制基准。详见 [`../Agent评测体系使用指南.md`](../Agent评测体系使用指南.md)
 
 **一条硬约束**（从"指标恒为 0"那个坑沉淀的）：**没有消费方的指标等于没有指标**。每个新能力必须同时有开关、有指标、有暴露端点。
 
@@ -240,6 +240,6 @@ RagSearchService（Hybrid 双通路）
 - `ConversationMemory` 是进程内内存，**重启即清空**（生产需替换为 Redis / DB）
 - 工具调用未并行，一次只调一个——设计为线性 ReAct 便于审计，且工具间常有数据依赖
 - 滚动摘要对**中段约束**的保护弱于早期约束（折叠放回队头 + 尾部截断的固有结果，实测散布场景留存 40%）
-- Facts 抽取准确率无离线证据，故默认关闭
+- Facts 金标 P=1.0 / R=0.75 已过门槛，默认仍关（每轮加抽取；错抽进 system prompt；无 VOLATILE-only 旋钮）
 - 评测只覆盖"决策路径对不对"，未做 LLM-as-Judge 的答案质量评分
 - 浏览器壳里本地文档功能不可用（需 MCP loopback 且白名单配置）

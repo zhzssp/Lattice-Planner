@@ -116,7 +116,7 @@ public class ContextCompactor {
     }
 
     private int triggerThreshold() {
-        return Math.max(1, (int) (ConversationMemory.windowSize() * triggerRatio));
+        return Math.max(1, (int) (memory.windowSize() * triggerRatio));
     }
 
     private String summarize(List<ConversationMemory.Msg> dialogue) {

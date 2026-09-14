@@ -1,34 +1,25 @@
 package org.zhzssp.memorandum.agenteval.cases;
 
 import org.junit.jupiter.api.DisplayName;
-import org.springframework.test.context.TestPropertySource;
 import org.zhzssp.memorandum.agenteval.golden.GoldenTask;
 import org.zhzssp.memorandum.agenteval.trial.EvalTrial;
 
 import static org.zhzssp.memorandum.agenteval.trace.TrajectoryAssert.assertThat;
 
 /**
- * 多轮金标集 · <b>折叠开启</b>（P6·G1）——上下文工程的活体验证。
+ * 多轮金标集 · 跨轮回归（P6·G1 留下的那两道）。
  *
- * <h3>窗口为什么调到 8 条</h3>
- * 生产默认 {@code history-window=30}，六轮闲聊压根撑不满，
- * 折叠<b>根本不会触发</b>，这道题就退化成"模型上下文够长吗"，什么也没测到。
- * 调到 8 条，第 1 轮的约束在第 6 轮到来前必然已被挤出原始窗口，
- * <b>只有折叠把它带过去，这题才做得出来。</b>
+ * <p>窗口保持生产默认 30。这两条盒子是「死配置」时代录的——当时
+ * {@code @TestPropertySource(history-window=8)} 根本没接到 {@code ConversationMemory}，
+ * 折叠从未发生。P7 把旋钮接上之后，若继续在本类压窗口，回放会多出摘要调用，
+ * 录制耗尽。它们能证明的是<b>跨轮约束 / 指代</b>，不是折叠收益。
  *
- * <p>用 {@code @TestPropertySource} 而不是改评测 profile：改 profile 会波及
- * 那 13 条已录制的单轮用例——它们的 prompt 会变、录制盒会集体失效。
- * 代价是 Spring 要为这个属性组合另开一个上下文（启动慢几秒），值得。
+ * <p>要压窗口的对照实验在 {@link OpaqueConstraintEvalTest}（G1′）。
  *
- * @see MultiTurnNoCompactionTest 对照组
+ * @see MultiTurnNoCompactionTest 旧题对照组
+ * @see OpaqueConstraintEvalTest G1′ 实验组
  */
-@TestPropertySource(properties = {
-        "agent.chat.history-window=8",
-        "agent.context.compaction.enabled=true",
-        // 降低折叠门槛：默认要 6 条真实对话才折，六轮剧本刚好卡在边上
-        "agent.context.compaction.min-dialogue=4",
-})
-@DisplayName("多轮金标集（折叠开）")
+@DisplayName("多轮金标集（跨轮回归）")
 class MultiTurnEvalTest extends MultiTurnEvalBase {
 
     /**

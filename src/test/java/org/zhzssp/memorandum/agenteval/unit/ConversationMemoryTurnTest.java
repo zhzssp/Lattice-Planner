@@ -34,7 +34,7 @@ class ConversationMemoryTurnTest {
     @DisplayName("★窗口被折叠/滑出后轮次仍继续递增，不随消息条数回退")
     void survivesWindowEviction() {
         ConversationMemory memory = new ConversationMemory();
-        int window = ConversationMemory.windowSize();
+        int window = memory.windowSize();
 
         for (int i = 0; i < window + 10; i++) {
             memory.nextTurn("s");
@@ -59,5 +59,29 @@ class ConversationMemoryTurnTest {
 
         assertEquals(0, memory.currentTurn("s"));
         assertEquals(1, memory.nextTurn("s"), "clear 后应重新从 1 开始");
+    }
+
+    @Test
+    @DisplayName("★窗口容量从构造参数读，不再写死 30")
+    void windowSizeIsConfigurable() {
+        ConversationMemory tight = new ConversationMemory(4);
+        assertEquals(4, tight.windowSize());
+
+        tight.append("s", "user", "1");
+        tight.append("s", "assistant", "2");
+        tight.append("s", "user", "3");
+        tight.append("s", "assistant", "4");
+        tight.append("s", "user", "5");
+
+        assertEquals(4, tight.size("s"), "第 5 条必须把最老的挤出去");
+        assertEquals("2", tight.history("s").getFirst().content(),
+                "最老的 user「1」应已被淘汰，队头变成 assistant「2」");
+    }
+
+    @Test
+    @DisplayName("窗口小于 2 直接拒绝：那已经不是滑动窗口")
+    void rejectsTinyWindow() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new ConversationMemory(1));
     }
 }

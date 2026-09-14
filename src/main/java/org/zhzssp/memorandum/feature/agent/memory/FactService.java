@@ -156,6 +156,23 @@ public class FactService {
                              AgentFact.Confidence confidence) {
     }
 
+    /**
+     * 同步抽取，不落库、不看 {@code enabled}。
+     *
+     * <p>评测专用：量的是「这段原话会抽出什么」，不是入库路径。
+     * 生产主路径仍然走 {@link #extractAsync}，关闭时整层不干活。</p>
+     */
+    public List<ExtractedFact> previewExtract(String userInput) {
+        if (userInput == null || userInput.isBlank()) return List.of();
+        return extract(userInput).stream()
+                .map(e -> new ExtractedFact(e.key(), e.value(), e.kind().name(), e.confidence().name()))
+                .toList();
+    }
+
+    /** 评测可见的抽取结果。 */
+    public record ExtractedFact(String key, String value, String kind, String confidence) {
+    }
+
     private List<Extracted> extract(String userInput) {
         String raw;
         try {

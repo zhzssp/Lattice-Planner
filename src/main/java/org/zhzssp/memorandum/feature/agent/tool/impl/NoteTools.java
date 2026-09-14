@@ -12,6 +12,9 @@ import java.util.List;
 
 /**
  * 笔记相关工具。AGENT_MEMO 由 LongTermMemoryService 内部使用，不暴露给 LLM。
+ *
+ * <p>确认口径与 {@code TaskTools} 对齐：{@code note.create} 是创建、免弹窗；
+ * 没有「把笔记标完成」这类状态变更工具。模型不得在文字里再讨一次许可。</p>
  */
 @Component
 public class NoteTools {

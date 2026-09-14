@@ -266,6 +266,15 @@ public class AgentOrchestrator {
                 trace.toolResult(sid, step, call.name(), resultJson, isError,
                         System.currentTimeMillis() - t0);
 
+                // 记下"本轮真的执行过什么"，供收尾顾问判断模型是否只说不做。
+                // isError 时不记：调用炸了不等于写操作发生过。
+                // isWrite 由工具元数据（tags）判定而非顾问侧的名单——
+                // 名单会在新增写工具时被忘记同步，且忘记了没有任何提示。
+                if (!isError) {
+                    outcome.recordToolInvoked(call.name(),
+                            def.tags() != null && def.tags().contains("write"));
+                }
+
                 // L：检测工具结果携带的降级信号，置位粘性标记（信息丢失不可抹除）
                 if (looksCragDegraded(resultJson)) {
                     outcome.markDegraded(org.zhzssp.memorandum.feature.agent.runtime.turn.TurnOutcome.CAUSE_CRAG_DEGRADED);

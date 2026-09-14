@@ -93,6 +93,40 @@ class EmptyRecordingGuardTest {
     }
 
     @Test
+    @DisplayName("★部分重录不得把 k=3 盒子裁成 k=1")
+    void fewerTrialsDoNotOverwrite() {
+        String caseId = "__guard_probe_shrink__";
+        LlmTransport ok = new ChatOnly() {
+            @Override
+            public ChatResponse chat(ChatRequest request) {
+                return ChatResponse.of("新录的一拍");
+            }
+        };
+        var transport = new RecordingLlmTransport(ok, OM, new UsageAccumulator());
+
+        try {
+            Cassette old = new Cassette();
+            old.setCaseId(caseId);
+            old.add(0, new Cassette.LlmInteraction(0, "CHAT", "fp", "d", "试次0", null, 1L));
+            old.add(1, new Cassette.LlmInteraction(0, "CHAT", "fp", "d", "试次1", null, 1L));
+            old.add(2, new Cassette.LlmInteraction(0, "CHAT", "fp", "d", "试次2", null, 1L));
+            CassetteStore.save(old);
+            assertEquals(3, CassetteStore.load(caseId).trialCount());
+
+            transport.beginCase(caseId, 0);
+            transport.chat(anyRequest());
+            transport.flush();
+
+            Cassette after = CassetteStore.load(caseId);
+            assertEquals(3, after.trialCount(),
+                    "只录到 1 试次就落盘，会把花钱买来的 k=3 资产裁掉");
+            assertEquals("试次0", after.at(0, 0).responseContent());
+        } finally {
+            CassetteStore.pathFor(caseId).toFile().delete();
+        }
+    }
+
+    @Test
     @DisplayName("正常录到内容时照常写盘——守护不能把正常路径也一起挡了")
     void successfulRecordingStillWrites() {
         String caseId = "__guard_probe_ok__";

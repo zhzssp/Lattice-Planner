@@ -75,6 +75,28 @@ class ContextCompactorTest {
         }
 
         @Test
+        @DisplayName("★窗口改成 8 时，阈值跟着变成 6，不再按写死的 30 算")
+        void triggerFollowsInjectedWindow() {
+            memory = new ConversationMemory(8);
+            compactor = new ContextCompactor(memory, llm);
+            ReflectionTestUtils.setField(compactor, "enabled", true);
+            ReflectionTestUtils.setField(compactor, "triggerRatio", 0.8);
+            ReflectionTestUtils.setField(compactor, "foldSize", 6);
+            ReflectionTestUtils.setField(compactor, "summaryMaxChars", 200);
+            ReflectionTestUtils.setField(compactor, "minDialogue", 4);
+            when(llm.generateText(anyString())).thenReturn("摘要");
+
+            appendDialogue("s", 2); // 4 条 < 6
+            assertFalse(compactor.compactIfNeeded("s", outcome()),
+                    "未达新阈值不该折——若这里折了，说明还在按 30 算");
+
+            appendDialogue("s", 1); // 6 条 = 8 * 0.8
+            assertTrue(compactor.compactIfNeeded("s", outcome()),
+                    "达到注入窗口的 80% 必须折。P6 对照实验废掉，就是因为这条路径当时读不到配置。");
+            verify(llm, times(1)).generateText(anyString());
+        }
+
+        @Test
         @DisplayName("禁用时不触发")
         void disabledNoTrigger() {
             ReflectionTestUtils.setField(compactor, "enabled", false);

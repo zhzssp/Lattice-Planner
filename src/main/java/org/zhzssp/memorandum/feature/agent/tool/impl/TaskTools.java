@@ -18,6 +18,18 @@ import java.util.List;
 
 /**
  * 任务相关工具：所有写操作都走 TaskService，自动触发对应事件 -> GoalEventListener 自动联动。
+ *
+ * <h3>确认口径（产品契约，不要再各写各的）</h3>
+ * <ul>
+ *   <li><b>创建</b>（{@code task.create}）免弹窗：只往自己的库里加一条 PENDING，
+ *       误操作的代价是删掉它，用户想省一步是合理的；</li>
+ *   <li><b>状态变更</b>（{@code task.complete} / {@code task.archive}）必须弹窗：
+ *       改的是已有数据的状态，撤起来不像创建那么干净。</li>
+ * </ul>
+ * 模型侧不允许再问一句「确认吗」——弹窗本身就是确认。
+ * 信息足够时必须发工具；批量 = N 次单条调用，每条弹一次
+ * （用户开了 auto-approve 则不弹）。不另做 {@code task.batch_complete}，
+ * 第二条写路径会把确认语义再撕开一次。
  */
 @Component
 public class TaskTools {

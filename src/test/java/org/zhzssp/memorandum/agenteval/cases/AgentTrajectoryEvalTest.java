@@ -488,4 +488,39 @@ class AgentTrajectoryEvalTest extends AgentEvalBase {
                 .endState("不应新建任务顶替原任务",
                         d -> d.anyTask(t -> t.id() == 90001L));
     }
+
+    /**
+     * 批量写入：步数由数据决定。2026-09-14 用当前代码（顾问 + 确认契约）重录 {@code pass^3 = 100%}，
+     * 从能力集毕业。确认只走弹窗，不加 {@code task.batch_complete}。
+     *
+     * <p>种子日期钉在录制盒首次使用的 2026-09-04，与盒子里的「今天」对齐；
+     * 不要改成 {@code LocalDate.now()}。</p>
+     */
+    @EvalTrial
+    @DisplayName("batch_complete_overdue_only")
+    void batch_complete_overdue_only() {
+        LocalDate recordedOn = LocalDate.of(2026, 9, 4);
+        seedTask(90201L, "整理客户资料", "PENDING", recordedOn.minusDays(7));
+        seedTask(90202L, "回复合作方邮件", "PENDING", recordedOn.minusDays(4));
+        seedTask(90203L, "更新项目文档", "PENDING", recordedOn.minusDays(1));
+        seedTask(90204L, "准备下月预算", "PENDING", recordedOn.plusDays(16));
+
+        runTurn("已经过期的任务我都处理完了，帮我把它们标记成完成", "chat");
+
+        assertThat(trace, db)
+                .converged()
+                .noHallucination()
+                .noToolFailure()
+                .matchesGolden(GoldenTask.of("batch_complete_overdue_only")
+                        .expecting("task.complete")
+                        .toleratingReadOnlyExploration()
+                        .forbidding("task.create", "task.archive"))
+                .endState("三条过期任务应全部变为 DONE（做一半就收工是最典型的失败）",
+                        d -> d.tasks().stream()
+                                .filter(t -> t.id() >= 90201L && t.id() <= 90203L)
+                                .allMatch(t -> "DONE".equals(t.status())))
+                .endState("未到期的「准备下月预算」必须仍为 PENDING（不许顺手办了）",
+                        d -> d.anyTask(t -> t.id() == 90204L && "PENDING".equals(t.status())))
+                .taskCountIs(4);
+    }
 }

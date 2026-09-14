@@ -1,77 +1,81 @@
 {
-  "_comment" : [ "Agent 评测的成本预算基线。★ 这份文件是给 code review 看的。", "", "它守的是「prompt 悄悄变胖」——那是本套件里唯一不会让任何断言变红的退化：", "往 system prompt 或工具描述里多写两句，调用次数不变、轨迹不变、断言全绿，", "只是每一次调用都贵了一点。requestChars 是活体测量，专治这个。", "", "回放模式下的 token 数来自录制盒（是录制当天的值），所以门禁<不>建立在 token 上。", "", "★ generatedWithTrials 记的是写这份基线时跑了几次试验，不能删。", "基线取的是各试次的最大值，所以它只在 k <= generatedWithTrials 时有效。", "拿 k=1 写出来的基线去卡 k=3 的运行会整片误报（真发生过），", "此时门禁会自动停判并提示重建，而不是红着——会误报的门禁比没有门禁更糟。", "", "★ 这里的 llmCalls 是<传输层>计数，会大于报告里 cases[].llmCalls（轨迹计数）。", "差额是摘要、降级披露这类辅助调用：它们不发轨迹事件，但照样花钱。", "算成本必须用传输层的数，用轨迹数会系统性低估。", "", "更新方式：gradlew agentEval \"-Dagent.eval.budget=write\" \"-Dagent.eval.trials=3\"，然后把 diff 一起提交。", "diff 里若出现某个用例的 requestChars 显著上涨，那就是这次改动的成本代价，", "应当在 PR 里被解释，而不是顺手带过。" ],
-  "generatedAt" : "2026-09-04",
+  "_comment" : [ "Agent 评测的成本预算基线。★ 这份文件是给 code review 看的。", "", "它守的是「prompt 悄悄变胖」——那是本套件里唯一不会让任何断言变红的退化：", "往 system prompt 或工具描述里多写两句，调用次数不变、轨迹不变、断言全绿，", "只是每一次调用都贵了一点。requestChars 是活体测量，专治这个。", "", "回放模式下的 token 数来自录制盒（是录制当天的值），所以门禁<不>建立在 token 上。", "", "★ generatedWithTrials 记的是写这份基线时跑了几次试验，不能删。", "2026-09-14 收入毕业用例 batch_complete_overdue_only。", "", "更新方式：gradlew agentEval \"-Dagent.eval.budget=write\" \"-Dagent.eval.trials=3\"，然后把 diff 一起提交。" ],
+  "generatedAt" : "2026-09-14",
   "generatedInMode" : "replay",
   "generatedWithTrials" : 3,
   "gatedMetrics" : [ "llmCalls", "requestChars" ],
   "cases" : {
     "ambiguous_asks_clarification" : {
       "llmCalls" : 6,
-      "requestChars" : 81839
+      "requestChars" : 82541
+    },
+    "batch_complete_overdue_only" : {
+      "llmCalls" : 5,
+      "requestChars" : 70906
     },
     "chitchat_no_tool" : {
       "llmCalls" : 1,
-      "requestChars" : 13280
+      "requestChars" : 13397
     },
     "complete_existing_task" : {
       "llmCalls" : 3,
-      "requestChars" : 40493
+      "requestChars" : 40844
     },
     "constraint_retention_across_turns" : {
       "llmCalls" : 8,
-      "requestChars" : 112048
-    },
-    "cross_turn_reference_resolution" : {
-      "llmCalls" : 4,
-      "requestChars" : 55149
-    },
-    "cross_user_write_denied" : {
-      "llmCalls" : 2,
-      "requestChars" : 26814
+      "requestChars" : 112988
     },
     "create_task_basic" : {
       "llmCalls" : 2,
-      "requestChars" : 26821
+      "requestChars" : 27055
+    },
+    "cross_turn_reference_resolution" : {
+      "llmCalls" : 4,
+      "requestChars" : 55617
+    },
+    "cross_user_write_denied" : {
+      "llmCalls" : 2,
+      "requestChars" : 27048
     },
     "kb_search_degraded" : {
       "llmCalls" : 3,
-      "requestChars" : 13367
+      "requestChars" : 13601
     },
     "kb_search_hit" : {
       "llmCalls" : 2,
-      "requestChars" : 13302
+      "requestChars" : 13536
     },
     "mode_isolation_learn" : {
       "llmCalls" : 4,
-      "requestChars" : 19956
+      "requestChars" : 20307
     },
     "no_internal_leak" : {
       "llmCalls" : 2,
-      "requestChars" : 26625
+      "requestChars" : 26859
     },
     "no_tool_hallucination" : {
       "llmCalls" : 3,
-      "requestChars" : 40088
+      "requestChars" : 40439
     },
     "prefix_stability_within_turn" : {
       "llmCalls" : 3,
-      "requestChars" : 40055
+      "requestChars" : 40406
     },
     "prompt_injection_via_task_content" : {
       "llmCalls" : 2,
-      "requestChars" : 27097
+      "requestChars" : 27331
     },
     "query_tasks" : {
       "llmCalls" : 3,
-      "requestChars" : 40043
+      "requestChars" : 40394
     },
     "readonly_intent_no_write" : {
       "llmCalls" : 5,
-      "requestChars" : 67524
+      "requestChars" : 68109
     },
     "tool_error_recovery" : {
       "llmCalls" : 2,
-      "requestChars" : 26861
+      "requestChars" : 27095
     }
   }
 }

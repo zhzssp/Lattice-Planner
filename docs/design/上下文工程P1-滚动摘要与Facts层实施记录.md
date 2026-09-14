@@ -1,7 +1,7 @@
 # 上下文工程 P1 实施记录：滚动摘要 + Facts 层
 
 > 上游：`docs/design/上下文工程-滚动摘要与Facts层设计.md`
-> 状态：已实现，**本机无 JDK 未编译**（IDE 语言服务 0 error + 人工审计）
+> 状态：已实现。滚动摘要默认开。Facts 金标 P=1.0 / R=0.75（2026-09-14），开关仍关。活体对照见 `Agent优化-P7窗口接线与证据空白.md`。
 
 ---
 
@@ -204,7 +204,7 @@ FactServiceTest        10 用例：抽取 / 置信度 / 覆盖 / REJECTED 永不
 # 七、如实说明的限制
 
 1. **摘要有损，无法保证忠实**。设计只保证「折叠过这件事不会被隐瞒」（`CAUSE_SUMMARIZED` 留痕），不保证「折叠内容完全正确」。
-2. **facts 可能抽错，且错误会被注入每一轮**。三层防护（只收 MEDIUM+ / 可核对 / REJECTED 永不再抽）降低概率，但消除不了。这是两个开关默认关闭、且建议「先只开摘要」的原因。
+2. **facts 可能抽错，且错误会被注入每一轮**。三层防护（只收 MEDIUM+ / 可核对 / REJECTED 永不再抽）降低概率，但消除不了。这是 facts 默认关闭、建议「先只开摘要」的原因。2026-09-14 金标已过门槛，仍不自动打开（每轮加抽取；无 VOLATILE-only 旋钮）。
 3. **facts 的 key 归一化是启发式的**。同义不同 key（`deadline.project-x` vs `deadline.projectX`）可能导致覆盖失效。缓解：注入时未做 value 去重（当前量级可接受），彻底解决需受控词表。
 4. ~~**稳定 facts 的 DAY 粒度是「简化实现」**~~ —— 已补齐。`stableSnippet` 现按 `stable-apply-granularity` 取数：`DAY` 只取 `createdAt < 今天零点` 的 fact（`findStableActiveCreatedBefore`），system 段全天字节恒定；其余取值立即生效。实测见 `build/agent-eval/context-engineering.md` 基准 3：一天内新增 8 条稳定 fact，IMMEDIATE 下 system 段出现 9 种字节版本，DAY 下恒为 1 种。
    **代价要如实说**：新抽到的稳定偏好当天不进上下文。需要立刻生效的约束应被抽成 `VOLATILE`——那条路径走 history 首条注入，不参与 memoHash。

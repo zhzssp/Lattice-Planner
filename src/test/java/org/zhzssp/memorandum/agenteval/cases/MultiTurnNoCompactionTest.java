@@ -55,6 +55,8 @@ import static org.zhzssp.memorandum.agenteval.trace.TrajectoryAssert.assertThat;
  *
  * <p><b>没有继续调参数直到它给出我想要的结果</b>——
  * 一个被调到"终于显示出收益"的实验，证明的是调参能力，不是收益。
+ *
+ * @see OpaqueConstraintEvalTest G1′ 实验组（压窗口的新题）
  */
 @Tag("agent-eval-capability")
 @TestPropertySource(properties = {
@@ -87,5 +89,31 @@ class MultiTurnNoCompactionTest extends MultiTurnEvalBase {
                                 + "（折叠已关，第 1 轮应已被窗口直接丢弃）",
                         d -> d.anyTask(t -> t.title() != null
                                 && t.title().startsWith(CONSTRAINT_PREFIX)));
+    }
+
+    /**
+     * G1′ 对照组：同一不透明标记剧本，折叠关闭。
+     *
+     * <p>不反向断言「必须失败」。只如实记录端状态，和实验组的差才是结论。
+     * 2026-09-14 k=1：本对照红（任务建了，备注没有 {@code ref:7f3a}），
+     * 实验组绿——折叠把约束带过了窗口。</p>
+     */
+    @EvalTrial
+    @DisplayName("opaque_constraint_no_compaction")
+    void opaque_constraint_no_compaction() {
+        runOpaqueConstraintScript();
+        if (historyHasSummary()) {
+            throw new AssertionError(
+                    "对照组不该出现 [对话摘要]：compaction.enabled=false 时折了，开关没生效。");
+        }
+
+        assertThat(trace, db)
+                .turnCountIs(OPAQUE_TURN_COUNT)
+                .everyTurnConverged()
+                .noHallucination()
+                .endState("最后一轮应当建出任务", d -> d.taskCount() == 1)
+                .endState("备注是否仍带 " + OPAQUE_TOKEN + "（折叠已关，第 1 轮应已被窗口丢弃）",
+                        d -> d.anyTask(t -> t.description() != null
+                                && t.description().contains(OPAQUE_TOKEN)));
     }
 }

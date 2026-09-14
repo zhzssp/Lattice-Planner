@@ -1,5 +1,7 @@
 package org.zhzssp.memorandum.feature.agent.runtime;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -16,7 +18,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 进程内会话短期记忆。每个 sessionId 对应一个滑动窗口。
- * 窗口大小见 WINDOW（条数，含 user / assistant 交错）。
+ * 窗口大小读 {@code agent.chat.history-window}（条数，含 user / assistant 交错）。
+ *
+ * <h3>★ 这个配置曾经是死的</h3>
+ * 属性写在 {@code application.properties} 里，评测还用 {@code @TestPropertySource}
+ * 把它调到 8，想压出折叠。但本类曾经把容量写死为 30，<b>从不读那个属性</b>。
+ * 于是 P6 的多轮对照实验里折叠根本不会触发——实验组和对照组走的是同一条路径。
+ * 旋钮必须接到这里，评测里改窗口才有意义。
  *
  * <p>除消息窗口外，额外维护每个会话的「最后活跃时间」，供
  * {@code SessionArchiveScheduler} 判定空闲会话并触发长期记忆归档。</p>
@@ -27,11 +35,34 @@ public class ConversationMemory {
     public record Msg(String role, String content) {
     }
 
-    private static final int WINDOW = 30;
+    /** 与 {@code application.properties} 默认值对齐；单测无 Spring 时走这条。 */
+    public static final int DEFAULT_WINDOW = 30;
 
-    /** 窗口容量（供滚动摘要等按比例计算触发阈值）。 */
-    public static int windowSize() {
-        return WINDOW;
+    private final int window;
+
+    /** 单测 / 基准用：默认 30，与生产配置一致。 */
+    public ConversationMemory() {
+        this(DEFAULT_WINDOW);
+    }
+
+    /**
+     * 生产入口：窗口必须从配置读，不能写死。
+     *
+     * <p>下限 2：窗口至少要能同时放下一条 user 和一条 assistant，
+     * 再小就不是「滑动窗口」而是「只留一句」，折叠阈值也会退化成 1。</p>
+     */
+    @Autowired
+    public ConversationMemory(@Value("${agent.chat.history-window:30}") int historyWindow) {
+        if (historyWindow < 2) {
+            throw new IllegalArgumentException(
+                    "agent.chat.history-window 必须 ≥ 2，实际=" + historyWindow);
+        }
+        this.window = historyWindow;
+    }
+
+    /** 窗口容量（供滚动摘要按比例计算触发阈值）。 */
+    public int windowSize() {
+        return window;
     }
 
     private final Map<String, Deque<Msg>> store = new ConcurrentHashMap<>();
@@ -55,7 +86,7 @@ public class ConversationMemory {
         Deque<Msg> q = store.computeIfAbsent(sid, k -> new ArrayDeque<>());
         synchronized (q) {
             q.addLast(new Msg(role, content));
-            while (q.size() > WINDOW) q.pollFirst();
+            while (q.size() > window) q.pollFirst();
         }
         lastActiveAt.put(sid, Instant.now());
     }

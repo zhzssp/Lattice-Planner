@@ -46,6 +46,23 @@ public final class TurnOutcome {
     /** 最近一次 steer 的顾问名（供埋点归因）。 */
     private String lastAdvisorName;
 
+    /**
+     * 本轮是否<b>真的执行过写操作</b>。
+     *
+     * <h3>为什么单独记这个，而不是让顾问去看工具名</h3>
+     * "哪些工具算写"是<b>工具元数据</b>（{@code @AgentTool} 的 tags）说了算的，
+     * 而元数据只有编排器在调用现场拿得到。让顾问去维护一份工具名白名单，
+     * 等于把同一份知识抄第二遍——新增写工具时必然有人忘记同步，
+     * 而忘记的后果是<b>那个工具的漏网行为再也不会被拦住</b>，且没有任何提示。
+     *
+     * <p>（这类"同一份知识抄两遍"的坑本项目已经栽过：
+     * {@code DisclosureInspector} 与生产判定曾各写一套关键词。）
+     */
+    private boolean writeToolInvoked;
+
+    /** 本轮实际调用成功的工具名，按顺序、去重。仅用于 steer 措辞与排障。 */
+    private final Set<String> invokedTools = new LinkedHashSet<>();
+
     public TurnOutcome(String sessionId, String mode, String userInput) {
         this.sessionId = sessionId;
         this.mode = mode;
@@ -111,5 +128,30 @@ public final class TurnOutcome {
     public void recordSteer(String advisorName) {
         this.steerCount++;
         this.lastAdvisorName = advisorName;
+    }
+
+    /**
+     * 记录一次<b>成功执行</b>的工具调用（由编排器在调用现场调用）。
+     *
+     * @param tool    工具名
+     * @param isWrite 该工具是否带 {@code write} 标签。由编排器从工具元数据判定，
+     *                顾问侧不再重复维护一份"哪些算写"的名单
+     */
+    public void recordToolInvoked(String tool, boolean isWrite) {
+        if (tool != null && !tool.isBlank()) {
+            invokedTools.add(tool);
+        }
+        if (isWrite) {
+            this.writeToolInvoked = true;
+        }
+    }
+
+    /** 本轮是否真的执行过写操作。 */
+    public boolean writeToolInvoked() {
+        return writeToolInvoked;
+    }
+
+    public Set<String> invokedTools() {
+        return invokedTools;
     }
 }

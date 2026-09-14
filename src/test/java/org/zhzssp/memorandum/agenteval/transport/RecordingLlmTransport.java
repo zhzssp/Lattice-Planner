@@ -86,6 +86,19 @@ public class RecordingLlmTransport implements LlmTransport {
             return;
         }
 
+        // 部分重录同样危险：trial 0 成功后立刻 flush，会用 k=1 盒子盖掉 k=3。
+        // 2026-09-07 重录 batch_complete 时就是这样——先写出一试次，随后 402，
+        // 空录制守卫救不了（那一试次并非空的）。既有盒子试次更多时拒绝覆盖。
+        if (CassetteStore.exists(c.getCaseId())) {
+            Cassette existing = CassetteStore.load(c.getCaseId());
+            if (c.trialCount() < existing.trialCount()) {
+                log.warn("[AgentEval] ★放弃写盘：{} 本次只录到 {} 次试验，既有盒子有 {} 次。"
+                                + "部分重录会把 k=3 资产裁成 k=1。用相同 trials 整盒录完再落盘。",
+                        c.getCaseId(), c.trialCount(), existing.trialCount());
+                return;
+            }
+        }
+
         CassetteStore.save(c);
         log.info("[AgentEval] 录制完成：{}（{} 次试验，本次 {} 条交互）→ {}",
                 c.getCaseId(), c.trialCount(), c.size(currentTrial),

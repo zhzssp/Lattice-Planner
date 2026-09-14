@@ -95,7 +95,7 @@ class ContextEngineeringBenchmark {
         Retention onSpread = runConversation(turns, true, 4);
 
         assertEquals(0, offEarly.retained(),
-                "窗口 " + ConversationMemory.windowSize() + " 条、每轮 2 条，第 1..5 轮的约束"
+                "窗口 " + ConversationMemory.DEFAULT_WINDOW + " 条、每轮 2 条，第 1..5 轮的约束"
                         + "到第 40 轮必然已被 pollFirst 淘汰干净");
         assertTrue(onEarly.retained() > offEarly.retained(),
                 "开启折叠后留存必须严格变多，否则这个特性没有存在价值");
@@ -127,7 +127,7 @@ class ContextEngineeringBenchmark {
                    **真实结论是「早期约束基本保得住，中段约束会衰减」**，
                    而不是「开了 compaction 就不丢信息」。
                 """.formatted(
-                        ConversationMemory.windowSize(),
+                        ConversationMemory.DEFAULT_WINDOW,
                         offEarly.retained(), CONSTRAINTS.size(),
                         100.0 * offEarly.retained() / CONSTRAINTS.size(),
                         offEarly.summarizerCalls(), offEarly.finalSize(),

@@ -1,0 +1,91 @@
+{
+  "_comment": [
+    "Facts 抽取金标。比的是 value 里有没有期望片段，不比 key。",
+    "门槛是「默认可不可以打开 facts」的闸，不是 CI 红绿。",
+    "低于门槛必须保持 agent.context.facts.enabled=false。"
+  ],
+  "minPrecision": 0.65,
+  "minRecall": 0.50,
+  "samples": [
+    {
+      "id": "deadline",
+      "input": "项目 X 的 deadline 是下周五，不能再拖。",
+      "expect": [["下周五"]]
+    },
+    {
+      "id": "budget",
+      "input": "这次采购预算上限是 8000 元，超了要重新审批。",
+      "expect": [["8000"]]
+    },
+    {
+      "id": "version",
+      "input": "线上必须锁在 v2.3.1 这个版本，别升级。",
+      "expect": [["v2.3.1"]]
+    },
+    {
+      "id": "machine_count",
+      "input": "机房只剩 3 台机器可用，方案按这个规模来。",
+      "expect": [["3"]]
+    },
+    {
+      "id": "location",
+      "input": "评审会在杭州开，异地同事要提前订票。",
+      "expect": [["杭州"]]
+    },
+    {
+      "id": "decision",
+      "input": "我们就用 Kafka，别再讨论要不要换 Pulsar 了。",
+      "expect": [["Kafka"]]
+    },
+    {
+      "id": "habit",
+      "input": "我习惯早上做深度工作，下午才开会。",
+      "expect": [["早上", "深度"]]
+    },
+    {
+      "id": "two_facts",
+      "input": "Q3 评审改到 9 月 20 日，会议室定在 A-301。",
+      "expect": [["9"], ["A-301"]]
+    },
+    {
+      "id": "chitchat",
+      "input": "你好，今天天气不错。",
+      "expect": []
+    },
+    {
+      "id": "thanks",
+      "input": "好的，我知道了，谢谢。",
+      "expect": []
+    },
+    {
+      "id": "instruction_only",
+      "input": "帮我建一个任务：周五前写完验收文档。",
+      "expect": []
+    },
+    {
+      "id": "question_only",
+      "input": "我最近有哪些没完成的任务？",
+      "expect": []
+    },
+    {
+      "id": "capability_ask",
+      "input": "顺便问一下，你都能帮我做些什么？",
+      "expect": []
+    },
+    {
+      "id": "vague_interest",
+      "input": "我最近在看分布式系统，挺有意思的。",
+      "expect": []
+    },
+    {
+      "id": "give_up",
+      "input": "那个旧方案放弃了，我们不再维护 v1 分支。",
+      "expect": [["放弃"], ["v1"]]
+    },
+    {
+      "id": "path",
+      "input": "文档都放在 docs/design 下面，别写到根目录。",
+      "expect": [["docs/design"]]
+    }
+  ]
+}

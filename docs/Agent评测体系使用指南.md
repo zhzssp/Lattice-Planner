@@ -1,10 +1,10 @@
 ﻿# Agent 评测体系使用指南
 
 > 位置：`src/test/java/org/zhzssp/memorandum/agenteval/`
-> 状态：**框架完成，9 个轨迹用例全部就位**；`./gradlew agentEval` 离线全绿
+> 状态：**框架完成**；`./gradlew agentEval` 回归集离线全绿（含已毕业的 `batch_complete_overdue_only`）
 > 对应方案：`docs/Agent优化方案候选.md` 方案 A
 >
-> 最近一次校对：2026-09-01（实施 P0 端状态验证与假绿门禁，见 §6.4）
+> 最近一次校对：2026-09-14（P7：C-8 毕业、G1′ k=1 对照、Facts 金标，见 §6.17）
 
 ---
 
@@ -259,12 +259,14 @@ git diff src/test/resources/agent-eval/budget-baseline.json
 回归集里连续多月 100% 且相关代码不再变动的**退休**（防评测饱和——
 每个用例都有回放成本，长期零信号的用例是纯负债）。
 
-**当前实测**：2 个用例，`pass@3 = 100%` / `pass^3 = **50%**`（正落在目标区间）。
+**当前实测**：`batch_complete_overdue_only` 已于 2026-09-14 毕业进回归。能力集剩下多步写入（毕业候选）+ G1′ 对照 + Facts 抽取。
 
 | 用例 | 结果 | 说明 |
 |---|---|---|
 | `multi_step_write_end_state` | 3/3 ✅ | **题出砸了**，见 §6.12。毕业候选 |
-| `batch_complete_overdue_only` | 2/3 | 查出真缺陷：批量写入前**有时问、有时做**，见 §6.12 |
+| `opaque_constraint_retention` | k=1 过 | G1′ 实验组，折叠发生且备注带 `ref:7f3a` |
+| `opaque_constraint_no_compaction` | k=1 不过 | 对照：任务建了，备注没有标记 |
+| `facts_extraction_accuracy` | P=1.0 R=0.75 | 过门槛；开关仍关 |
 
 > 能力集用例缺录制盒时**跳过**而非判红——它允许为"做不到"变红，
 > 但不该为"还没录"变红，否则 30~60% 这个数的分母就脏了。
@@ -283,12 +285,12 @@ git diff src/test/resources/agent-eval/budget-baseline.json
 
 | 命令 | 结果 |
 |---|---|
-| `./gradlew agentEval` | **20/20 通过** = 13 个轨迹用例（端状态覆盖 13/13，轨迹契约覆盖 13/13）+ 7 个 RAG 检索用例 |
-| `./gradlew agentEval "-Dagent.eval.trials=3"` | 展开 39 次调用；试次 2、3 按设计报错（尚无多试次录制） |
+| `./gradlew agentEval` | 回归集离线全绿（原 13 条轨迹的 P1 录制故事见下表；P7 已把 `batch_complete_overdue_only` 并入）+ 7 个 RAG 检索用例 |
+| `./gradlew agentEval "-Dagent.eval.trials=3"` | 回归集已有多试次录制盒；新毕业用例按盒内试次数回放 |
 | `./gradlew test` | 511 个用例**全绿**，2 个跳过（两个 LLM 裁判，按设计默认关闭）。`contextLoads` 已修（见 §4） |
-| `./gradlew agentEvalCapability` | 3 个用例，`pass^3 = 66.7%`。该套件 `ignoreFailures`，永不拦 PR |
+| `./gradlew agentEvalCapability` | G1′ 对照 + Facts 抽取 + 多步写入等。`ignoreFailures`，永不拦 PR。数字见 §6.17，不要再报当时的 66.7% |
 
-录制盒共 **13 个**，全部随代码提交（`src/test/resources/agent-eval/cassettes/`）。
+回归录制盒随代码提交（P1 那批 13 条的故事见下表；P7 另有已毕业的 `batch_complete`，以及 G1′ / Facts 的能力集录制盒）。
 
 **评测体系自身的进度**（详见 `design/Agent量化评测-P0至P5实施设计.md`）：
 
@@ -615,6 +617,17 @@ P5 基线在 `k=1` 下写成，只见过试次 0；试次 1、2 回放的是另�
 **小于** `usage.llmCalls`（**传输层**计数）。差额是摘要、降级披露这类辅助调用——
 **它们不发轨迹事件，但照样花钱**。算成本必须用传输层的数。
 
+### 6.17 ★P7：窗口已接线；C-8 已毕业；G1′ k=1 对照成立
+
+`agent.chat.history-window` 由 `ConversationMemory` 读取。
+2026-09-14 补录（控 token：C-8 用 k=3，其余 k=1）：
+
+- `batch_complete_overdue_only` 当前代码 **3/3**，已进回归集。
+- G1′ **开过关不过**：折叠开组有 `[对话摘要]` 且备注带 `ref:7f3a`；关组任务备注为空。不是 pass^3。
+- Facts 抽取 P=1.0 / R=0.75，过门槛。开关仍关（每轮加抽取调用；评测锁死 false）。
+
+Facts 报告：`build/agent-eval/facts-extraction.json`。
+
 ### 6.12 ★能力集第一次跑出来的东西：一条出砸的题 + 一个真缺陷
 
 **第一条题出砸了**。`multi_step_write_end_state`（单轮内 search → complete → create
@@ -646,12 +659,17 @@ P5 基线在 `k=1` 下写成，只见过试次 0；试次 1、2 回放的是另�
 判它失败是公平的：用户说的是"帮我把它们标记成完成"，已经是明确祈使句，
 此时再问一遍属于冗余确认（何况工具层 auto-approve 本就已开）。
 
-**这条不该被放宽成"问一下也算通过"**——那样改完它就什么也测不到了：
+**这条当时不该被放宽成"问一下也算通过"**——那样改完它就什么也测不到了：
 无论模型问还是做都绿，指标还在但已不携带信息（同 §6.2 那类失效）。
-留着它红，是为了让"批量写入前的确认策略尚未收敛"**持续可见**。
+它在能力集里红着，是为了让"批量写入前的确认策略尚未收敛"**持续可见**。
 
 > 这正是能力集的意义：**它不拦 PR，但一直在那儿指着下一步该改什么。**
 > 这个发现在回归集里不可能出现——因为它一出现就会被"改绿"。
+
+**后来（2026-09-14）按毕业规则收口了。** 提示词写清「确认只走弹窗」，
+`UnconfirmedWriteAdvisor` 拦「查完了却讨许可」，当前代码重录 **3/3**，
+三次都是 search → 三次 complete。已搬进回归集。掉了才是 bug。
+详见 §6.17。
 
 ### 6.13 ★写基线会抹掉别的套件（与 6.11 同形，一并修了）
 

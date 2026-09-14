@@ -322,6 +322,17 @@ public abstract class AgentEvalBase {
         runTurn(userInput, "chat");
     }
 
+    /**
+     * 当前会话窗口里是否已经有一条滚动摘要。
+     *
+     * <p>多轮对照实验用它判断「折叠是否真的发生了」。
+     * 没有摘要却去比较开关差异，实验无效——P6 就是这么废掉的。</p>
+     */
+    protected boolean historyHasSummary() {
+        return memory.history(sessionId).stream()
+                .anyMatch(m -> m.content() != null && m.content().startsWith("[对话摘要]"));
+    }
+
     /** 回放模式下检测到的 prompt 漂移警告。 */
     protected java.util.List<String> driftWarnings() {
         return (transport instanceof ReplayLlmTransport replay)

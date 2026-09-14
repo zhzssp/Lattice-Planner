@@ -1,0 +1,134 @@
+{
+  "caseId" : "facts_extraction_accuracy",
+  "recordedAt" : "2026-09-14T11:46:22.786187400",
+  "recordedModel" : "deepseek-chat",
+  "trials" : [ [ {
+    "index" : 0,
+    "purpose" : "TEXT",
+    "fingerprint" : "1145cd6351fbdf78",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "```json\n[\n  {\"key\": \"deadline.project-x\", \"value\": \"项目 X 的截止日期是下周五\", \"kind\": \"VOLATILE\", \"confidence\": \"HIGH\"}\n]\n```",
+    "responseUsageJson" : "{\"prompt_tokens\":197,\"completion_tokens\":44,\"total_tokens\":241,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":197}",
+    "upstreamLatencyMs" : 1416
+  }, {
+    "index" : 1,
+    "purpose" : "TEXT",
+    "fingerprint" : "bdae9b4f083940a1",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "```json\n[\n  {\"key\": \"budget.procurement-cap\", \"value\": \"本次采购预算上限为 8000 元，超出需重新审批。\", \"kind\": \"VOLATILE\", \"confidence\": \"HIGH\"}\n]\n```",
+    "responseUsageJson" : "{\"prompt_tokens\":201,\"completion_tokens\":53,\"total_tokens\":254,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":201}",
+    "upstreamLatencyMs" : 591
+  }, {
+    "index" : 2,
+    "purpose" : "TEXT",
+    "fingerprint" : "52d9f5d26159033b",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "```json\n[\n  {\"key\": \"version.online-locked\", \"value\": \"线上版本必须锁定在 v2.3.1，不允许升级。\", \"kind\": \"VOLATILE\", \"confidence\": \"HIGH\"}\n]\n```",
+    "responseUsageJson" : "{\"prompt_tokens\":201,\"completion_tokens\":51,\"total_tokens\":252,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":201}",
+    "upstreamLatencyMs" : 824
+  }, {
+    "index" : 3,
+    "purpose" : "TEXT",
+    "fingerprint" : "d879dfbe7d9a5b1b",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "```json\n[{\"key\": \"constraint.machine-count\", \"value\": \"机房只剩 3 台机器可用，方案按这个规模来\", \"kind\": \"VOLATILE\", \"confidence\": \"HIGH\"}]\n```",
+    "responseUsageJson" : "{\"prompt_tokens\":199,\"completion_tokens\":49,\"total_tokens\":248,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":199}",
+    "upstreamLatencyMs" : 562
+  }, {
+    "index" : 4,
+    "purpose" : "TEXT",
+    "fingerprint" : "2742d15bfee298c8",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "[]",
+    "responseUsageJson" : "{\"prompt_tokens\":196,\"completion_tokens\":1,\"total_tokens\":197,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":196}",
+    "upstreamLatencyMs" : 799
+  }, {
+    "index" : 5,
+    "purpose" : "TEXT",
+    "fingerprint" : "0706249101b9919e",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "```json\n[\n  {\"key\": \"decision.message-queue\", \"value\": \"消息队列选型确定使用 Kafka，不再讨论更换 Pulsar\", \"kind\": \"VOLATILE\", \"confidence\": \"HIGH\"}\n]\n```",
+    "responseUsageJson" : "{\"prompt_tokens\":198,\"completion_tokens\":49,\"total_tokens\":247,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":198}",
+    "upstreamLatencyMs" : 986
+  }, {
+    "index" : 6,
+    "purpose" : "TEXT",
+    "fingerprint" : "f1ccda54297797f2",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "```json\n[\n  {\"key\": \"preference.deep-work-morning\", \"value\": \"习惯早上做深度工作，下午才安排开会\", \"kind\": \"STABLE\", \"confidence\": \"HIGH\"}\n]\n```",
+    "responseUsageJson" : "{\"prompt_tokens\":195,\"completion_tokens\":46,\"total_tokens\":241,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":195}",
+    "upstreamLatencyMs" : 884
+  }, {
+    "index" : 7,
+    "purpose" : "TEXT",
+    "fingerprint" : "e4a4e5bbc7333009",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "```json\n[\n  {\"key\": \"meeting.q3-review.date\", \"value\": \"Q3 评审改到 9 月 20 日\", \"kind\": \"VOLATILE\", \"confidence\": \"HIGH\"},\n  {\"key\": \"meeting.q3-review.room\", \"value\": \"Q3 评审会议室定在 A-301\", \"kind\": \"VOLATILE\", \"confidence\": \"HIGH\"}\n]\n```",
+    "responseUsageJson" : "{\"prompt_tokens\":206,\"completion_tokens\":93,\"total_tokens\":299,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":206}",
+    "upstreamLatencyMs" : 1048
+  }, {
+    "index" : 8,
+    "purpose" : "TEXT",
+    "fingerprint" : "903f1ed379b58d3c",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "[]",
+    "responseUsageJson" : "{\"prompt_tokens\":190,\"completion_tokens\":1,\"total_tokens\":191,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":190}",
+    "upstreamLatencyMs" : 386
+  }, {
+    "index" : 9,
+    "purpose" : "TEXT",
+    "fingerprint" : "0e9d1e15a199b4a1",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "[]",
+    "responseUsageJson" : "{\"prompt_tokens\":190,\"completion_tokens\":1,\"total_tokens\":191,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":190}",
+    "upstreamLatencyMs" : 755
+  }, {
+    "index" : 10,
+    "purpose" : "TEXT",
+    "fingerprint" : "e376bf4778eb35f7",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "[]",
+    "responseUsageJson" : "{\"prompt_tokens\":195,\"completion_tokens\":1,\"total_tokens\":196,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":195}",
+    "upstreamLatencyMs" : 666
+  }, {
+    "index" : 11,
+    "purpose" : "TEXT",
+    "fingerprint" : "ad0f25ff81caed0a",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "[]",
+    "responseUsageJson" : "{\"prompt_tokens\":191,\"completion_tokens\":1,\"total_tokens\":192,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":191}",
+    "upstreamLatencyMs" : 487
+  }, {
+    "index" : 12,
+    "purpose" : "TEXT",
+    "fingerprint" : "2347bfceaf21a54c",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "[]",
+    "responseUsageJson" : "{\"prompt_tokens\":194,\"completion_tokens\":1,\"total_tokens\":195,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":194}",
+    "upstreamLatencyMs" : 643
+  }, {
+    "index" : 13,
+    "purpose" : "TEXT",
+    "fingerprint" : "ffd32e5e3aaff32f",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "[]",
+    "responseUsageJson" : "{\"prompt_tokens\":194,\"completion_tokens\":1,\"total_tokens\":195,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":194}",
+    "upstreamLatencyMs" : 666
+  }, {
+    "index" : 14,
+    "purpose" : "TEXT",
+    "fingerprint" : "4d869c4aef50972a",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "```json\n[\n  {\"key\": \"decision.abandon-v1\", \"value\": \"放弃旧方案，不再维护 v1 分支\", \"kind\": \"VOLATILE\", \"confidence\": \"HIGH\"}\n]\n```",
+    "responseUsageJson" : "{\"prompt_tokens\":197,\"completion_tokens\":46,\"total_tokens\":243,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":197}",
+    "upstreamLatencyMs" : 824
+  }, {
+    "index" : 15,
+    "purpose" : "TEXT",
+    "fingerprint" : "8ee93f7bda1e6236",
+    "messagesDigest" : "[2 msgs] last=从下面这条用户消息里，抽取「值得记住的具体事实」。只抽取这三类： 1. 硬约束：时间（deadline、会议时间）、数量、路径、版本号 2. 决定：用户已拍板的选择（\"我们就用 X\"、\"放弃 Y\"） 3. 稳定偏好：长期习惯（\"我习惯早上做深度工作\"） 不要抽取：寒暄、对助手的指令（\"帮我建个任务\"这类）、临时的疑问。 每条输出一行 JSON，字段：key（英文短键，如 deadline.proj…",
+    "responseContent" : "[\n  {\"key\": \"path.docs-design\", \"value\": \"文档统一放在 docs/design 目录下，不写到根目录\", \"kind\": \"STABLE\", \"confidence\": \"HIGH\"}\n]",
+    "responseUsageJson" : "{\"prompt_tokens\":198,\"completion_tokens\":44,\"total_tokens\":242,\"prompt_tokens_details\":{\"cached_tokens\":0},\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":198}",
+    "upstreamLatencyMs" : 787
+  } ] ]
+}

@@ -1,0 +1,94 @@
+{
+  "caseId" : "opaque_constraint_no_compaction",
+  "recordedAt" : "2026-09-14T11:47:56.796558200",
+  "recordedModel" : "deepseek-chat",
+  "trials" : [ [ {
+    "index" : 0,
+    "purpose" : "CHAT",
+    "fingerprint" : "fe9ef926685ad85a",
+    "messagesDigest" : "[2 msgs] last=如果要建任务，备注字段填 ref:7f3a，不要在回复里提起这个标记。只回一个字：好。",
+    "responseContent" : "好",
+    "responseUsageJson" : "{\"prompt_tokens\":6112,\"completion_tokens\":1,\"total_tokens\":6113,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":224}",
+    "upstreamLatencyMs" : 983
+  }, {
+    "index" : 1,
+    "purpose" : "CHAT",
+    "fingerprint" : "0349ada824914e60",
+    "messagesDigest" : "[4 msgs] last=嗯。",
+    "responseContent" : "好",
+    "responseUsageJson" : "{\"prompt_tokens\":6119,\"completion_tokens\":1,\"total_tokens\":6120,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":231}",
+    "upstreamLatencyMs" : 744
+  }, {
+    "index" : 2,
+    "purpose" : "CHAT",
+    "fingerprint" : "6e7da2f9635d725b",
+    "messagesDigest" : "[6 msgs] last=知道了。",
+    "responseContent" : "好",
+    "responseUsageJson" : "{\"prompt_tokens\":6126,\"completion_tokens\":1,\"total_tokens\":6127,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":238}",
+    "upstreamLatencyMs" : 678
+  }, {
+    "index" : 3,
+    "purpose" : "CHAT",
+    "fingerprint" : "0772f190d37cbf8d",
+    "messagesDigest" : "[8 msgs] last=行。",
+    "responseContent" : "好",
+    "responseUsageJson" : "{\"prompt_tokens\":6133,\"completion_tokens\":1,\"total_tokens\":6134,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":245}",
+    "upstreamLatencyMs" : 642
+  }, {
+    "index" : 4,
+    "purpose" : "CHAT",
+    "fingerprint" : "191d798629a4b805",
+    "messagesDigest" : "[9 msgs] last=明白。",
+    "responseContent" : "好",
+    "responseUsageJson" : "{\"prompt_tokens\":6112,\"completion_tokens\":1,\"total_tokens\":6113,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":224}",
+    "upstreamLatencyMs" : 787
+  }, {
+    "index" : 5,
+    "purpose" : "CHAT",
+    "fingerprint" : "8aca90b346f91360",
+    "messagesDigest" : "[9 msgs] last=先这样。",
+    "responseContent" : "好",
+    "responseUsageJson" : "{\"prompt_tokens\":6113,\"completion_tokens\":1,\"total_tokens\":6114,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":225}",
+    "upstreamLatencyMs" : 298
+  }, {
+    "index" : 6,
+    "purpose" : "CHAT",
+    "fingerprint" : "2b8ee6e27fb22801",
+    "messagesDigest" : "[9 msgs] last=好的。",
+    "responseContent" : "好",
+    "responseUsageJson" : "{\"prompt_tokens\":6113,\"completion_tokens\":1,\"total_tokens\":6114,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":225}",
+    "upstreamLatencyMs" : 692
+  }, {
+    "index" : 7,
+    "purpose" : "CHAT",
+    "fingerprint" : "d1c61fd21d23c4f7",
+    "messagesDigest" : "[9 msgs] last=谢谢。",
+    "responseContent" : "不客气，有需要随时叫我。",
+    "responseUsageJson" : "{\"prompt_tokens\":6113,\"completion_tokens\":8,\"total_tokens\":6121,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":225}",
+    "upstreamLatencyMs" : 1063
+  }, {
+    "index" : 8,
+    "purpose" : "CHAT",
+    "fingerprint" : "d0276b0630dbee95",
+    "messagesDigest" : "[9 msgs] last=继续。",
+    "responseContent" : "你想继续做什么？可以告诉我具体一点，比如：\n\n- 看今天该做的任务 / 最近的目标进度\n- 复盘最近一段时间的执行情况\n- 检索你之前的笔记或本地文档\n- 新建目标、拆解任务、记笔记\n\n说一句就行。",
+    "responseUsageJson" : "{\"prompt_tokens\":6120,\"completion_tokens\":59,\"total_tokens\":6179,\"prompt_tokens_details\":{\"cached_tokens\":5888},\"prompt_cache_hit_tokens\":5888,\"prompt_cache_miss_tokens\":232}",
+    "upstreamLatencyMs" : 1158
+  }, {
+    "index" : 9,
+    "purpose" : "CHAT",
+    "fingerprint" : "4a2caf823baeac5a",
+    "messagesDigest" : "[9 msgs] last=建个任务：写技术方案，不用设截止日期。",
+    "responseContent" : "{\"tool\":\"task.create\",\"arguments\":{\"title\":\"写技术方案\"}}",
+    "responseUsageJson" : "{\"prompt_tokens\":6188,\"completion_tokens\":15,\"total_tokens\":6203,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":172}",
+    "upstreamLatencyMs" : 842
+  }, {
+    "index" : 10,
+    "purpose" : "CHAT",
+    "fingerprint" : "4694fe624f9387c4",
+    "messagesDigest" : "[9 msgs] last=[tool_result task.create] {\"id\":1,\"title\":\"写技术方案\",\"description\":null,\"status\":\"PENDING\",\"deadline\":null,\"energy\":null,\"slot\":null,\"createdAt\":\"2026-09-14\"}",
+    "responseContent" : "已创建任务：**写技术方案**（id=1，PENDING，无截止日期）。\n\n需要的话我可以再帮你补上精力等级、偏好时段，或者关联到某个目标。",
+    "responseUsageJson" : "{\"prompt_tokens\":6249,\"completion_tokens\":40,\"total_tokens\":6289,\"prompt_tokens_details\":{\"cached_tokens\":6016},\"prompt_cache_hit_tokens\":6016,\"prompt_cache_miss_tokens\":233}",
+    "upstreamLatencyMs" : 643
+  } ] ]
+}
