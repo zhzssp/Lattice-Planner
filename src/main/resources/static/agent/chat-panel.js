@@ -57,8 +57,45 @@
         if (mount.parentElement !== shell) shell.appendChild(mount);
     }
 
+    function currentPanelWidth() {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue('--lp-agent-width').trim();
+        return raw || '440px';
+    }
+
+    function applySplitLayout(open) {
+        ensurePageShell();
+        const mount = document.querySelector('.lp-agent-mount');
+        const shell = document.querySelector('.lp-page-shell');
+        const main = document.querySelector('.lp-page-main');
+        const w = currentPanelWidth();
+        panel.style.setProperty('position', 'relative', 'important');
+        panel.style.setProperty('right', 'auto', 'important');
+        panel.style.setProperty('top', 'auto', 'important');
+        panel.style.setProperty('left', 'auto', 'important');
+        panel.style.setProperty('width', '100%', 'important');
+        panel.style.setProperty('max-width', 'none', 'important');
+        if (shell) {
+            shell.style.setProperty('display', 'flex', 'important');
+            shell.style.setProperty('flex-direction', 'row', 'important');
+        }
+        if (main) {
+            main.style.setProperty('flex', '1 1 auto', 'important');
+            main.style.setProperty('min-width', '0', 'important');
+        }
+        if (mount) {
+            if (open) {
+                mount.style.setProperty('flex', '0 0 ' + w, 'important');
+                mount.style.setProperty('width', w, 'important');
+            } else {
+                mount.style.setProperty('flex', '0 0 0px', 'important');
+                mount.style.setProperty('width', '0px', 'important');
+            }
+            mount.style.setProperty('overflow', 'hidden', 'important');
+        }
+    }
+
     function setPanelOpen(open) {
-        if (open) ensurePageShell();
+        applySplitLayout(open);
         panel.classList.toggle('open', open);
         document.documentElement.classList.toggle('lp-agent-open', open);
         panel.setAttribute('aria-hidden', open ? 'false' : 'true');
@@ -66,8 +103,12 @@
     }
 
     ensurePageShell();
+    applySplitLayout(false);
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', ensurePageShell);
+        document.addEventListener('DOMContentLoaded', function () {
+            ensurePageShell();
+            applySplitLayout(document.documentElement.classList.contains('lp-agent-open'));
+        });
     }
 
     closeBtn.onclick = () => setPanelOpen(false);
@@ -152,6 +193,9 @@
         function applyWidth(px) {
             const w = Math.max(MIN, Math.min(px, maxWidth()));
             document.documentElement.style.setProperty('--lp-agent-width', w + 'px');
+            if (document.documentElement.classList.contains('lp-agent-open')) {
+                applySplitLayout(true);
+            }
             return w;
         }
         // 恢复上次记忆的宽度

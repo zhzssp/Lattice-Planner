@@ -1,6 +1,8 @@
 // ------------------------- Lattice-Planner 客户端主入口：与后端服务交互，支持 DDL 提醒与系统托盘 -------------------------
 const { app, BrowserWindow, ipcMain, Tray, nativeImage, Menu, Notification } = require('electron');
 const path = require('path');
+// persist:main 会把旧的 chat-panel.css 盘成固定浮层；关掉 HTTP 缓存才能吃到分栏样式
+app.commandLine.appendSwitch('disable-http-cache');
 const axios = require('axios');
 const fs = require('fs');
 const fsp = require('fs/promises');
@@ -168,6 +170,7 @@ function createWindow() {
     });
 
     mainWindow = win;
+    win.webContents.session.clearCache().catch(function () { /* 清缓存失败不挡启动 */ });
 
     // 加载失败时显示错误页，避免一片空白
     win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {

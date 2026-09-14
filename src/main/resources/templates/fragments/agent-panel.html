@@ -6,7 +6,19 @@
   在登录后页面 </body> 之前以 <div th:replace="~{fragments/agent-panel :: panel}"></div> 引入。
 -->
 <div class="lp-agent-mount" th:fragment="panel">
-    <link rel="stylesheet" th:href="@{/agent/chat-panel.css(v=9)}">
+    <!-- 内联样式压过 Electron persist 缓存的旧 chat-panel.css（旧文件把面板写成 position:fixed） -->
+    <style id="lp-agent-split-inline">
+        .lp-page-shell { display: flex !important; flex-direction: row !important; align-items: stretch !important; width: 100% !important; min-height: 100vh !important; box-sizing: border-box !important; }
+        .lp-page-main { flex: 1 1 auto !important; min-width: 0 !important; overflow: auto !important; }
+        .lp-agent-mount { flex: 0 0 0 !important; width: 0 !important; min-width: 0 !important; overflow: hidden !important; align-self: stretch !important; }
+        html.lp-agent-open, html.lp-agent-open body, html:has(#lp-agent-panel.open), html:has(#lp-agent-panel.open) body { height: 100vh !important; overflow: hidden !important; }
+        html.lp-agent-open .lp-page-shell, .lp-page-shell:has(#lp-agent-panel.open) { height: 100vh !important; overflow: hidden !important; }
+        html.lp-agent-open .lp-agent-mount, .lp-page-shell:has(#lp-agent-panel.open) .lp-agent-mount { flex: 0 0 var(--lp-agent-width, 440px) !important; width: var(--lp-agent-width, 440px) !important; }
+        #lp-agent-panel, #lp-agent-panel.open { position: relative !important; top: auto !important; right: auto !important; left: auto !important; width: 100% !important; height: 100% !important; max-width: none !important; z-index: 2 !important; }
+        html.lp-agent-open #lp-agent-fab, .lp-page-shell:has(#lp-agent-panel.open) #lp-agent-fab { display: none !important; }
+        html.lp-agent-open .lp-page-main > .container, .lp-page-shell:has(#lp-agent-panel.open) .lp-page-main > .container { max-width: none !important; width: auto !important; margin: 24px 16px !important; box-sizing: border-box !important; }
+    </style>
+    <link rel="stylesheet" th:href="@{/agent/chat-panel.css(v=10)}">
     <button id="lp-agent-fab" type="button" title="打开 Lattice-Agent">AI</button>
     <aside id="lp-agent-panel" aria-hidden="true">
         <div id="lp-agent-resizer" title="拖拽调整宽度"></div>
@@ -47,7 +59,37 @@
             </div>
         </footer>
     </aside>
-    <script th:src="@{/agent/chat-panel.js(v=9)}"></script>
+    <script th:src="@{/agent/chat-panel.js(v=10)}"></script>
+    <script>
+    /* 再压一层：旧 JS 只加 .open 时，这里用行内样式把面板钉在右栏里 */
+    (function () {
+        var panel = document.getElementById('lp-agent-panel');
+        var fab = document.getElementById('lp-agent-fab');
+        var closeBtn = document.getElementById('lp-agent-close');
+        if (!panel) return;
+        function pin() {
+            panel.style.setProperty('position', 'relative', 'important');
+            panel.style.setProperty('right', 'auto', 'important');
+            panel.style.setProperty('top', 'auto', 'important');
+            panel.style.setProperty('left', 'auto', 'important');
+        }
+        pin();
+        if (fab) {
+            var prevFab = fab.onclick;
+            fab.onclick = function (e) {
+                if (typeof prevFab === 'function') prevFab.call(this, e);
+                pin();
+            };
+        }
+        if (closeBtn) {
+            var prevClose = closeBtn.onclick;
+            closeBtn.onclick = function (e) {
+                if (typeof prevClose === 'function') prevClose.call(this, e);
+                pin();
+            };
+        }
+    })();
+    </script>
 </div>
 </body>
 </html>

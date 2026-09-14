@@ -15,7 +15,7 @@ public class NoCacheConfig implements WebMvcConfigurer {
         public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
             String uri = request.getRequestURI();
             boolean staticAsset = uri.startsWith("/css/") || uri.startsWith("/js/")
-                    || uri.startsWith("/images/") || uri.startsWith("/agent/");
+                    || uri.startsWith("/images/");
             if (!staticAsset) {
                 response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
                 response.setHeader("Pragma", "no-cache");
@@ -29,6 +29,6 @@ public class NoCacheConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new NoCacheInterceptor())
                 .addPathPatterns("/**")
-                .excludePathPatterns("/css/**", "/js/**", "/images/**", "/agent/**");
+                .excludePathPatterns("/css/**", "/js/**", "/images/**");
     }
 }
