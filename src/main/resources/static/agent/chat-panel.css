@@ -1,22 +1,64 @@
-/* Lattice-Agent 抽屉式对话面板
-   打开后以 --lp-agent-width 把宿主页向左推开，而不是盖住 dashboard。 */
+/* Lattice-Agent 对话面板
+   关闭：右侧滑出的浮层。打开：与宿主页左右分栏（IDE 式），不再覆盖。 */
 
 :root {
     --lp-agent-width: 440px;
 }
 
-body {
-    /* 仅过渡右侧留白；关闭时 class 先移除，过渡仍落在这条常驻规则上 */
-    transition: margin-right .25s ease;
+/* 页面主体被 JS 包进 #lp-agent-host；关闭时只是透明包装，不改变原布局 */
+#lp-agent-host {
+    min-width: 0;
 }
-html.lp-agent-open {
-    overflow-x: hidden;
+
+/* 打开后：body 变成横向 flex，左宿主 + 右面板，两边都在文档流里 */
+html.lp-agent-open,
+html.lp-agent-open body {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
 }
 html.lp-agent-open body {
-    margin-right: var(--lp-agent-width);
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    margin: 0;
 }
-html.lp-agent-resizing body,
-body.lp-agent-resizing {
+html.lp-agent-open #lp-agent-host {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    overflow: auto;
+}
+html.lp-agent-open .lp-agent-mount {
+    flex: 0 0 var(--lp-agent-width);
+    width: var(--lp-agent-width);
+    max-width: none;
+    height: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+html.lp-agent-open .lp-agent-mount > link,
+html.lp-agent-open .lp-agent-mount > script {
+    display: none;
+}
+html.lp-agent-open #lp-agent-fab {
+    display: none;
+}
+html.lp-agent-open #lp-agent-panel,
+html.lp-agent-open #lp-agent-panel.open {
+    position: relative;
+    right: auto;
+    top: auto;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    z-index: 2;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, .14);
+}
+html.lp-agent-resizing .lp-agent-mount,
+html.lp-agent-resizing #lp-agent-panel {
     transition: none;
 }
 

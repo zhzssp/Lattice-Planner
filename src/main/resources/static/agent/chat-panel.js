@@ -28,12 +28,40 @@
         window.dispatchEvent(new Event('resize'));
     }
 
+    /* 把页面原有内容收进左侧宿主栏，面板所在 mount 成为右侧栏。
+       必须包一层：面板是 position:fixed 时给 body 加 margin 挡不住居中卡片，
+       也无法形成 IDE 那种「左编辑区 / 右面板」分栏。 */
+    function ensureHostShell() {
+        const mount = document.querySelector('.lp-agent-mount') || panel.parentElement;
+        if (!mount || mount.parentElement !== document.body) return;
+        let host = document.getElementById('lp-agent-host');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'lp-agent-host';
+            document.body.insertBefore(host, mount);
+        }
+        /* 脚本在 fragment 里先执行时，后面的页面脚本还没进 DOM；
+           DOMContentLoaded 再扫一遍，把晚到的兄弟节点收进左侧栏。
+           modal / 右键菜单保持 body 直属，避免被卷进滚动宿主后定位错乱。 */
+        Array.from(document.body.children).forEach(function (el) {
+            if (el === mount || el === host) return;
+            if (el.id === 'contextMenu' || (el.classList && el.classList.contains('modal'))) return;
+            host.appendChild(el);
+        });
+    }
+
     function setPanelOpen(open) {
+        if (open) ensureHostShell();
         panel.classList.toggle('open', open);
         document.documentElement.classList.toggle('lp-agent-open', open);
         panel.setAttribute('aria-hidden', open ? 'false' : 'true');
-        /* 过渡结束后再通知一次，让 Chart.js 等按最终宽度重绘 */
-        window.setTimeout(notifyHostResize, 280);
+        /* 分栏宽度落定后再通知，让 Chart.js 等按左侧实际宽度重绘 */
+        window.setTimeout(notifyHostResize, 40);
+    }
+
+    ensureHostShell();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ensureHostShell);
     }
 
     closeBtn.onclick = () => setPanelOpen(false);
@@ -112,11 +140,11 @@
         if (!resizer) return;
         const KEY = 'lp-agent-width-v2';
         const MIN = 320;
-        const maxWidth = () => Math.floor(window.innerWidth * 0.96);
+        const MIN_HOST = 240;
+        const maxWidth = () => Math.max(MIN, window.innerWidth - MIN_HOST);
 
         function applyWidth(px) {
             const w = Math.max(MIN, Math.min(px, maxWidth()));
-            /* 写在 :root，面板宽度与宿主页 margin-right 共用同一变量 */
             document.documentElement.style.setProperty('--lp-agent-width', w + 'px');
             return w;
         }
