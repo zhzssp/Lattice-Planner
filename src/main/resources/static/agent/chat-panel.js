@@ -28,119 +28,20 @@
         window.dispatchEvent(new Event('resize'));
     }
 
-    /* 无头浏览器复现：没有 .lp-page-shell 时 body 仍是 block，
-       打开后面板叠在卡片上（overlap>0）。模板漏套或缓存旧 HTML 时这里补壳。 */
-    function ensurePageShell() {
-        const mount = document.querySelector('.lp-agent-mount') || panel.parentElement;
-        if (!mount) return;
-        let shell = document.querySelector('.lp-page-shell');
-        if (shell && shell.contains(mount)) return;
-
-        if (!shell) {
-            shell = document.createElement('div');
-            shell.className = 'lp-page-shell';
-        }
-        let main = shell.querySelector('.lp-page-main');
-        if (!main) {
-            main = document.createElement('div');
-            main.className = 'lp-page-main';
-            shell.insertBefore(main, shell.firstChild);
-        }
-        if (!shell.parentElement) {
-            document.body.insertBefore(shell, mount.parentElement === document.body ? mount : document.body.firstChild);
-        }
-        Array.from(document.body.children).forEach(function (el) {
-            if (el === shell || el === mount) return;
-            if (el.id === 'contextMenu' || el.id === 'lp-agent-layout-chip') return;
-            if (el.classList && el.classList.contains('modal')) return;
-            if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK') return;
-            main.appendChild(el);
-        });
-        if (mount.parentElement !== shell) shell.appendChild(mount);
-    }
-
-    function currentPanelWidth() {
-        const raw = getComputedStyle(document.documentElement).getPropertyValue('--lp-agent-width').trim();
-        return raw || '440px';
-    }
-
-    function applySplitLayout(open) {
-        if (typeof window.__lpAgentForceLayout === 'function') {
-            window.__lpAgentForceLayout(open);
-            return;
-        }
-        ensurePageShell();
-        const mount = document.querySelector('.lp-agent-mount');
-        const shell = document.querySelector('.lp-page-shell');
-        const main = document.querySelector('.lp-page-main');
-        const w = currentPanelWidth();
-        panel.style.setProperty('position', 'relative', 'important');
-        panel.style.setProperty('right', 'auto', 'important');
-        panel.style.setProperty('top', 'auto', 'important');
-        panel.style.setProperty('left', 'auto', 'important');
-        panel.style.setProperty('width', '100%', 'important');
-        panel.style.setProperty('max-width', 'none', 'important');
-        if (shell) {
-            shell.style.setProperty('display', 'flex', 'important');
-            shell.style.setProperty('flex-direction', 'row', 'important');
-        }
-        if (main) {
-            main.style.setProperty('flex', '1 1 auto', 'important');
-            main.style.setProperty('min-width', '0', 'important');
-            if (open) {
-                main.style.setProperty('max-width', 'calc(100% - ' + w + ')', 'important');
-            } else {
-                main.style.removeProperty('max-width');
-            }
-        }
-        if (mount) {
-            if (open) {
-                mount.style.setProperty('flex', '0 0 ' + w, 'important');
-                mount.style.setProperty('width', w, 'important');
-            } else {
-                mount.style.setProperty('flex', '0 0 0px', 'important');
-                mount.style.setProperty('width', '0px', 'important');
-            }
-            mount.style.setProperty('overflow', 'hidden', 'important');
-        }
-        document.querySelectorAll('.lp-page-main .container, .lp-page-main .note-page, .lp-page-main .memo-form-container, .lp-page-main .mcp-container').forEach(function (el) {
-            if (open) {
-                el.style.setProperty('max-width', 'none', 'important');
-                el.style.setProperty('width', 'auto', 'important');
-            } else {
-                el.style.removeProperty('max-width');
-                el.style.removeProperty('width');
-            }
-        });
-    }
-
     function setPanelOpen(open) {
         panel.classList.toggle('open', open);
         document.documentElement.classList.toggle('lp-agent-open', open);
-        applySplitLayout(open);
         panel.setAttribute('aria-hidden', open ? 'false' : 'true');
-        if (typeof window.__lpAgentDumpLayout === 'function') {
-            window.__lpAgentDumpLayout(open ? 'setPanelOpen-true' : 'setPanelOpen-false');
-        } else {
-            console.log('[LP-Agent] setPanelOpen', open, 'layout-boot 未加载，当前 position=', getComputedStyle(panel).position);
-        }
+        const sash = document.getElementById('lp-agent-sash');
+        if (sash) sash.setAttribute('aria-hidden', open ? 'false' : 'true');
         window.setTimeout(notifyHostResize, 40);
     }
 
-    ensurePageShell();
-    applySplitLayout(false);
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
-            ensurePageShell();
-            applySplitLayout(document.documentElement.classList.contains('lp-agent-open'));
-        });
-    }
-
-    closeBtn.onclick = () => setPanelOpen(false);
-    fab.onclick = () => setPanelOpen(true);
+    if (closeBtn) closeBtn.onclick = () => setPanelOpen(false);
+    if (fab) fab.onclick = () => setPanelOpen(true);
 
     /* ------- 模型切换 ------- */
-    if (modelSel) {
+    if (modelSel && fab) {
         // 面板打开时拉取模型列表（避免每次页面加载都发请求）
         let modelsLoaded = false;
         // 记住最后一次「后端已确认」的模型，供切换失败时回滚下拉
@@ -206,24 +107,33 @@
         };
     }
 
-    /* ------- 面板宽度：拖拽调整 + 记忆 ------- */
+    /* ------- 面板宽度：拖拽 sash + 记忆 ------- */
     (function initResize() {
-        const resizer = document.getElementById('lp-agent-resizer');
-        if (!resizer) return;
+        const sash = document.getElementById('lp-agent-sash');
+        if (!sash) return;
         const KEY = 'lp-agent-width-v2';
         const MIN = 320;
         const MIN_HOST = 240;
         const maxWidth = () => Math.max(MIN, window.innerWidth - MIN_HOST);
 
+        function currentWidth() {
+            const raw = parseInt(getComputedStyle(document.documentElement)
+                .getPropertyValue('--lp-agent-width'), 10);
+            return isNaN(raw) ? 440 : raw;
+        }
+
         function applyWidth(px) {
             const w = Math.max(MIN, Math.min(px, maxWidth()));
             document.documentElement.style.setProperty('--lp-agent-width', w + 'px');
-            if (document.documentElement.classList.contains('lp-agent-open')) {
-                applySplitLayout(true);
-            }
             return w;
         }
-        // 恢复上次记忆的宽度
+
+        function widthFromPointer(clientX) {
+            const shell = document.querySelector('.lp-page-shell');
+            const right = shell ? shell.getBoundingClientRect().right : window.innerWidth;
+            return right - clientX;
+        }
+
         const saved = parseInt(localStorage.getItem(KEY), 10);
         if (!isNaN(saved)) applyWidth(saved);
 
@@ -231,19 +141,15 @@
         function onMove(e) {
             if (!dragging) return;
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            // 面板右贴边：宽度 = 视口右边到指针的距离
-            applyWidth(window.innerWidth - clientX);
+            applyWidth(widthFromPointer(clientX));
             e.preventDefault();
         }
         function onUp() {
             if (!dragging) return;
             dragging = false;
-            resizer.classList.remove('dragging');
-            panel.classList.remove('resizing');
-            document.body.classList.remove('lp-agent-resizing');
+            sash.classList.remove('dragging');
             document.documentElement.classList.remove('lp-agent-resizing');
-            const cur = parseInt(getComputedStyle(panel).width, 10);
-            if (!isNaN(cur)) localStorage.setItem(KEY, String(cur));
+            localStorage.setItem(KEY, String(currentWidth()));
             notifyHostResize();
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
@@ -252,9 +158,7 @@
         }
         function onDown(e) {
             dragging = true;
-            resizer.classList.add('dragging');
-            panel.classList.add('resizing');
-            document.body.classList.add('lp-agent-resizing');
+            sash.classList.add('dragging');
             document.documentElement.classList.add('lp-agent-resizing');
             window.addEventListener('mousemove', onMove);
             window.addEventListener('mouseup', onUp);
@@ -262,10 +166,12 @@
             window.addEventListener('touchend', onUp);
             e.preventDefault();
         }
-        resizer.addEventListener('mousedown', onDown);
-        resizer.addEventListener('touchstart', onDown, { passive: false });
-        // 视口变窄时夹紧，避免超出
-        window.addEventListener('resize', () => applyWidth(parseInt(getComputedStyle(panel).width, 10) || MIN));
+        sash.addEventListener('mousedown', onDown);
+        sash.addEventListener('touchstart', onDown, { passive: false });
+        window.addEventListener('resize', function () {
+            if (!document.documentElement.classList.contains('lp-agent-open')) return;
+            applyWidth(currentWidth());
+        });
     })();
 
     /* ------- WebSocket ------- */

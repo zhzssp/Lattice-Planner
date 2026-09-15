@@ -1,5 +1,5 @@
-/* Lattice-Agent：模板里 .lp-page-shell 左右分栏。
-   面板始终在文档流中，关闭时右栏宽度为 0，打开后主栏被压缩 —— 不再用 fixed 浮层覆盖。 */
+/* Lattice-Agent：.lp-page-shell 左右分栏（主区 | sash | 面板）。
+   面板始终 position:relative 待在文档流里；关闭时右栏宽度为 0。 */
 
 :root {
     --lp-agent-width: 440px;
@@ -14,90 +14,86 @@
     min-height: 100dvh;
     box-sizing: border-box;
 }
+.lp-agent-workbench {
+    display: contents;
+}
+.lp-page-shell > link,
+.lp-page-shell > script,
+.lp-page-shell > style,
+.lp-agent-workbench > link,
+.lp-agent-workbench > script,
+.lp-agent-workbench > style {
+    display: none !important;
+}
 .lp-page-main {
     flex: 1 1 auto;
     min-width: 0;
     overflow: auto;
 }
+#lp-agent-sash {
+    display: none;
+    flex: 0 0 0;
+    width: 0;
+    position: relative;
+    z-index: 4;
+    align-self: stretch;
+    cursor: ew-resize;
+}
+html.lp-agent-open #lp-agent-sash {
+    display: block;
+}
+#lp-agent-sash::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -4px;
+    width: 8px;
+    cursor: ew-resize;
+    background: transparent;
+}
+#lp-agent-sash:hover::before,
+#lp-agent-sash.dragging::before {
+    background: rgba(59, 130, 246, .35);
+}
 .lp-agent-mount {
     flex: 0 0 0;
     width: 0;
+    max-width: 0;
     min-width: 0;
     overflow: hidden;
     align-self: stretch;
     display: flex;
     flex-direction: column;
-    transition: flex-basis .2s ease, width .2s ease;
+    transition: flex-basis .2s ease, width .2s ease, max-width .2s ease;
 }
 html.lp-agent-open,
-html.lp-agent-open body,
-html:has(#lp-agent-panel.open),
-html:has(#lp-agent-panel.open) body {
+html.lp-agent-open body {
     height: 100%;
     height: 100dvh;
     overflow: hidden;
 }
-html.lp-agent-open .lp-page-shell,
-.lp-page-shell:has(#lp-agent-panel.open) {
+html.lp-agent-open .lp-page-shell {
     height: 100%;
     height: 100dvh;
     overflow: hidden;
 }
-html.lp-agent-open .lp-agent-mount,
-html.lp-agent-open #lp-agent-host,
-html:has(#lp-agent-panel.open) .lp-agent-mount,
-.lp-page-shell:has(#lp-agent-panel.open) .lp-agent-mount {
+html.lp-agent-open .lp-agent-mount {
     flex: 0 0 var(--lp-agent-width);
     width: var(--lp-agent-width);
     max-width: var(--lp-agent-width);
 }
-html.lp-agent-open .lp-agent-mount > link,
-html.lp-agent-open .lp-agent-mount > script,
-.lp-page-shell:has(#lp-agent-panel.open) .lp-agent-mount > link,
-.lp-page-shell:has(#lp-agent-panel.open) .lp-agent-mount > script {
+html.lp-agent-open #lp-agent-fab {
     display: none;
 }
-html.lp-agent-open #lp-agent-fab,
-.lp-page-shell:has(#lp-agent-panel.open) #lp-agent-fab {
-    display: none;
-}
-
-/* 打开后面板占满右栏；主栏里的居中卡片取消 max-width，跟着左栏变窄 */
-html.lp-agent-open .lp-page-main,
-html:has(#lp-agent-panel.open) .lp-page-main,
-.lp-page-shell:has(#lp-agent-panel.open) .lp-page-main {
-    max-width: calc(100% - var(--lp-agent-width, 440px));
-}
-html.lp-agent-open .container,
-html.lp-agent-open .note-page,
-html.lp-agent-open .memo-form-container,
-html.lp-agent-open .mcp-container,
-html:has(#lp-agent-panel.open) .container,
-html:has(#lp-agent-panel.open) .note-page,
-html:has(#lp-agent-panel.open) .memo-form-container,
-html:has(#lp-agent-panel.open) .mcp-container,
-.lp-page-shell:has(#lp-agent-panel.open) .container,
-.lp-page-shell:has(#lp-agent-panel.open) .note-page,
-.lp-page-shell:has(#lp-agent-panel.open) .memo-form-container,
-.lp-page-shell:has(#lp-agent-panel.open) .mcp-container {
+html.lp-agent-open .lp-page-main .container,
+html.lp-agent-open .lp-page-main .note-page,
+html.lp-agent-open .lp-page-main .memo-form-container,
+html.lp-agent-open .lp-page-main .mcp-container {
     max-width: none;
     width: auto;
     margin: 24px 16px;
     box-sizing: border-box;
-}
-
-#lp-agent-layout-chip {
-    position: fixed;
-    left: 8px;
-    bottom: 8px;
-    z-index: 2147483646;
-    background: #111827;
-    color: #86efac;
-    font: 11px/1.2 ui-monospace, Consolas, monospace;
-    padding: 4px 7px;
-    border-radius: 4px;
-    pointer-events: none;
-    opacity: .85;
 }
 
 html.lp-agent-resizing .lp-agent-mount {
@@ -128,44 +124,29 @@ html.lp-agent-resizing .lp-agent-mount {
 
 #lp-agent-panel {
     position: relative;
-    top: auto;
-    right: auto;
-    left: auto;
     inset: auto;
     transform: none;
-    width: var(--lp-agent-width);
+    width: 100%;
     min-width: 0;
     max-width: none;
     height: 100%;
-    min-height: 100%;
+    min-height: 0;
     background: #fff;
     box-shadow: -4px 0 20px rgba(0, 0, 0, .14);
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
-    min-height: 0;
     z-index: 2;
     font-size: 13px;
     color: #1f2937;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
 }
 
-/* 左侧拖拽手柄：按住向左拖动放大面板宽度 */
-#lp-agent-resizer {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 6px;
-    height: 100%;
+html.lp-agent-resizing,
+html.lp-agent-resizing body {
+    user-select: none;
     cursor: ew-resize;
-    z-index: 10000;
-    background: transparent;
 }
-#lp-agent-resizer:hover,
-#lp-agent-resizer.dragging { background: rgba(59, 130, 246, .35); }
-/* 拖拽中禁用过渡，避免宽度跟手时抖动；同时禁止全局选中文本 */
-#lp-agent-panel.resizing { transition: none; }
-body.lp-agent-resizing { user-select: none; cursor: ew-resize; }
 
 #lp-agent-panel header {
     display: flex;

@@ -1,7 +1,7 @@
 // ------------------------- Lattice-Planner 客户端主入口：与后端服务交互，支持 DDL 提醒与系统托盘 -------------------------
 const { app, BrowserWindow, ipcMain, Tray, nativeImage, Menu, Notification } = require('electron');
 const path = require('path');
-// persist:main 会把旧的 chat-panel.css 盘成固定浮层；关掉 HTTP 缓存才能吃到分栏样式
+// persist:main 会缓存旧 CSS；关掉 HTTP 缓存并在启动时清 session，避免面板回到 fixed 浮层
 app.commandLine.appendSwitch('disable-http-cache');
 const axios = require('axios');
 const fs = require('fs');
