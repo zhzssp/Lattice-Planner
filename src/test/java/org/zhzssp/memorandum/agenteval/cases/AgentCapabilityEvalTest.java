@@ -41,7 +41,7 @@ import static org.zhzssp.memorandum.agenteval.trace.TrajectoryAssert.assertThat;
  *   <li><b>退休</b>：回归集里连续多月 100% 且相关代码不再变动 → 可以删，
  *       防评测饱和（每个用例都有回放成本，长期零信号的用例是纯负债）。</li>
  * </ul>
- * 详见 {@code docs/Agent评测体系使用指南.md}。
+ * 详见 {@code docs/introduction/Agent评测体系使用指南.md}。
  */
 @Tag("agent-eval-capability")
 @DisplayName("Agent 能力集（不拦 PR）")

@@ -210,7 +210,7 @@ RagSearchService（Hybrid 双通路）
 
 - **轨迹埋点**：`AgentTraceListener` + `AgentTraceMetrics`，生产与测试**共用同一套埋点**
 - **端点**：`GET /api/agent/trace/stats`、`/api/agent/prefix-cache/stats`、`/api/observability/stats`
-- **评测体系**：录制回放。回归集拦 PR；能力集（G1′ / Facts / 多步写入）只报不拦；另有 3 个上下文工程机制基准。详见 [`../Agent评测体系使用指南.md`](../Agent评测体系使用指南.md)
+- **评测体系**：录制回放。回归集拦 PR；能力集（G1′ / Facts / 多步写入）只报不拦；另有 3 个上下文工程机制基准。详见 [`../introduction/Agent评测体系使用指南.md`](../introduction/Agent评测体系使用指南.md)
 
 **一条硬约束**（从"指标恒为 0"那个坑沉淀的）：**没有消费方的指标等于没有指标**。每个新能力必须同时有开关、有指标、有暴露端点。
 
