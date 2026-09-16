@@ -2,13 +2,14 @@
 
 > 全仓文档导航。**时效**列说明这篇是否随代码同步维护——查资料前先看这一列，避免拿旧数字做决策。
 >
-> 最近一次整理：2026-09-15（目录分 introduction/design/problems；problems 增 P-KB-001 知识沉淀体系）。
+> 最近一次整理：2026-09-16（新增 idea/；design 增学习体系收敛缺口方案）。
 
 ## 目录怎么分
 
 | 目录 | 放什么 |
 |---|---|
 | [`introduction/`](introduction/) | 怎么讲、怎么用：面试手册、PPT、评测使用指南 |
+| [`idea/`](idea/) | 预期与方向：还不是方案、更不是现状 |
 | [`design/`](design/) | 设计方案与实施记录 |
 | [`problems/`](problems/) | 未闭环问题 + 手工验收清单 |
 | [`copyright/`](copyright/) | 软著申请材料 |
@@ -36,7 +37,13 @@
 
 > 面试四篇之前是 7 篇——`保研面试PPT内容参考`、`亮点枚举`、`保研面试PPT-重点细化` 三份都在描述同一份 PPT，已合并进 `保研面试PPT大纲.md`。
 
-## 二、评测设计（`docs/design/`）
+## 二、Idea（`docs/idea/`）
+
+| 文档 | 用途 | 时效 |
+|---|---|---|
+| [学习方式搬进软件.md](idea/学习方式搬进软件.md) | **预期**：从原始资料抽出路径与要点，驱动任务规划，经 Agent 问答迭代至收敛。缺口方案见 [学习体系收敛-缺口分析与设计.md](design/学习体系收敛-缺口分析与设计.md) | 🔵 |
+
+## 三、评测设计（`docs/design/`）
 
 | 文档 | 用途 | 时效 |
 |---|---|---|
@@ -47,7 +54,7 @@
 
 > 怎么跑、怎么读报告在 [`introduction/Agent评测体系使用指南.md`](introduction/Agent评测体系使用指南.md)；手工点选验收在 [`problems/功能验收方案.md`](problems/功能验收方案.md)。
 
-## 三、Agent 核心设计（`docs/design/`）
+## 四、Agent 核心设计（`docs/design/`）
 
 | 文档 | 用途 | 时效 |
 |---|---|---|
@@ -57,7 +64,7 @@
 
 > `Lattice-Agent-功能完整说明.md` 已并入 `Lattice-Agent功能总览.md`（两份重叠且都已过时）。
 
-## 四、上下文工程（`docs/design/`）
+## 五、上下文工程（`docs/design/`）
 
 | 文档 | 用途 | 时效 |
 |---|---|---|
@@ -69,7 +76,7 @@
 
 > **实测数字的唯一权威来源**是 `build/agent-eval/context-engineering.md`（跑 `gradlew test --tests '*ContextEngineeringBenchmark*'` 生成）。文档里的数字是它的摘录。
 
-## 五、Agent 可控性（`docs/design/`）
+## 六、Agent 可控性（`docs/design/`）
 
 | 文档 | 用途 | 时效 |
 |---|---|---|
@@ -79,7 +86,7 @@
 | [Lattice-Agent-SubAgent设计方案.md](design/Lattice-Agent-SubAgent设计方案.md) | 子代理三角色、并行 fan-out、递归防护 | 🟢 |
 | [Agent多模型多提供方-模型切换与路由设计.md](design/Agent多模型多提供方-模型切换与路由设计.md) | 模型路由与加权轮询 | 🟢 |
 
-## 六、知识库与 RAG（`docs/design/`）
+## 七、知识库与 RAG（`docs/design/`）
 
 | 文档 | 用途 | 时效 |
 |---|---|---|
@@ -89,7 +96,7 @@
 | [AI-Infra-RAG-Serving-System实现计划.md](design/AI-Infra-RAG-Serving-System实现计划.md) | 语义缓存、精排、预取 | 🟢 |
 | [AI-Infra-Prefix-KV-Cache实现计划.md](design/AI-Infra-Prefix-KV-Cache实现计划.md) | 前缀缓存与字节稳定化 | 🟢 |
 
-## 七、MCP（`docs/design/`）
+## 八、MCP（`docs/design/`）
 
 | 文档 | 用途 | 时效 |
 |---|---|---|
@@ -99,7 +106,7 @@
 
 > ⚠️ 早期文档里的 `local.list_dir` / `local.read_file` / `local.read_pdf` **已下线**，现统一走 `mcp.loopback.local.read_document`。
 
-## 八、知识仓库 Codex 五期（`docs/design/`）
+## 九、知识仓库 Codex 五期（`docs/design/`）
 
 | 文档 | 期 | 时效 |
 |---|---|---|
@@ -112,17 +119,18 @@
 | [V4-Codex-P3实施记录.md](design/V4-Codex-P3实施记录.md) | P3 缺口三源 | 🟡 |
 | [V4-Codex-P4实施记录.md](design/V4-Codex-P4实施记录.md) | P4 蒸馏 + 定线 | 🟡 |
 | [V4-Codex-P5体系化设计.md](design/V4-Codex-P5体系化设计.md) | P5 SYNTHESIZER | 🔵 |
+| [学习体系收敛-缺口分析与设计.md](design/学习体系收敛-缺口分析与设计.md) | **对照 Idea**：摸排结论 + G1～G12 方案。路径/要点为 Git 一等状态，任务是投影，对话是迭代算子。排在 P5 之前 | 🔵 |
 
-## 九、问题与验收（`docs/problems/`）
+## 十、问题与验收（`docs/problems/`）
 
 | 文档 | 用途 | 时效 |
 |---|---|---|
 | [problems/README.md](problems/README.md) | 本目录索引：未闭环问题 + 验收清单 | 🟢 |
 | [功能验收方案.md](problems/功能验收方案.md) | 各能力的手工验收步骤与断言。附 C-5～C-10（C-10：history-window 曾经是死配置） | 🟢 |
 | [Agent面板-IDE分栏未落地.md](problems/Agent面板-IDE分栏未落地.md) | **P-UI-001**。期望 IDE 左右分栏，实页仍像浮层覆盖。七次提交未在 Electron 实页关闭 | 🟢 |
-| [知识沉淀体系-用户功能与未合拢.md](problems/知识沉淀体系-用户功能与未合拢.md) | **P-KB-001**。Codex 五页用户功能说明；P0～P4 是能力包，日常默认关着，体系层未合拢 | 🟢 |
+| [知识沉淀体系-用户功能与未合拢.md](problems/知识沉淀体系-用户功能与未合拢.md) | **P-KB-001**。Codex 五页用户功能说明；对照 Idea 的缺口方案在 [学习体系收敛-缺口分析与设计.md](design/学习体系收敛-缺口分析与设计.md) | 🟢 |
 
-## 十、其他
+## 十一、其他
 
 | 文档 | 用途 | 时效 |
 |---|---|---|
@@ -137,4 +145,4 @@
 2. **改了配置就回来改文档**。最容易漂的是 `design/Lattice-Agent功能总览.md` §12 配置表和 `introduction/面试讲解手册.md` 附录——这两处是数字集中地。
 3. **写实施记录时同步标时效**。新写的实施记录默认 🟡（它记录的是那一期完成时的状态），只有承诺持续维护的才标 🟢。
 4. **发现重复就合并，别新开一篇**。这次整理合并掉 4 篇，起因都是"当时觉得新写一篇比改旧的快"。
-5. **新文档放到对应目录**：讲解/使用说明进 `introduction/`，方案与实施记录进 `design/`，未闭环问题和手工验收进 `problems/`。
+5. **新文档放到对应目录**：预期与方向进 `idea/`，讲解/使用说明进 `introduction/`，方案与实施记录进 `design/`，未闭环问题和手工验收进 `problems/`。
