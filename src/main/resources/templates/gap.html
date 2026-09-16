@@ -273,7 +273,7 @@
         if (data.ok) {
             msg(box, true, (data.message || '已生成路径补丁')
                 + (data.delta ? '\n\n' + data.delta : '')
-                + '\n下一步：到定线页确认写入路径，再点「生成本站任务」。');
+                + '\n下一步：到资料页确认写入路径，再点「生成本站任务」。');
             await loadGaps();
         } else if (data.code === 'NEEDS_CLARIFY') {
             msg(box, false, '规划器需要更多信息：\n- ' +

@@ -275,7 +275,7 @@ public class GapService {
         m.put("preview", preview.preview());
         m.put("goalStatement", statement);
         m.put("message", preview.ok()
-                ? "已生成路径补丁（尚未写入）。到定线页确认写入路径，再点「生成本站任务」。不再另建一棵 Goal。"
+                ? "已生成路径补丁（尚未写入）。到资料页确认写入路径，再点「生成本站任务」。不再另建一棵 Goal。"
                 : "缺口已标记为已规划，但补丁预览失败：" + preview.message());
         m.put("next", "/codex/distill");
         return m;

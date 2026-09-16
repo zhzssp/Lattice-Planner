@@ -81,19 +81,20 @@ public class CodexDistillController {
     /* ==================== 配置 ==================== */
 
     @GetMapping("/distill/config")
-    public Map<String, Object> config() {
+    public Map<String, Object> config(@AuthenticationPrincipal UserDetails principal) {
+        User u = currentUser(principal);
+        Long uid = u == null ? null : u.getId();
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("distillEnabled", distill.enabled());
         m.put("examEnabled", exam.enabled());
-        m.put("writeEnabled", writeGuard.enabled());
+        m.put("writeEnabled", writeGuard.enabled(uid));
+        m.put("readable", registry.readable(uid));
         m.put("outputDir", distill.outputDir());
         m.put("createOnlyPaths", writeGuard.createOnlyPaths());
         m.put("pathFiles", writeGuard.pathFiles());
         m.put("maxGuideChars", writeGuard.maxGuideChars());
-        // 三个开关各自独立、可分别打开，这一点必须说清：
-        // 「起草能用但写入不能用」是完全正常的中间状态
         m.put("hint", "起草（draft）只需 codex.distill.enabled / codex.exam.enabled，"
-                + "不碰磁盘；落盘还需要 codex.write.enabled。"
+                + "不碰磁盘；落盘还需要在路径页打开「允许写入工作副本」，或设置 codex.write.enabled=true。"
                 + "建议先只开起草，看几篇产物质量再决定给不给写权限。"
                 + "★注意 create-only：蒸馏与出题只能新建文件，"
                 + "既有的 guide 与检验册永远不会被机器覆盖。");

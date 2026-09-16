@@ -57,25 +57,47 @@
     <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
     <div class="cx-intro">
-        把 Git 仓库接入为知识体系：<strong>仓库是唯一权威源</strong>，本地数据库只是可重建的检索索引。
-        这意味着你随时能脱离本软件，仓库照样用 IDE / Obsidian 打开。
-        接入后可在 Agent 的 <code>iterate</code> / <code>study</code> / <code>curate</code> 模式下检索与改路径。
+        第一屏是<strong>路径与要点</strong>（Git 文件 <code>docs/learning-path.md</code> 是权威源）。
+        右侧 Agent 默认 <code>iterate</code>：沿路径问答、改要点、把认可的随手记晋升进仓库。
+        没有路径时去「资料」蒸馏，或手写该文件后切回本页。
     </div>
 
-    <div class="cx-banner cx-banner-err" th:if="${!codexEnabled}">
-        <strong>Codex 未启用。</strong>
-        请在 <code>application.properties</code> 中设置 <code>codex.enabled=true</code>
-        与 <code>pkm.rag.git.enabled=true</code> 后重启服务。
-        默认关闭是为遵循「新能力必须可降级」原则——关闭时其余功能与旧版完全一致。
-    </div>
-    <div class="cx-banner cx-banner-warn" th:if="${codexEnabled && !codexOperational}">
+    <div class="cx-banner cx-banner-err" th:if="${!gitAvailable}">
         <strong>未检测到 git。</strong>
-        Codex 依赖系统 <code>git</code> 命令（用它计算内容哈希，才能与你手动操作保持一致）。
-        请安装 git 并确保在 PATH 中。当前检测结果：<span th:text="${gitVersion}"></span>
+        知识仓库依赖系统 <code>git</code> 命令。请安装并确保在 PATH 中。
+        当前检测：<span th:text="${gitVersion}"></span>
+    </div>
+    <div class="cx-banner cx-banner-warn" th:if="${gitAvailable and !codexReadable}">
+        还没有接入仓库。在下方设置区填入本地 git 工作副本即可浏览索引与路径，
+        <strong>不必改</strong> <code>application.properties</code>。
+    </div>
+    <div class="cx-banner cx-banner-warn" th:if="${codexReadable and !writeEnabled}">
+        只读已打开。写入（改路径、沉淀、蒸馏落盘）会修改 git 工作副本，
+        请在下方打开「允许写入工作副本」。
     </div>
 
     <div class="cx-section">
-        <h3>接入本地仓库</h3>
+        <h3>当前路径</h3>
+        <div id="cx-path"><div class="cx-empty">加载中…</div></div>
+    </div>
+
+    <div class="cx-section">
+        <h3>学 · 投影任务
+            <span style="font-size:0.82rem;font-weight:400;color:#888;">
+                待办只有这一份；改顺序请改路径文件</span>
+        </h3>
+        <div id="cx-proj"><div class="cx-empty">加载中…</div></div>
+    </div>
+
+    <details class="cx-section" id="cx-settings" th:attr="open=${!codexReadable}">
+        <summary style="cursor:pointer;font-weight:600;font-size:1.08rem;">仓库设置（接入 / 同步 / 写入）</summary>
+        <div style="margin-top:1rem;">
+            <label class="cx-kv" style="display:flex;gap:0.5rem;align-items:center;">
+                <input type="checkbox" id="cx-write"> 允许写入工作副本
+            </label>
+            <div class="cx-kv" id="cx-write-msg"></div>
+        </div>
+        <h3 style="margin-top:1.2rem;">接入本地仓库</h3>
         <div class="cx-form">
             <div>
                 <label for="cx-name">仓库名称</label>
@@ -100,17 +122,10 @@
         <div class="cx-kv">
             接入过程<strong>不会修改仓库任何文件</strong>，只读取内容建立索引。
         </div>
-    </div>
 
-    <div class="cx-section">
-        <h3>学习路径</h3>
-        <div id="cx-path"><div class="cx-empty">加载中…</div></div>
-    </div>
-
-    <div class="cx-section">
-        <h3>已接入仓库</h3>
+        <h3 style="margin-top:1.2rem;">已接入仓库</h3>
         <div id="cx-repos"><div class="cx-empty">加载中…</div></div>
-    </div>
+    </details>
 </div>
 
 <!--
@@ -246,6 +261,7 @@
             document.getElementById('cx-name').value = '';
             document.getElementById('cx-path').value = '';
             await loadRepos();
+            await loadPath();
         } catch (e) {
             msg.textContent = '失败：' + e.message;
         } finally {
@@ -273,6 +289,7 @@
                 (d.warning ? `\n⚠ ${d.warning}` : '') +
                 (d.error ? `\n✗ ${d.error}` : '');
             await loadRepos();
+            await loadPath();
         } catch (e) {
             log.textContent = '失败：' + e.message;
         }
@@ -284,6 +301,7 @@
             const res = await fetch(`/api/codex/repos/${id}`, { method: 'DELETE', headers: headers() });
             if (!res.ok) throw new Error('HTTP ' + res.status);
             await loadRepos();
+            await loadPath();
         } catch (e) {
             alert('移除失败：' + e.message);
         }
@@ -328,30 +346,90 @@
 
     loadRepos();
     loadPath();
+    loadWritePref();
+
+    async function loadWritePref() {
+        const box = document.getElementById('cx-write');
+        const msg = document.getElementById('cx-write-msg');
+        if (!box) return;
+        try {
+            const d = await (await fetch('/api/codex/status')).json();
+            box.checked = !!d.writeEnabled;
+            msg.textContent = d.writeEnabled
+                ? '写入已开：apply / 沉淀会改工作副本。'
+                : '写入默认关。打开后才允许改路径文件与笔记。';
+        } catch (e) { /* ignore */ }
+        box.addEventListener('change', async () => {
+            try {
+                const res = await fetch('/api/codex/write-pref', {
+                    method: 'POST', headers: headers(),
+                    body: JSON.stringify({ enabled: box.checked })
+                });
+                const d = await res.json();
+                msg.textContent = d.writeEnabled
+                    ? '已允许写入工作副本。'
+                    : '已关闭写入。';
+            } catch (e) {
+                msg.textContent = '保存失败：' + e.message;
+            }
+        });
+    }
 
     async function loadPath() {
         const box = document.getElementById('cx-path');
+        const proj = document.getElementById('cx-proj');
         if (!box) return;
         try {
             const res = await fetch('/api/codex/path');
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const p = await res.json();
+            const churn = p.churn || {};
+            const cov = p.coverage || {};
             if (!p.present) {
-                box.innerHTML = `<div class="cx-empty">${esc(p.message || '尚未抽出路径。去定线页蒸馏，或手写 docs/learning-path.md 后同步。')}</div>`;
+                box.innerHTML = `<div class="cx-empty">${esc(p.message || '尚未抽出路径。去资料页蒸馏，或手写 docs/learning-path.md 后同步。')}</div>`;
+                if (proj) proj.innerHTML = '<div class="cx-empty">没有路径，也就没有投影任务。<a href="/codex/distill">去资料蒸馏</a></div>';
                 return;
             }
             const stations = p.stations || [];
             box.innerHTML = `<div class="cx-kv">version ${esc(p.version)} · 当前站 ${esc(p.cursor || '—')}
                 · MUST ${esc(p.must)} / SKIP ${esc(p.skip)}
-                ${p.parseOk ? '' : ' · <span style="color:#a33227;">解析失败：' + esc(p.error) + '</span>'}</div>`
+                ${p.parseOk ? '' : ' · <span style="color:#a33227;">解析失败：' + esc(p.error) + '</span>'}</div>
+                <div class="cx-kv">${esc(churn.caption || '')}</div>
+                <div class="cx-kv">${esc(cov.caption || '')}</div>`
                 + stations.map(s => `<div class="cx-repo-card" style="margin-top:0.6rem;">
                     <div class="cx-repo-name">${s.cursor ? '<span class="cx-tag">当前</span> ' : ''}
                         <code>${esc(s.id)}</code> ${esc(s.title)}</div>
                     ${(s.points || []).map(pt =>
                         `<div class="cx-kv"><b>${esc(pt.level)}</b> ${esc(pt.statement)}</div>`).join('')}
                 </div>`).join('');
+            if (proj) {
+                const rows = p.projections || [];
+                proj.innerHTML = `<div class="cx-kv">
+                    <button class="cx-btn-sm" onclick="doProject()">生成本站任务</button>
+                    <a class="cx-kv" href="/dashboard" style="margin-left:0.6rem;">去 Dashboard 学这些任务</a>
+                    <span id="cx-proj-msg" class="cx-kv"></span>
+                </div>`
+                    + (rows.length ? rows.map(r =>
+                        `<div class="cx-kv"><b>${esc(r.state)}</b> ${esc(r.title || r.pointId)}
+                         <code>${esc(r.pointId)}</code></div>`).join('')
+                        : '<div class="cx-empty">当前窗口还没有投影。点「生成本站任务」后会出现在 Dashboard。</div>');
+            }
         } catch (e) {
             box.innerHTML = `<div class="cx-empty">读取路径失败：${esc(e.message)}</div>`;
+        }
+    }
+
+    async function doProject() {
+        const msg = document.getElementById('cx-proj-msg');
+        try {
+            const res = await fetch('/api/codex/path/project', {
+                method: 'POST', headers: headers(), body: '{}'
+            });
+            const d = await res.json();
+            if (msg) msg.textContent = d.message || '';
+            await loadPath();
+        } catch (e) {
+            if (msg) msg.textContent = '失败：' + e.message;
         }
     }
 </script>

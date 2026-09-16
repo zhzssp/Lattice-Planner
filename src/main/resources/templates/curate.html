@@ -72,13 +72,15 @@
 <div class="cu-wrap">
     <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
-    <div th:if="${!codexEnabled}" class="cu-banner off">
-        <strong>知识仓库未启用</strong>：请设置 <code>codex.enabled=true</code> 后重启。
+    <div th:if="${!gitAvailable}" class="cu-banner off">
+        <strong>未检测到 git</strong>：请安装 git 并确保在 PATH 中。
     </div>
-    <div th:if="${codexEnabled and !writeEnabled}" class="cu-banner off">
-        <strong>写入未启用</strong>：<code>codex.write.enabled=false</code>。
-        知识 CI（只读）仍可正常使用；沉淀与提交会被拒绝。
-        写入会真实修改你的 git 工作副本，因此默认关闭。
+    <div th:if="${gitAvailable and !codexReadable}" class="cu-banner off">
+        还没有接入仓库。到<a href="/codex">路径页</a>接入即可浏览，不必改 <code>application.properties</code>。
+    </div>
+    <div th:if="${codexReadable and !writeEnabled}" class="cu-banner off">
+        <strong>写入未启用</strong>。知识 CI（只读）仍可用；沉淀与提交会被拒绝。
+        请到路径页打开「允许写入工作副本」。
     </div>
 
     <div class="cu-card">

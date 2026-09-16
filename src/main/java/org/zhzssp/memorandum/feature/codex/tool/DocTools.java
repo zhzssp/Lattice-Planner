@@ -1,6 +1,5 @@
 package org.zhzssp.memorandum.feature.codex.tool;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.zhzssp.memorandum.entity.User;
 import org.zhzssp.memorandum.feature.agent.runtime.AgentContext;
@@ -52,9 +51,6 @@ public class DocTools {
     private final org.zhzssp.memorandum.feature.codex.service.CodexMetrics metrics;
     private final org.springframework.context.ApplicationEventPublisher events;
 
-    @Value("${codex.enabled:false}")
-    private boolean codexEnabled;
-
     public DocTools(CodexSearchService search,
                     RepoRegistryService registry,
                     KbDocumentRepository docRepo,
@@ -82,9 +78,9 @@ public class DocTools {
             @ToolParam(value = "topK", desc = "返回条数（1~20，默认 6）") Integer topK
     ) {
         User u = AgentContext.requireUser();
-        if (!codexEnabled) {
+        if (!registry.readable(u.getId())) {
             return List.of(Map.of("error", "CODEX_DISABLED",
-                    "message", "知识仓库功能未启用（codex.enabled=false）。"));
+                    "message", registry.notReadableHint()));
         }
         if (!search.enabled()) {
             return List.of(Map.of("error", "GIT_SEARCH_DISABLED",
@@ -138,8 +134,8 @@ public class DocTools {
             @ToolParam(value = "anchor", desc = "章节 anchor；指定时只返回该章节正文") String anchor
     ) {
         User u = AgentContext.requireUser();
-        if (!codexEnabled) {
-            return Map.of("error", "CODEX_DISABLED", "message", "知识仓库功能未启用。");
+        if (!registry.readable(u.getId())) {
+            return Map.of("error", "CODEX_DISABLED", "message", registry.notReadableHint());
         }
         KbDocument doc = findDoc(u, path);
         if (doc == null) {
@@ -207,8 +203,8 @@ public class DocTools {
             @ToolParam(value = "path", desc = "仓库内相对路径", required = true) String path
     ) {
         User u = AgentContext.requireUser();
-        if (!codexEnabled) {
-            return Map.of("error", "CODEX_DISABLED", "message", "知识仓库功能未启用。");
+        if (!registry.readable(u.getId())) {
+            return Map.of("error", "CODEX_DISABLED", "message", registry.notReadableHint());
         }
         KbDocument doc = findDoc(u, path);
         if (doc == null) {
@@ -235,8 +231,8 @@ public class DocTools {
             @ToolParam(value = "path", desc = "仓库内相对路径", required = true) String path
     ) {
         User u = AgentContext.requireUser();
-        if (!codexEnabled) {
-            return Map.of("error", "CODEX_DISABLED", "message", "知识仓库功能未启用。");
+        if (!registry.readable(u.getId())) {
+            return Map.of("error", "CODEX_DISABLED", "message", registry.notReadableHint());
         }
         KbDocument doc = findDoc(u, path);
         if (doc == null) {

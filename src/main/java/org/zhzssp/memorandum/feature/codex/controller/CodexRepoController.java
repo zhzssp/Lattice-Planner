@@ -5,12 +5,16 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.zhzssp.memorandum.entity.User;
+import org.zhzssp.memorandum.entity.UserPreference;
 import org.zhzssp.memorandum.feature.codex.entity.KnowledgeRepo;
 import org.zhzssp.memorandum.feature.codex.index.RepoIndexer;
+import org.zhzssp.memorandum.feature.codex.path.PathChurnService;
+import org.zhzssp.memorandum.feature.codex.sediment.DocWriteGuard;
 import org.zhzssp.memorandum.feature.codex.service.RepoHealthService;
 import org.zhzssp.memorandum.feature.codex.service.RepoRegistryService;
 import org.zhzssp.memorandum.feature.codex.service.RepoSyncService;
 import org.zhzssp.memorandum.repository.UserRepository;
+import org.zhzssp.memorandum.service.UserPreferenceService;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -39,31 +43,60 @@ public class CodexRepoController {
     private final RepoHealthService health;
     private final RepoIndexer indexer;
     private final UserRepository userRepository;
+    private final DocWriteGuard writeGuard;
+    private final UserPreferenceService preferences;
+    private final PathChurnService churn;
 
     public CodexRepoController(RepoRegistryService registry,
                                RepoSyncService syncService,
                                RepoHealthService health,
                                RepoIndexer indexer,
-                               UserRepository userRepository) {
+                               UserRepository userRepository,
+                               DocWriteGuard writeGuard,
+                               UserPreferenceService preferences,
+                               PathChurnService churn) {
         this.registry = registry;
         this.syncService = syncService;
         this.health = health;
         this.indexer = indexer;
         this.userRepository = userRepository;
+        this.writeGuard = writeGuard;
+        this.preferences = preferences;
+        this.churn = churn;
     }
 
     @GetMapping("/status")
-    public Map<String, Object> status() {
+    public Map<String, Object> status(@AuthenticationPrincipal UserDetails principal) {
+        User u = currentUser(principal);
+        Long uid = u == null ? null : u.getId();
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("enabled", registry.enabled());
-        m.put("operational", registry.operational());
+        m.put("readable", registry.readable(uid));
+        m.put("operational", registry.operational(uid));
+        m.put("gitAvailable", registry.gitAvailable());
         m.put("gitVersion", registry.gitVersion());
-        if (!registry.enabled()) {
-            m.put("hint", "codex.enabled=false，请在 application.properties 开启后重启");
-        } else if (!registry.operational()) {
+        m.put("writeEnabled", writeGuard.enabled(uid));
+        if (!registry.gitAvailable()) {
             m.put("hint", "未检测到 git，请安装 git 并确保在 PATH 中");
+        } else if (!registry.readable(uid)) {
+            m.put("hint", registry.notReadableHint());
         }
         return m;
+    }
+
+    public record WritePrefBody(Boolean enabled) {}
+
+    @PostMapping("/write-pref")
+    public ResponseEntity<?> writePref(@AuthenticationPrincipal UserDetails principal,
+                                       @RequestBody WritePrefBody body) {
+        User u = currentUser(principal);
+        if (u == null) return ResponseEntity.status(401).body(Map.of("error", "UNAUTHENTICATED"));
+        UserPreference pref = preferences.getOrCreatePreference(u);
+        pref.setCodexWriteEnabled(Boolean.TRUE.equals(body == null ? null : body.enabled()));
+        preferences.savePreference(pref);
+        return ResponseEntity.ok(Map.of(
+                "ok", true,
+                "writeEnabled", writeGuard.enabled(u.getId())));
     }
 
     @GetMapping("/repos")
@@ -118,6 +151,7 @@ public class CodexRepoController {
         if (u == null) return ResponseEntity.status(401).body(Map.of("error", "UNAUTHENTICATED"));
         // 先清派生索引，再删注册；本地文件绝不删除
         indexer.clearDerived(id);
+        churn.deleteForRepo(id);
         registry.unregister(u.getId(), id);
         return ResponseEntity.ok(Map.of("deleted", true,
                 "note", "仅移除索引与注册信息，本地仓库文件未做任何改动"));
@@ -137,9 +171,9 @@ public class CodexRepoController {
     public ResponseEntity<?> autosync(@AuthenticationPrincipal UserDetails principal) {
         User u = currentUser(principal);
         if (u == null) return ResponseEntity.status(401).body(Map.of("error", "UNAUTHENTICATED"));
-        if (!registry.enabled() || !registry.operational()) {
+        if (!registry.gitAvailable()) {
             return ResponseEntity.ok(Map.of("ok", false, "skipped", true,
-                    "message", "Codex 未启用或未检测到 git，跳过自动同步。"));
+                    "message", "未检测到 git，跳过自动同步。"));
         }
         List<Map<String, Object>> repos = new ArrayList<>();
         int reindexed = 0;
@@ -181,9 +215,11 @@ public class CodexRepoController {
     private ResponseEntity<?> doIndex(UserDetails principal, Long id, boolean full, boolean pull) {
         User u = currentUser(principal);
         if (u == null) return ResponseEntity.status(401).body(Map.of("error", "UNAUTHENTICATED"));
-        if (!registry.operational()) {
+        if (!registry.readable(u.getId())) {
             return ResponseEntity.badRequest().body(Map.of("error", "CODEX_NOT_OPERATIONAL",
-                    "enabled", registry.enabled(), "gitVersion", registry.gitVersion()));
+                    "enabled", registry.enabled(), "readable", false,
+                    "gitVersion", registry.gitVersion(),
+                    "hint", registry.notReadableHint()));
         }
         KnowledgeRepo repo = registry.find(u.getId(), id).orElse(null);
         if (repo == null) {

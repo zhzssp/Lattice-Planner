@@ -195,6 +195,33 @@ public class PathProjector {
                 goalId, created, active, stale, satisfied);
     }
 
+    /**
+     * MUST 覆盖：分母是路径上的 MUST 行，不是跳过清单。不是 0–100 分。
+     */
+    public Map<String, Object> coverage(Long repoId) {
+        Set<String> mustIds = new HashSet<>();
+        for (KbPoint p : pointRepo.findByRepoIdOrderByPointIdAsc(repoId)) {
+            if (p.getLevel() == KbPoint.Level.MUST) mustIds.add(p.getPointId());
+        }
+        int satisfied = 0;
+        for (KbTaskProjection row : projRepo.findByRepoId(repoId)) {
+            if (row.getState() == KbTaskProjection.State.SATISFIED
+                    && mustIds.contains(row.getPointId())) {
+                satisfied++;
+            }
+        }
+        int denom = mustIds.size();
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("mustTotal", denom);
+        m.put("satisfiedMust", satisfied);
+        m.put("skipNotDenominator", true);
+        m.put("caption", denom == 0
+                ? "路径上还没有 MUST，没有覆盖率分母。"
+                : satisfied + " / " + denom
+                + " 条路径 MUST 已 SATISFIED。分母是路径 MUST，不是跳过清单。这不是 0–100 分。");
+        return m;
+    }
+
     public List<Map<String, Object>> listProjections(Long repoId) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (KbTaskProjection row : projRepo.findByRepoId(repoId)) {

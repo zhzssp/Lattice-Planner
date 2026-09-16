@@ -82,13 +82,15 @@ public class CodexCurateController {
     /* ==================== 配置回显 ==================== */
 
     @GetMapping("/curate/config")
-    public Map<String, Object> config() {
+    public Map<String, Object> config(@AuthenticationPrincipal UserDetails principal) {
+        User u = currentUser(principal);
+        Long uid = u == null ? null : u.getId();
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("codexEnabled", registry.enabled());
-        m.put("operational", registry.operational());
-        m.put("writeEnabled", guard.enabled());
+        m.put("readable", registry.readable(uid));
+        m.put("operational", registry.operational(uid));
+        m.put("writeEnabled", guard.enabled(uid));
         m.put("branchPrefix", guard.branchPrefix());
-        // 回显白名单：用户看到「只能写这些路径」才会理解为什么 guide 改不了
         m.put("allowedWritePaths", guard.allowedPaths());
         return m;
     }

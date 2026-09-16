@@ -98,7 +98,7 @@ public class PathApplyService {
                     p.ok() ? "请确认后再写入。预览已生成。" : p.message(),
                     null, null, List.of(), null, false);
         }
-        DocWriteGuard.Decision en = writeGuard.checkEnabled();
+        DocWriteGuard.Decision en = writeGuard.checkEnabled(userId);
         if (!en.allowed()) {
             return ApplyResult.fail(en.code(), en.message() + " " + nvl(en.hint()));
         }

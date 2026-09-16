@@ -261,7 +261,7 @@ public class DistillService {
         if (draft == null || draft.content() == null) {
             return WriteResult.fail("NO_DRAFT", "没有可写入的草稿。请先起草。");
         }
-        DocWriteGuard.Decision en = writeGuard.checkEnabled();
+        DocWriteGuard.Decision en = writeGuard.checkEnabled(userId);
         if (!en.allowed()) {
             return WriteResult.fail(en.code(), en.message() + " " + nvl(en.hint()));
         }

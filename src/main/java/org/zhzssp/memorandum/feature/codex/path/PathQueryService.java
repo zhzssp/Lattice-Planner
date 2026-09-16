@@ -28,6 +28,7 @@ public class PathQueryService {
     private final KbPathSnapshotRepository snapRepo;
     private final PathApplyService applyService;
     private final PathProjector projector;
+    private final PathChurnService churn;
     private final DocWriteGuard writeGuard;
 
     public PathQueryService(RepoRegistryService registry,
@@ -36,6 +37,7 @@ public class PathQueryService {
                             KbPathSnapshotRepository snapRepo,
                             PathApplyService applyService,
                             PathProjector projector,
+                            PathChurnService churn,
                             DocWriteGuard writeGuard) {
         this.registry = registry;
         this.stationRepo = stationRepo;
@@ -43,6 +45,7 @@ public class PathQueryService {
         this.snapRepo = snapRepo;
         this.applyService = applyService;
         this.projector = projector;
+        this.churn = churn;
         this.writeGuard = writeGuard;
     }
 
@@ -90,12 +93,15 @@ public class PathQueryService {
         m.put("cursor", snap == null ? null : snap.getCursor());
         m.put("must", snap == null ? 0 : snap.getMustCount());
         m.put("skip", snap == null ? 0 : snap.getSkipCount());
-        m.put("writeEnabled", writeGuard.enabled());
+        m.put("writeEnabled", writeGuard.enabled(repo.getUserId()));
+        m.put("readable", registry.readable(repo.getUserId()));
         m.put("stations", stationViews);
         m.put("content", applyService.readExisting(repo));
         m.put("projections", projector.listProjections(repo.getId()));
+        m.put("churn", churn.summary(repo.getId()));
+        m.put("coverage", projector.coverage(repo.getId()));
         if (stations.isEmpty()) {
-            m.put("message", "尚未抽出路径。蒸馏后预览 PATH_DELTA，或手写 "
+            m.put("message", "尚未抽出路径。去资料页蒸馏后预览 PATH_DELTA，或手写 "
                     + LearningPathParser.DEFAULT_PATH + " 再同步。");
         }
         return m;

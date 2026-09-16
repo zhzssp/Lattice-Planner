@@ -52,6 +52,10 @@ public final class AgentContext {
         DEPTH.set(Math.max(0, DEPTH.get() - 1));
     }
 
+    public static User user() {
+        return USER.get();
+    }
+
     public static User requireUser() {
         User u = USER.get();
         if (u == null) {

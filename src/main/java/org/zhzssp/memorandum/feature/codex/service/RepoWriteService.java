@@ -93,7 +93,7 @@ public class RepoWriteService {
      * 第一个 PR 被否时第二个也连带作废。每次独立起点才能各自合并或丢弃。</p>
      */
     public BranchResult ensureBranch(KnowledgeRepo repo, String branch) {
-        DocWriteGuard.Decision en = guard.checkEnabled();
+        DocWriteGuard.Decision en = guard.checkEnabled(repo == null ? null : repo.getUserId());
         if (!en.allowed()) {
             return new BranchResult(false, en.code(), en.message(), null, false);
         }
@@ -142,7 +142,7 @@ public class RepoWriteService {
      * {@code branch -D} 之后那些改动就再也找不回来了。</p>
      */
     public BranchResult discardBranch(KnowledgeRepo repo, String branch) {
-        DocWriteGuard.Decision en = guard.checkEnabled();
+        DocWriteGuard.Decision en = guard.checkEnabled(repo == null ? null : repo.getUserId());
         if (!en.allowed()) {
             return new BranchResult(false, en.code(), en.message(), branch, false);
         }
@@ -198,7 +198,7 @@ public class RepoWriteService {
      */
     public CommitResult commit(KnowledgeRepo repo, List<String> paths,
                                String subject, String bodyNote, String sessionId) {
-        DocWriteGuard.Decision en = guard.checkEnabled();
+        DocWriteGuard.Decision en = guard.checkEnabled(repo == null ? null : repo.getUserId());
         if (!en.allowed()) {
             return new CommitResult(false, en.code(), en.message(), null, null, List.of());
         }
@@ -307,7 +307,7 @@ public class RepoWriteService {
      */
     public PushResult pushAndOpenPr(KnowledgeRepo repo, String branch,
                                     String title, String body) {
-        DocWriteGuard.Decision en = guard.checkEnabled();
+        DocWriteGuard.Decision en = guard.checkEnabled(repo == null ? null : repo.getUserId());
         if (!en.allowed()) {
             return new PushResult(false, en.code(), en.message(), branch, null, null);
         }

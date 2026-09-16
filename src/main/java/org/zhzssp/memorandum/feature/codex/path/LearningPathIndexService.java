@@ -40,6 +40,7 @@ public class LearningPathIndexService {
     private final KbPointRepository pointRepo;
     private final KbPathSnapshotRepository snapRepo;
     private final PathProjector projector;
+    private final PathChurnService churn;
 
     public LearningPathIndexService(LearningPathParser parser,
                                     RepoRegistryService registry,
@@ -47,7 +48,8 @@ public class LearningPathIndexService {
                                     KbStationRepository stationRepo,
                                     KbPointRepository pointRepo,
                                     KbPathSnapshotRepository snapRepo,
-                                    PathProjector projector) {
+                                    PathProjector projector,
+                                    PathChurnService churn) {
         this.parser = parser;
         this.registry = registry;
         this.docRepo = docRepo;
@@ -55,6 +57,7 @@ public class LearningPathIndexService {
         this.pointRepo = pointRepo;
         this.snapRepo = snapRepo;
         this.projector = projector;
+        this.churn = churn;
     }
 
     @Transactional
@@ -119,6 +122,11 @@ public class LearningPathIndexService {
         }
         upsertSnap(repo, doc.get(), parsed.version(), cursor, true, null,
                 parsed.stations().size(), parsed.mustCount(), parsed.skipCount());
+        try {
+            churn.record(repo, parsed);
+        } catch (Exception e) {
+            log.debug("[Codex/Path] churn 记录跳过：{}", e.getMessage());
+        }
         log.info("[Codex/Path] 仓库「{}」路径已同步：{} 站，MUST {} / SKIP {}",
                 repo.getName(), parsed.stations().size(), parsed.mustCount(), parsed.skipCount());
         reconcileQuietly(repo);

@@ -88,7 +88,9 @@ class CodexModeVisibilityTest {
                 def("doc.anchors", "codex", "read"),
                 def("path.read", "codex", "read", "path"),
                 def("path.propose", "codex", "write", "path"),
-                def("path.apply", "codex", "write", "path")
+                def("path.apply", "codex", "write", "path"),
+                def("note.promote", "note", "write", "codex"),
+                def("search.both", "read", "codex", "kb")
         );
         when(registry.all()).thenReturn(tools);
         when(registry.mcpToolsAll()).thenReturn(List.of());
@@ -183,7 +185,8 @@ class CodexModeVisibilityTest {
                         "doc.write", "repo.commit", "ci.run_local", "checkpoint.run",
                         "gap.list", "gap.to_learning_plan", "scope.skipped", "scope.set",
                         "distill.draft", "distill.write", "exam.draft", "exam.write",
-                        "route.next", "route.stages", "path.read", "path.propose", "path.apply")) {
+                        "route.next", "route.stages", "path.read", "path.propose", "path.apply",
+                        "note.promote", "search.both")) {
                     assertFalse(view.contains(tool),
                             mode + " 模式不应看到 " + tool + "（会改变工具 schema 字节）");
                 }
@@ -205,6 +208,8 @@ class CodexModeVisibilityTest {
             ToolView learn = resolver.resolveMode("learn");
             assertTrue(learn.contains("kb.semantic_search"));
             assertFalse(learn.contains("note.create"), "learn 仍应禁写（V3 行为）");
+            assertFalse(learn.contains("search.both"), "learn 不得因 kb tag 看见 search.both（cassette）");
+            assertTrue(learn.reasonOf("search.both").contains("deny"));
         }
     }
 
@@ -310,6 +315,8 @@ class CodexModeVisibilityTest {
             assertTrue(view.contains("doc.outline"));
             assertTrue(view.contains("repo.list"));
             assertTrue(view.contains("kb.semantic_search"));
+            assertTrue(view.contains("search.both"), "联合检索带 codex+kb，研读应能同时看见两套");
+            assertFalse(view.contains("note.promote"), "晋升是写操作");
         }
 
         @Test
@@ -469,6 +476,8 @@ class CodexModeVisibilityTest {
             assertTrue(view.contains("doc.search"));
             assertTrue(view.contains("route.next"));
             assertTrue(view.contains("kb.semantic_search"));
+            assertTrue(view.contains("search.both"));
+            assertTrue(view.contains("note.promote"), "iterate 要把认可的随手记晋升进 Git");
         }
 
         @Test

@@ -51,7 +51,8 @@ public class NoteTools {
         return NoteView.of(noteService.create(AgentContext.requireUser(), title, content, t));
     }
 
-    public record NoteView(Long id, String title, String type, String createdAt, String preview) {
+    public record NoteView(Long id, String title, String type, String createdAt,
+                           String preview, String promotedPath) {
         static NoteView of(Note n) {
             String content = n.getContent() == null ? "" : n.getContent();
             String preview = content.length() <= 120 ? content : content.substring(0, 120) + "...";
@@ -59,7 +60,8 @@ public class NoteTools {
                     n.getId(), n.getTitle(),
                     n.getType() == null ? null : n.getType().name(),
                     n.getCreatedAt() == null ? null : n.getCreatedAt().toLocalDate().toString(),
-                    preview);
+                    preview,
+                    n.getPromotedPath());
         }
     }
 }

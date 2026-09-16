@@ -14,6 +14,8 @@ public interface KnowledgeRepoRepository extends JpaRepository<KnowledgeRepo, Lo
 
     List<KnowledgeRepo> findByUserIdAndEnabledTrueOrderByIdAsc(Long userId);
 
+    long countByUserId(Long userId);
+
     Optional<KnowledgeRepo> findByUserIdAndName(Long userId, String name);
 
     Optional<KnowledgeRepo> findByIdAndUserId(Long id, Long userId);

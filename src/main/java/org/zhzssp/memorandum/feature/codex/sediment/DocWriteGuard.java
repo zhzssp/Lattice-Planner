@@ -80,6 +80,7 @@ public class DocWriteGuard {
 
     private final RepoRegistryService registry;
     private final GitClient git;
+    private final org.zhzssp.memorandum.repository.UserPreferenceRepository prefs;
 
     @Value("${codex.write.enabled:false}")
     private boolean writeEnabled;
@@ -135,13 +136,19 @@ public class DocWriteGuard {
     private volatile List<Pattern> createOnlyPatterns;
     private volatile List<Pattern> pathFilePatterns;
 
-    public DocWriteGuard(RepoRegistryService registry, GitClient git) {
+    public DocWriteGuard(RepoRegistryService registry, GitClient git,
+                         org.zhzssp.memorandum.repository.UserPreferenceRepository prefs) {
         this.registry = registry;
         this.git = git;
+        this.prefs = prefs;
     }
 
     public boolean enabled() {
-        return writeEnabled;
+        return writeEnabled || userWritePref(currentUserId());
+    }
+
+    public boolean enabled(Long userId) {
+        return writeEnabled || userWritePref(userId);
     }
 
     public String branchPrefix() {
@@ -174,19 +181,26 @@ public class DocWriteGuard {
     /* ==================== 闸门 1：总开关 ==================== */
 
     public Decision checkEnabled() {
-        if (!registry.enabled()) {
+        Long userId = currentUserId();
+        return checkEnabled(userId);
+    }
+
+    public Decision checkEnabled(Long userId) {
+        boolean canRead = userId != null ? registry.readable(userId) : registry.enabled();
+        if (!canRead) {
             return Decision.deny("CODEX_DISABLED",
-                    "知识仓库功能未启用（codex.enabled=false）。", "在配置中开启后重启。");
+                    "知识仓库只读尚未打开。",
+                    "在路径页接入一个 Git 仓库即可浏览索引与路径，不必改配置文件。写入仍需单独允许。");
         }
-        if (!registry.operational()) {
+        if (userId == null && !registry.operational()) {
             return Decision.deny("GIT_UNAVAILABLE",
                     "系统未安装 git 或不在 PATH 中。", "安装 git 后重启；当前检测："
                             + registry.gitVersion());
         }
-        if (!writeEnabled) {
+        if (!enabled(userId)) {
             return Decision.deny("WRITE_DISABLED",
-                    "知识仓库写入未启用（codex.write.enabled=false）。",
-                    "写入会真实修改用户的 git 工作副本，故默认关闭；确认后在配置中开启。");
+                    "知识仓库写入未启用。",
+                    "写入会真实修改 git 工作副本。请在路径页打开「允许写入工作副本」，或设置 codex.write.enabled=true。");
         }
         return Decision.ok();
     }
@@ -517,5 +531,18 @@ public class DocWriteGuard {
             if (!g.isEmpty()) out.add(g);
         }
         return new ArrayList<>(out);
+    }
+
+    private Long currentUserId() {
+        org.zhzssp.memorandum.entity.User u =
+                org.zhzssp.memorandum.feature.agent.runtime.AgentContext.user();
+        return u == null ? null : u.getId();
+    }
+
+    private boolean userWritePref(Long userId) {
+        if (userId == null || prefs == null) return false;
+        return prefs.findByUser_Id(userId)
+                .map(p -> Boolean.TRUE.equals(p.getCodexWriteEnabled()))
+                .orElse(false);
     }
 }

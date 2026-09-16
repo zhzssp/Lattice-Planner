@@ -246,7 +246,7 @@ public class RouteService {
                     "当前站 " + (cursor == null ? "" : cursor.topic())
                             + " 的 MUST 即 Dashboard 待办",
                     "待办只有一份：由路径窗口投影。"
-                            + "在定线页点「生成本站任务」后会出现在 Dashboard；"
+                            + "在路径页点「生成本站任务」后会出现在 Dashboard；"
                             + "改路径后过时任务会标 STALE。",
                     station, "/dashboard"));
         }

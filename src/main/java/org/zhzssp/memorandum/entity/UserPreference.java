@@ -72,6 +72,10 @@ public class UserPreference {
     @Column(name = "agent_chat_model_id", length = 100, nullable = true)
     private String agentChatModelId;
 
+    /** 允许写入知识仓库工作副本；null/false = 关（默认） */
+    @Column(name = "codex_write_enabled", nullable = true)
+    private Boolean codexWriteEnabled;
+
     public enum MindsetMode {
         EXECUTE,  // 执行模式
         LEARN,    // 学习模式

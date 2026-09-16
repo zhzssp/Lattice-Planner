@@ -50,9 +50,9 @@ public class RepoTools {
                     "用户问「我有哪些知识库/仓库」时调用。")
     public List<Map<String, Object>> list() {
         User u = AgentContext.requireUser();
-        if (!registry.operational()) {
+        if (!registry.operational(u.getId())) {
             return List.of(Map.of("error", "CODEX_DISABLED",
-                    "message", disabledMessage()));
+                    "message", registry.notReadableHint()));
         }
         return registry.list(u.getId()).stream().map(r -> {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -78,8 +78,8 @@ public class RepoTools {
             @ToolParam(value = "repoName", desc = "仓库名称；省略则取第一个仓库") String repoName
     ) {
         User u = AgentContext.requireUser();
-        if (!registry.operational()) {
-            return Map.of("error", "CODEX_DISABLED", "message", disabledMessage());
+        if (!registry.operational(u.getId())) {
+            return Map.of("error", "CODEX_DISABLED", "message", registry.notReadableHint());
         }
         KnowledgeRepo repo = resolveRepo(u, repoName);
         if (repo == null) {
@@ -129,8 +129,8 @@ public class RepoTools {
             @ToolParam(value = "pull", desc = "true = 先执行 git pull，默认 false") Boolean pull
     ) {
         User u = AgentContext.requireUser();
-        if (!registry.operational()) {
-            return Map.of("error", "CODEX_DISABLED", "message", disabledMessage());
+        if (!registry.operational(u.getId())) {
+            return Map.of("error", "CODEX_DISABLED", "message", registry.notReadableHint());
         }
         KnowledgeRepo repo = resolveRepo(u, repoName);
         if (repo == null) {
@@ -166,12 +166,5 @@ public class RepoTools {
         }
         List<KnowledgeRepo> all = registry.listEnabled(u.getId());
         return all.isEmpty() ? null : all.get(0);
-    }
-
-    private String disabledMessage() {
-        if (!registry.enabled()) {
-            return "知识仓库功能未启用（codex.enabled=false）。请在配置中开启后重启。";
-        }
-        return "系统未安装 git 或不在 PATH 中，知识仓库功能不可用。当前检测：" + registry.gitVersion();
     }
 }

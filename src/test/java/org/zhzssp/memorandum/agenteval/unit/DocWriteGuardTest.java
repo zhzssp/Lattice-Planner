@@ -66,6 +66,7 @@ class DocWriteGuardTest {
         RepoRegistryService registry = mock(RepoRegistryService.class);
         when(registry.enabled()).thenReturn(true);
         when(registry.operational()).thenReturn(true);
+        when(registry.readable(any())).thenReturn(true);
         when(registry.rootOf(any())).thenReturn(repoRoot);
 
         git = mock(GitClient.class);
@@ -73,7 +74,7 @@ class DocWriteGuardTest {
         when(git.status(any())).thenReturn(
                 new GitClient.WorkingStatus("lattice/sediment-20260821-x", "abc", true, List.of()));
 
-        guard = new DocWriteGuard(registry, git);
+        guard = new DocWriteGuard(registry, git, null);
         ReflectionTestUtils.setField(guard, "writeEnabled", true);
         ReflectionTestUtils.setField(guard, "allowedPathsRaw", "docs/notes/**/*.md");
         ReflectionTestUtils.setField(guard, "createOnlyPathsRaw",

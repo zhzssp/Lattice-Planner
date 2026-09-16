@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="_csrf" th:content="${_csrf.token}">
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
-    <title>蒸馏与定线 · Codex</title>
+    <title>资料 · Codex</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
     <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=1)}">
     <style>
@@ -206,8 +206,8 @@
                      起草会对原料做多次 LLM 调用，成本不低，故默认关闭。</div>`;
         }
         if (!cfg.writeEnabled) {
-            html += `<div class="ds-banner info">写入未启用（codex.write.enabled=false）——
-                     可以起草并查看产物，但不能落盘。这是刻意的顺序：
+            html += `<div class="ds-banner info">写入未启用——可以起草并查看产物，但不能落盘。
+                     请到路径页打开「允许写入工作副本」。这是刻意的顺序：
                      先看几篇产物的质量，再决定给不给它写文件的权限。</div>`;
         } else {
             html += `<div class="ds-banner info">写入已启用。蒸馏与出题只能<b>新建</b>文件

@@ -36,6 +36,12 @@ public class Note {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    /**
+     * 晋升到 Git 知识仓库后的相对路径。原文留在 MySQL，不删。
+     */
+    @Column(name = "promoted_path", length = 255)
+    private String promotedPath;
+
     @ManyToOne
     private User user;
 }

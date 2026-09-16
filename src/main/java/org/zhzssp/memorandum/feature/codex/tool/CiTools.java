@@ -57,11 +57,9 @@ public class CiTools {
                     + "ERROR / WARN / INFO（默认 WARN，避免 INFO 淹没报告）") String severity
     ) {
         User u = AgentContext.requireUser();
-        if (!registry.operational()) {
+        if (!registry.operational(u.getId())) {
             return Map.of("error", "CODEX_DISABLED",
-                    "message", registry.enabled()
-                            ? "系统未安装 git，知识仓库功能不可用。"
-                            : "知识仓库功能未启用（codex.enabled=false）。");
+                    "message", registry.notReadableHint());
         }
         KnowledgeRepo repo = resolveRepo(u.getId(), repoName);
         if (repo == null) {

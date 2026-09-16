@@ -45,13 +45,40 @@ public class RepoRegistryService {
         return codexEnabled;
     }
 
-    /** Codex 是否真正可用（开关 + git 可用性）。 */
+    public boolean gitAvailable() {
+        return git.available();
+    }
+
+    /**
+     * 只读能力：全局开启，或该用户已接入仓库。
+     * {@code codex.enabled=false} 时仍可先接入，不必改配置文件。
+     */
+    public boolean readable(Long userId) {
+        if (!git.available()) return false;
+        if (codexEnabled) return true;
+        if (userId == null) return false;
+        return repoRepo.countByUserId(userId) > 0;
+    }
+
+    /** Codex 是否真正可用（开关 + git 可用性）。无用户时只看全局开关。 */
     public boolean operational() {
         return codexEnabled && git.available();
     }
 
+    public boolean operational(Long userId) {
+        return readable(userId);
+    }
+
     public String gitVersion() {
         return git.version();
+    }
+
+    /** 只读未就绪时的说明：优先提示接入仓库，不强迫改 properties。 */
+    public String notReadableHint() {
+        if (!git.available()) {
+            return "未检测到 git，请安装并确保在 PATH 中。当前检测：" + git.version();
+        }
+        return "在路径页接入一个 Git 仓库即可浏览索引与路径，不必改 application.properties。";
     }
 
     public List<KnowledgeRepo> list(Long userId) {

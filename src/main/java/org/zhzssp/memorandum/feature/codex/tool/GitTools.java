@@ -82,8 +82,8 @@ public class GitTools {
             @ToolParam(value = "repoName", desc = "仓库名称；省略则取第一个仓库") String repoName
     ) {
         User u = AgentContext.requireUser();
-        if (!registry.operational()) {
-            return Map.of("error", "CODEX_DISABLED", "message", "知识仓库功能不可用。");
+        if (!registry.operational(u.getId())) {
+            return Map.of("error", "CODEX_DISABLED", "message", registry.notReadableHint());
         }
         KnowledgeRepo repo = resolveRepo(u.getId(), repoName);
         if (repo == null) {

@@ -144,7 +144,7 @@ public class SedimentService {
     /* ==================== 主流程 ==================== */
 
     public Result sediment(Long userId, Request req) {
-        DocWriteGuard.Decision en = guard.checkEnabled();
+        DocWriteGuard.Decision en = guard.checkEnabled(userId);
         if (!en.allowed()) {
             return Result.fail(en.code(), en.message() + " " + nullSafe(en.hint()));
         }

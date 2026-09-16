@@ -33,17 +33,21 @@ class CodexNavTest {
             "/codex",
             "/codex/distill",
             "/codex/checkpoints",
-            "/codex/curate",
-            "/codex/gaps"
+            "/codex/gaps",
+            "/codex/curate"
     );
 
     @Test
-    @DisplayName("fragment 含五个分区 href，顺序为接入→定线→检验→策展→缺口")
+    @DisplayName("fragment 含五个分区 href，顺序为路径→资料→检验→缺口→策展")
     void fragmentHasFiveTabsInDailyOrder() throws IOException {
         String html = Files.readString(projectFile("src/main/resources/templates/fragments/codex-nav.html"));
         assertTrue(html.contains("th:fragment=\"chrome\""));
         assertTrue(html.contains("返回 Dashboard"));
         assertTrue(html.contains("href=\"/dashboard\""));
+        assertTrue(html.contains(">路径</a>"));
+        assertTrue(html.contains(">资料</a>"));
+        assertFalse(html.contains(">接入</a>"), "接入不再是一级 Tab");
+        assertFalse(html.contains(">定线</a>"));
 
         int prev = -1;
         for (String href : TAB_HREFS) {
@@ -98,7 +102,7 @@ class CodexNavTest {
         }
         String controller = Files.readString(
                 projectFile("src/main/java/org/zhzssp/memorandum/feature/codex/controller/CodexViewController.java"));
-        for (String tab : List.of("repos", "distill", "checkpoints", "curate", "gaps")) {
+        for (String tab : List.of("path", "distill", "checkpoints", "curate", "gaps")) {
             assertTrue(controller.contains("\"codexNav\", \"" + tab + "\""), "controller missing " + tab);
         }
     }
@@ -115,6 +119,17 @@ class CodexNavTest {
         assertFalse(html.contains("fragments/codex-nav"));
         int exits = count(html, "href=\"/codex\"");
         assertEquals(1, exits);
+    }
+
+    @Test
+    @DisplayName("路径页是主角：不强迫改 properties，接入收进设置区")
+    void pathPageDoesNotDemandProperties() throws IOException {
+        String html = Files.readString(projectFile("src/main/resources/templates/codex.html"));
+        assertTrue(html.contains("当前路径"));
+        assertTrue(html.contains("允许写入工作副本"));
+        assertTrue(html.contains("仓库设置"));
+        assertFalse(html.contains("codex.enabled=true"));
+        assertTrue(html.contains("学 · 投影任务"));
     }
 
     private static String renderChrome(String tab) {

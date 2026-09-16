@@ -17,25 +17,25 @@
     </div>
     <nav class="cx-seg" aria-label="知识仓库分区">
         <a href="/codex" class="cx-seg-item"
-           title="接入本地 Git 仓库并建立索引"
-           th:classappend="${codexNav=='repos'} ? ' is-active'"
-           th:aria-current="${codexNav=='repos'} ? 'page'">接入</a>
+           title="当前路径、要点、投影任务与收敛"
+           th:classappend="${codexNav=='path'} ? ' is-active'"
+           th:aria-current="${codexNav=='path'} ? 'page'">路径</a>
         <a href="/codex/distill" class="cx-seg-item"
-           title="我现在该干什么、蒸馏 PDF、出题"
+           title="原料列表、蒸馏、路径补丁预览"
            th:classappend="${codexNav=='distill'} ? ' is-active'"
-           th:aria-current="${codexNav=='distill'} ? 'page'">定线</a>
+           th:aria-current="${codexNav=='distill'} ? 'page'">资料</a>
         <a href="/codex/checkpoints" class="cx-seg-item"
            title="先预测再跑检验"
            th:classappend="${codexNav=='checkpoints'} ? ' is-active'"
            th:aria-current="${codexNav=='checkpoints'} ? 'page'">检验</a>
-        <a href="/codex/curate" class="cx-seg-item"
-           title="知识 CI、沉淀笔记、分支审阅"
-           th:classappend="${codexNav=='curate'} ? ' is-active'"
-           th:aria-current="${codexNav=='curate'} ? 'page'">策展</a>
         <a href="/codex/gaps" class="cx-seg-item"
            title="三源合流台账与止损线"
            th:classappend="${codexNav=='gaps'} ? ' is-active'"
            th:aria-current="${codexNav=='gaps'} ? 'page'">缺口</a>
+        <a href="/codex/curate" class="cx-seg-item"
+           title="CI、沉淀、分支——维护面"
+           th:classappend="${codexNav=='curate'} ? ' is-active'"
+           th:aria-current="${codexNav=='curate'} ? 'page'">策展</a>
     </nav>
 </header>
 <script>

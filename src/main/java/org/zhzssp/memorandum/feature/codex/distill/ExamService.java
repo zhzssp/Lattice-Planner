@@ -299,7 +299,7 @@ public class ExamService {
         if (draft == null || draft.content() == null) {
             return WriteResult.fail("NO_DRAFT", "没有可写入的题目草稿。");
         }
-        DocWriteGuard.Decision en = writeGuard.checkEnabled();
+        DocWriteGuard.Decision en = writeGuard.checkEnabled(userId);
         if (!en.allowed()) {
             return WriteResult.fail(en.code(), en.message() + " " + nvl(en.hint()));
         }
