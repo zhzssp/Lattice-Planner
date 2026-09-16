@@ -40,6 +40,7 @@ public class CodexViewController {
 
     @GetMapping("/codex")
     public String dashboard(@AuthenticationPrincipal UserDetails principal, Model model) {
+        model.addAttribute("codexNav", "repos");
         model.addAttribute("codexEnabled", registry.enabled());
         model.addAttribute("codexOperational", registry.operational());
         model.addAttribute("gitVersion", registry.gitVersion());
@@ -50,6 +51,7 @@ public class CodexViewController {
     /** 知识落地检验面板（P1）。 */
     @GetMapping("/codex/checkpoints")
     public String checkpoints(@AuthenticationPrincipal UserDetails principal, Model model) {
+        model.addAttribute("codexNav", "checkpoints");
         model.addAttribute("verifyEnabled", checkpointService.enabled());
         model.addAttribute("requirePrediction", checkpointService.requirePrediction());
         return "checkpoint";
@@ -58,6 +60,7 @@ public class CodexViewController {
     /** 知识策展面板（P2）：CI 报告 + 沉淀 + 分支审阅。 */
     @GetMapping("/codex/curate")
     public String curate(@AuthenticationPrincipal UserDetails principal, Model model) {
+        model.addAttribute("codexNav", "curate");
         model.addAttribute("codexEnabled", registry.enabled());
         // 写入开关单独回显：CI 只读可用而沉淀不可用是完全正常的状态，
         // 不解释清楚用户会以为整个页面坏了
@@ -68,6 +71,7 @@ public class CodexViewController {
     /** 知识缺口看板（P3）：三源合流 + 止损线召回。 */
     @GetMapping("/codex/gaps")
     public String gaps(@AuthenticationPrincipal UserDetails principal, Model model) {
+        model.addAttribute("codexNav", "gaps");
         model.addAttribute("codexEnabled", registry.enabled());
         model.addAttribute("gapEnabled", gapService.enabled());
         return "gap";
@@ -81,6 +85,7 @@ public class CodexViewController {
      */
     @GetMapping("/codex/distill")
     public String distill(@AuthenticationPrincipal UserDetails principal, Model model) {
+        model.addAttribute("codexNav", "distill");
         model.addAttribute("codexEnabled", registry.enabled());
         model.addAttribute("distillEnabled", distillService.enabled());
         model.addAttribute("examEnabled", examService.enabled());

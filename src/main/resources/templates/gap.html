@@ -6,6 +6,7 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>知识缺口 · Codex</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=1)}">
     <style>
         .gp-wrap { max-width: 1120px; margin: 0 auto; padding: 1.5rem; }
         .gp-header { display: flex; justify-content: space-between; align-items: center;
@@ -56,14 +57,7 @@
 </head>
 <body>
 <div class="gp-wrap">
-    <div class="gp-header">
-        <h2>知识缺口 <span style="font-size:0.72em;color:#999;">Gap</span></h2>
-        <div>
-            <a href="/codex" class="gp-back" style="margin-right:1rem;">← 知识仓库</a>
-            <a href="/codex/curate" class="gp-back" style="margin-right:1rem;">知识策展</a>
-            <a href="/codex/checkpoints" class="gp-back">知识落地检验</a>
-        </div>
-    </div>
+    <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
     <div th:if="${!gapEnabled}" class="gp-banner">
         <strong>缺口闭环未启用</strong>（<code>codex.gap.enabled=false</code>）。

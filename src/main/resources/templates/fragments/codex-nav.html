@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<body>
+<!--
+  Codex 工作台顶栏：独立于三模式 Dashboard。
+  各 /codex* 页在容器顶部以
+    <div th:replace="~{fragments/codex-nav :: chrome}"></div>
+  引入。选中态由 Model 的 codexNav 决定。
+-->
+<header class="cx-workbench" th:fragment="chrome">
+    <div class="cx-workbench-bar">
+        <h1 class="cx-workbench-title">知识仓库</h1>
+        <a class="cx-workbench-back" href="/dashboard">返回 Dashboard</a>
+    </div>
+    <nav class="cx-seg" aria-label="知识仓库分区">
+        <a href="/codex" class="cx-seg-item"
+           title="接入本地 Git 仓库并建立索引"
+           th:classappend="${codexNav=='repos'} ? ' is-active'"
+           th:aria-current="${codexNav=='repos'} ? 'page'">接入</a>
+        <a href="/codex/distill" class="cx-seg-item"
+           title="我现在该干什么、蒸馏 PDF、出题"
+           th:classappend="${codexNav=='distill'} ? ' is-active'"
+           th:aria-current="${codexNav=='distill'} ? 'page'">定线</a>
+        <a href="/codex/checkpoints" class="cx-seg-item"
+           title="先预测再跑检验"
+           th:classappend="${codexNav=='checkpoints'} ? ' is-active'"
+           th:aria-current="${codexNav=='checkpoints'} ? 'page'">检验</a>
+        <a href="/codex/curate" class="cx-seg-item"
+           title="知识 CI、沉淀笔记、分支审阅"
+           th:classappend="${codexNav=='curate'} ? ' is-active'"
+           th:aria-current="${codexNav=='curate'} ? 'page'">策展</a>
+        <a href="/codex/gaps" class="cx-seg-item"
+           title="三源合流台账与止损线"
+           th:classappend="${codexNav=='gaps'} ? ' is-active'"
+           th:aria-current="${codexNav=='gaps'} ? 'page'">缺口</a>
+    </nav>
+</header>
+</body>
+</html>

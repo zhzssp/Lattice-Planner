@@ -6,6 +6,7 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>知识仓库 · Codex</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=1)}">
     <style>
         .cx-container { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
         .cx-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
@@ -51,20 +52,7 @@
 </head>
 <body>
 <div class="cx-container">
-    <div class="cx-header">
-        <h2>知识仓库 <span style="font-size:0.75em;color:#999;">Codex</span></h2>
-        <div>
-            <a href="/codex/distill" class="cx-back" style="margin-right:1rem;"
-               title="原料→Guide 草稿、Guide→检验题，以及「我现在该干什么」">蒸馏与定线 →</a>
-            <a href="/codex/gaps" class="cx-back" style="margin-right:1rem;"
-               title="三源合流的知识盲区台账 + 止损线召回">知识缺口 →</a>
-            <a href="/codex/curate" class="cx-back" style="margin-right:1rem;"
-               title="知识 CI 体检、沉淀笔记、分支审阅">知识策展 →</a>
-            <a href="/codex/checkpoints" class="cx-back" style="margin-right:1rem;"
-               title="证明你不是看懂了，而是能改能跑">知识落地检验 →</a>
-            <a href="/dashboard" class="cx-back">← 返回</a>
-        </div>
-    </div>
+    <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
     <div class="cx-intro">
         把 Git 仓库接入为知识体系：<strong>仓库是唯一权威源</strong>，本地数据库只是可重建的检索索引。

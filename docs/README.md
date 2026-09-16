@@ -2,7 +2,7 @@
 
 > 全仓文档导航。**时效**列说明这篇是否随代码同步维护——查资料前先看这一列，避免拿旧数字做决策。
 >
-> 最近一次整理：2026-09-15（目录分为 `introduction/`、`design/`、`problems/`、`copyright/`）。
+> 最近一次整理：2026-09-15（目录分 introduction/design/problems；problems 增 P-KB-001 知识沉淀体系）。
 
 ## 目录怎么分
 
@@ -120,6 +120,7 @@
 | [problems/README.md](problems/README.md) | 本目录索引：未闭环问题 + 验收清单 | 🟢 |
 | [功能验收方案.md](problems/功能验收方案.md) | 各能力的手工验收步骤与断言。附 C-5～C-10（C-10：history-window 曾经是死配置） | 🟢 |
 | [Agent面板-IDE分栏未落地.md](problems/Agent面板-IDE分栏未落地.md) | **P-UI-001**。期望 IDE 左右分栏，实页仍像浮层覆盖。七次提交未在 Electron 实页关闭 | 🟢 |
+| [知识沉淀体系-用户功能与未合拢.md](problems/知识沉淀体系-用户功能与未合拢.md) | **P-KB-001**。Codex 五页用户功能说明；P0～P4 是能力包，日常默认关着，体系层未合拢 | 🟢 |
 
 ## 十、其他
 

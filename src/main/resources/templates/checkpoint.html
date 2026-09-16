@@ -6,6 +6,7 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>知识落地检验 · Checkpoint</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=1)}">
     <style>
         .ck-container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
         .ck-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.1rem; }
@@ -60,10 +61,7 @@
 </head>
 <body>
 <div class="ck-container">
-    <div class="ck-header">
-        <h2>知识落地检验 <span style="font-size:0.72em;color:#999;">Checkpoint</span></h2>
-        <a href="/codex" class="ck-back">← 知识仓库</a>
-    </div>
+    <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
     <div class="ck-intro">
         这套体系回答一个问题：<strong>怎么证明你不是「看懂了」，而是「能改能跑」。</strong>

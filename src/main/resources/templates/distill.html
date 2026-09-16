@@ -6,6 +6,7 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>蒸馏与定线 · Codex</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=1)}">
     <style>
         .ds-wrap { max-width: 1180px; margin: 0 auto; padding: 1.5rem; }
         .ds-header { display: flex; justify-content: space-between; align-items: center;
@@ -71,14 +72,7 @@
 </head>
 <body>
 <div class="ds-wrap">
-    <div class="ds-header">
-        <h2>蒸馏与定线 <span style="font-size:0.72em;color:#999;">Distill · Route</span></h2>
-        <div>
-            <a href="/codex/gaps" class="ds-back" style="margin-right:1rem;">知识缺口 →</a>
-            <a href="/codex/curate" class="ds-back" style="margin-right:1rem;">知识策展 →</a>
-            <a href="/codex" class="ds-back">← 返回仓库</a>
-        </div>
-    </div>
+    <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
     <div id="cfgBanner"></div>
 

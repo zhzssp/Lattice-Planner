@@ -6,6 +6,7 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>知识策展 · Codex</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=1)}">
     <style>
         .cu-wrap { max-width: 1180px; margin: 0 auto; padding: 1.5rem; }
         .cu-header { display: flex; justify-content: space-between; align-items: center;
@@ -67,13 +68,7 @@
 </head>
 <body>
 <div class="cu-wrap">
-    <div class="cu-header">
-        <h2>知识策展 <span style="font-size:0.72em;color:#999;">Curate</span></h2>
-        <div>
-            <a href="/codex" class="cu-back" style="margin-right:1rem;">← 知识仓库</a>
-            <a href="/codex/checkpoints" class="cu-back">知识落地检验 →</a>
-        </div>
-    </div>
+    <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
     <div th:if="${!codexEnabled}" class="cu-banner off">
         <strong>知识仓库未启用</strong>：请设置 <code>codex.enabled=true</code> 后重启。
