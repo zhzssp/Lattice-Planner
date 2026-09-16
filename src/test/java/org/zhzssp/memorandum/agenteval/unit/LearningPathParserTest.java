@@ -150,6 +150,19 @@ class LearningPathParserTest {
     }
 
     @Test
+    @DisplayName("单站渲染可作为 PATH_DELTA 再解析")
+    void renderStationIsDelta() {
+        var parsed = parser.parseDocument(SAMPLE, true);
+        assertTrue(parsed.ok(), parsed.error());
+        String delta = renderer.renderStation(parsed.stations().get(0));
+        var again = parser.parseDelta(delta);
+        assertTrue(again.ok(), again.error());
+        assertEquals(1, again.stations().size());
+        assertEquals("s1", again.stations().get(0).id());
+        assertEquals(2, again.stations().get(0).points().size());
+    }
+
+    @Test
     @DisplayName("cursor 指向不存在的站则失败")
     void missingCursorFails() {
         String raw = """

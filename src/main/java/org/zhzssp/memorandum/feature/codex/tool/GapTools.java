@@ -131,7 +131,7 @@ public class GapTools {
     @AgentTool(name = "gap.to_learning_plan", tags = {"codex", "write"}, requiresConfirm = true,
             description = "把一条知识缺口转成路径补丁草稿（新增 MUST），不直接建 Goal。"
                     + "用户说「安排一下补这个」「转成学习计划」时调用。"
-                    + "返回预览；写入路径文件需在定线页确认。")
+                    + "返回预览；写入权威路径需 iterate 模式下 path.apply 确认。")
     public Map<String, Object> toLearningPlan(
             @ToolParam(value = "gapId", desc = "缺口 id", required = true) Long gapId,
             @ToolParam(value = "constraints", desc = "额外约束，如「每周只有 4 小时」") List<String> constraints

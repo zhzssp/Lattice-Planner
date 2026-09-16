@@ -12,8 +12,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -177,6 +179,34 @@ public class PathApplyService {
                         + "（version=" + m.merged().version() + "）。尚未 commit。",
                 br.branch(), LearningPathParser.DEFAULT_PATH,
                 new ArrayList<>(owned), reindex, false);
+    }
+
+    public Map<String, Object> toMap(Proposal p) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("ok", p.ok());
+        m.put("code", p.code());
+        m.put("message", p.message());
+        m.put("fileExisted", p.fileExisted());
+        m.put("preview", p.preview());
+        m.put("delta", p.delta());
+        m.put("stations", p.stations());
+        m.put("must", p.must());
+        m.put("skip", p.skip());
+        m.put("version", p.version());
+        return m;
+    }
+
+    public Map<String, Object> toMap(ApplyResult r) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("ok", r.ok());
+        m.put("code", r.code());
+        m.put("message", r.message());
+        m.put("branch", r.branch());
+        m.put("path", r.path());
+        m.put("changedFiles", r.changedFiles());
+        m.put("reindex", r.reindex());
+        m.put("wroteDraft", r.wroteDraft());
+        return m;
     }
 
     public String readExisting(KnowledgeRepo repo) {

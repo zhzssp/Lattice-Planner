@@ -66,7 +66,9 @@
         .cu-msg.bad { background: #fff1f0; color: #a8071a; }
     </style>
 </head>
-<body>
+<body data-lp-agent-group="codex-curate" data-lp-agent-default="curate">
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="cu-wrap">
     <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
@@ -498,5 +500,8 @@
 
     init();
 </script>
+</div>
+<div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 </body>
 </html>

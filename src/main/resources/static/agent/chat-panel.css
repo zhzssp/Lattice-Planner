@@ -89,7 +89,12 @@ html.lp-agent-open #lp-agent-fab {
 html.lp-agent-open .lp-page-main .container,
 html.lp-agent-open .lp-page-main .note-page,
 html.lp-agent-open .lp-page-main .memo-form-container,
-html.lp-agent-open .lp-page-main .mcp-container {
+html.lp-agent-open .lp-page-main .mcp-container,
+html.lp-agent-open .lp-page-main .cx-container,
+html.lp-agent-open .lp-page-main .ds-wrap,
+html.lp-agent-open .lp-page-main .ck-container,
+html.lp-agent-open .lp-page-main .cu-wrap,
+html.lp-agent-open .lp-page-main .gp-wrap {
     max-width: none;
     width: auto;
     margin: 24px 16px;

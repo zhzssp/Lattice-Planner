@@ -50,14 +50,16 @@
         .cx-kv { color: #666; font-size: 0.85rem; margin-top: 0.5rem; }
     </style>
 </head>
-<body>
+<body data-lp-agent-group="codex-path" data-lp-agent-default="iterate">
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="cx-container">
     <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
     <div class="cx-intro">
         把 Git 仓库接入为知识体系：<strong>仓库是唯一权威源</strong>，本地数据库只是可重建的检索索引。
         这意味着你随时能脱离本软件，仓库照样用 IDE / Obsidian 打开。
-        接入后可在 Agent 的 <code>study</code> / <code>curate</code> 模式下用 <code>doc.search</code> 检索。
+        接入后可在 Agent 的 <code>iterate</code> / <code>study</code> / <code>curate</code> 模式下检索与改路径。
     </div>
 
     <div class="cx-banner cx-banner-err" th:if="${!codexEnabled}">
@@ -353,5 +355,8 @@
         }
     }
 </script>
+</div>
+<div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 </body>
 </html>

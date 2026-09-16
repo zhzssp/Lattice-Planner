@@ -94,7 +94,9 @@ public class SedimentTools {
             String notePath,
             @ToolParam(value = "mode", desc = "CREATE（默认，已存在则拒绝）/ APPEND（追加到既有笔记）"
                     + "/ REPLACE（覆盖）") String mode,
-            @ToolParam(value = "repoName", desc = "仓库名称；省略则取第一个仓库") String repoName
+            @ToolParam(value = "repoName", desc = "仓库名称；省略则取第一个仓库") String repoName,
+            @ToolParam(value = "pointId", desc = "可选，路径要点 id（如 s1.p1）；写入速记行末尾")
+            String pointId
     ) {
         User u = AgentContext.requireUser();
         SedimentService.WriteMode wm;
@@ -109,7 +111,7 @@ public class SedimentTools {
 
         SedimentService.Request req = new SedimentService.Request(
                 repoName, title, body, summary, guidePath, anchor, sectionLabel,
-                notePath, sourceExcerpt, AgentContext.sessionId(), wm, true, true);
+                notePath, sourceExcerpt, AgentContext.sessionId(), wm, true, true, pointId);
         SedimentService.Result r = sediment.sediment(u.getId(), req);
 
         Map<String, Object> m = new LinkedHashMap<>();
@@ -138,14 +140,16 @@ public class SedimentTools {
             description = "给一篇已存在的笔记补上速记引用：在指定知识文档的指定章节末尾插入一行"
                     + "「> **速记**：[相对路径](相对路径) —— 摘要」。"
                     + "用于修复知识 CI 报出的「笔记无回挂」问题。"
-                    + "本工具只插入一行，不改写文档任何既有内容。")
+                    + "本工具只插入一行，不改写文档任何既有内容。"
+                    + "若该笔记对应路径上的一个要点，传入 pointId，会在行末加 <!-- point:id -->。")
     public Map<String, Object> insertBackref(
             @ToolParam(value = "guidePath", desc = "被插入的知识文档相对路径", required = true) String guidePath,
             @ToolParam(value = "anchor", desc = "插入位置的章节 anchor（来自 doc.outline）",
                     required = true) String anchor,
             @ToolParam(value = "notePath", desc = "被引用的笔记相对路径", required = true) String notePath,
             @ToolParam(value = "summary", desc = "一句话摘要", required = true) String summary,
-            @ToolParam(value = "repoName", desc = "仓库名称；省略则取第一个仓库") String repoName
+            @ToolParam(value = "repoName", desc = "仓库名称；省略则取第一个仓库") String repoName,
+            @ToolParam(value = "pointId", desc = "可选，路径要点 id，如 s1.p1") String pointId
     ) {
         User u = AgentContext.requireUser();
 
@@ -190,7 +194,7 @@ public class SedimentTools {
                     "hint", nz(clean.hint()));
         }
 
-        String line = template.backrefLine(guide.getPath(), note.getPath(), summary);
+        String line = template.backrefLine(guide.getPath(), note.getPath(), summary, pointId);
         BackrefInserter.Result ins = inserter.insert(
                 content, fm.parse(content).bodyStart(), anchor, line, note.getPath());
 

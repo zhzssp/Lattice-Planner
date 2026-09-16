@@ -8,7 +8,7 @@
   display:contents 让 FAB / sash / 右栏直接参与 shell 的横向 flex。
 -->
 <div class="lp-agent-workbench" th:fragment="panel">
-    <link rel="stylesheet" th:href="@{/agent/chat-panel.css(v=12)}">
+    <link rel="stylesheet" th:href="@{/agent/chat-panel.css(v=13)}">
     <button id="lp-agent-fab" type="button" title="打开 Lattice-Agent">AI</button>
     <div id="lp-agent-sash" title="拖拽调整宽度" role="separator" aria-orientation="vertical" aria-hidden="true"></div>
     <div class="lp-agent-mount">
@@ -16,9 +16,13 @@
             <header>
                 <span class="lp-agent-title">Lattice-Agent</span>
                 <select id="lp-agent-mode" title="模式">
-                    <option value="chat">Chat</option>
-                    <option value="plan">自动规划</option>
-                    <option value="reflect">复盘</option>
+                    <option value="chat" data-groups="dashboard">Chat</option>
+                    <option value="plan" data-groups="dashboard">自动规划</option>
+                    <option value="reflect" data-groups="dashboard">复盘</option>
+                    <option value="study" data-groups="codex">研读</option>
+                    <option value="iterate" data-groups="codex">迭代</option>
+                    <option value="curate" data-groups="codex">策展</option>
+                    <option value="verify" data-groups="codex">检验</option>
                 </select>
                 <select id="lp-agent-model" title="模型"></select>
                 <button id="lp-agent-settings-btn" type="button" title="Agent 设置">⚙ 设置</button>
@@ -50,7 +54,7 @@
             </footer>
         </aside>
     </div>
-    <script th:src="@{/agent/chat-panel.js(v=12)}"></script>
+    <script th:src="@{/agent/chat-panel.js(v=13)}"></script>
 </div>
 </body>
 </html>

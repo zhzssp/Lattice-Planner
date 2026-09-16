@@ -100,6 +100,15 @@ class SedimentFormatTest {
                     "docs/notes/x.md", "  ");
             assertFalse(line.contains("——"));
         }
+
+        @Test
+        @DisplayName("带 pointId 时在行末追加 HTML 注释")
+        void appendsPointComment() {
+            String line = template.backrefLine("docs/learning-guides/g.md",
+                    "docs/notes/x.md", "能画出主路径", "s1.p1");
+            assertTrue(line.endsWith(" <!-- point:s1.p1 -->"), "实际：" + line);
+            assertTrue(line.contains("—— 能画出主路径。"));
+        }
     }
 
     /* ================= 笔记渲染 ================= */

@@ -79,13 +79,16 @@ class CodexModeVisibilityTest {
                 def("scope.skipped", "codex", "read"),
                 def("scope.set", "codex", "write"),
                 // ---- P4 蒸馏与定线 ----
-                def("distill.draft", "codex", "doc", "read"),
-                def("distill.write", "codex", "doc", "write"),
-                def("exam.draft", "codex", "doc", "read"),
-                def("exam.write", "codex", "doc", "write"),
+                def("distill.draft", "codex", "doc", "distill", "read"),
+                def("distill.write", "codex", "doc", "distill", "write"),
+                def("exam.draft", "codex", "doc", "distill", "read"),
+                def("exam.write", "codex", "doc", "distill", "write"),
                 def("route.next", "codex", "read"),
                 def("route.stages", "codex", "read"),
-                def("doc.anchors", "codex", "read")
+                def("doc.anchors", "codex", "read"),
+                def("path.read", "codex", "read", "path"),
+                def("path.propose", "codex", "write", "path"),
+                def("path.apply", "codex", "write", "path")
         );
         when(registry.all()).thenReturn(tools);
         when(registry.mcpToolsAll()).thenReturn(List.of());
@@ -120,6 +123,15 @@ class CodexModeVisibilityTest {
             ToolView view = resolver.resolveMode("chat");
             assertFalse(view.contains("checkpoint.run"));
             assertFalse(view.contains("checkpoint.list"));
+        }
+
+        @Test
+        @DisplayName("CHAT/PLAN deny 含 path/distill（新 tag 不得泄漏到旧模式）")
+        void chatPlanDenyPathAndDistill() {
+            assertTrue(AgentMode.CHAT.denyTags().contains("path"));
+            assertTrue(AgentMode.CHAT.denyTags().contains("distill"));
+            assertTrue(AgentMode.PLAN.denyTags().contains("path"));
+            assertTrue(AgentMode.PLAN.denyTags().contains("distill"));
         }
 
         @Test
@@ -171,7 +183,7 @@ class CodexModeVisibilityTest {
                         "doc.write", "repo.commit", "ci.run_local", "checkpoint.run",
                         "gap.list", "gap.to_learning_plan", "scope.skipped", "scope.set",
                         "distill.draft", "distill.write", "exam.draft", "exam.write",
-                        "route.next", "route.stages")) {
+                        "route.next", "route.stages", "path.read", "path.propose", "path.apply")) {
                     assertFalse(view.contains(tool),
                             mode + " 模式不应看到 " + tool + "（会改变工具 schema 字节）");
                 }
@@ -354,6 +366,9 @@ class CodexModeVisibilityTest {
             ToolView view = resolver.resolveMode("study");
             assertTrue(view.contains("route.next"), "「我该学什么」是研读时最常问的问题");
             assertTrue(view.contains("route.stages"));
+            assertTrue(view.contains("path.read"), "研读应能看路径，但不能改");
+            assertFalse(view.contains("path.propose"));
+            assertFalse(view.contains("path.apply"));
             assertFalse(view.contains("distill.draft"),
                     "一次起草是 5~9 次 LLM 调用，纯研读模式不该能触发");
             assertFalse(view.contains("exam.draft"));
@@ -378,6 +393,8 @@ class CodexModeVisibilityTest {
             ToolView view = resolver.resolveMode("curate");
             assertTrue(view.contains("repo.sync"));
             assertTrue(view.contains("doc.search"));
+            assertTrue(view.contains("path.propose"), "策展也可提议路径");
+            assertTrue(view.contains("path.apply"));
         }
 
         @Test
@@ -407,7 +424,7 @@ class CodexModeVisibilityTest {
             assertTrue(curate.contains("repo.open_pr"));
             assertTrue(curate.contains("ci.run_local"));
 
-            // 其余任何模式都不得出现写仓库的能力
+            // 其余任何模式都不得出现写仓库/提交的能力（iterate 能写笔记，但不能 commit）
             for (String mode : List.of("chat", "plan", "reflect", "learn", "study", "verify")) {
                 ToolView v = resolver.resolveMode(mode);
                 assertFalse(v.contains("doc.write"), mode + " 不应能写知识仓库文件");
@@ -415,6 +432,11 @@ class CodexModeVisibilityTest {
                 assertFalse(v.contains("distill.write"), mode + " 不应能写蒸馏产物");
                 assertFalse(v.contains("exam.write"), mode + " 不应能写检验册");
             }
+            ToolView iterate = resolver.resolveMode("iterate");
+            assertTrue(iterate.contains("doc.write"), "iterate 要能沉淀笔记");
+            assertFalse(iterate.contains("repo.commit"), "提交仍留在策展");
+            assertFalse(iterate.contains("distill.write"));
+            assertFalse(iterate.contains("exam.write"));
         }
 
         @Test
@@ -426,6 +448,43 @@ class CodexModeVisibilityTest {
             assertTrue(curate.contains("exam.draft"));
             assertTrue(curate.contains("exam.write"));
             assertTrue(curate.contains("route.next"), "策展时也需要知道该先整理哪一块");
+        }
+    }
+
+    /* ================= iterate：改路径 + 沉淀，不蒸馏不提交 ================= */
+
+    @Nested
+    @DisplayName("iterate 模式（沿路径问答、改要点、沉淀笔记）")
+    class IterateMode {
+
+        @Test
+        @DisplayName("可读路径、可提议/落盘路径、可写笔记")
+        void seesPathAndNotes() {
+            ToolView view = resolver.resolveMode("iterate");
+            assertTrue(view.contains("path.read"));
+            assertTrue(view.contains("path.propose"));
+            assertTrue(view.contains("path.apply"));
+            assertTrue(view.contains("doc.write"));
+            assertTrue(view.contains("doc.insert_backref"));
+            assertTrue(view.contains("doc.search"));
+            assertTrue(view.contains("route.next"));
+            assertTrue(view.contains("kb.semantic_search"));
+        }
+
+        @Test
+        @DisplayName("蒸馏/出题/提交/exec/任务均不可见")
+        void deniesDistillCommitExecTask() {
+            ToolView view = resolver.resolveMode("iterate");
+            assertFalse(view.contains("distill.draft"),
+                    "一次起草会花钱，应留在策展");
+            assertFalse(view.contains("exam.draft"));
+            assertFalse(view.contains("repo.commit"));
+            assertFalse(view.contains("repo.open_pr"));
+            assertFalse(view.contains("checkpoint.run"));
+            assertFalse(view.contains("task.create"));
+            assertFalse(view.contains("goal.create"));
+            assertTrue(view.reasonOf("distill.draft").contains("deny"),
+                    "必须是 deny distill，不能误伤 doc.write");
         }
     }
 
@@ -447,7 +506,7 @@ class CodexModeVisibilityTest {
         @Test
         @DisplayName("其余全部模式都看不到 exec 工具")
         void allOtherModesDenyExec() {
-            for (String mode : List.of("chat", "plan", "reflect", "learn", "study", "curate")) {
+            for (String mode : List.of("chat", "plan", "reflect", "learn", "study", "curate", "iterate")) {
                 ToolView view = resolver.resolveMode(mode);
                 assertFalse(view.contains("checkpoint.run"),
                         mode + " 模式绝不应看到受限执行工具");
@@ -473,6 +532,7 @@ class CodexModeVisibilityTest {
         @DisplayName("新模式 label 可被正确解析")
         void parsesNewModes() {
             assertEquals(AgentMode.STUDY, AgentMode.of("study"));
+            assertEquals(AgentMode.ITERATE, AgentMode.of("iterate"));
             assertEquals(AgentMode.CURATE, AgentMode.of("curate"));
             assertEquals(AgentMode.VERIFY, AgentMode.of("verify"));
             assertEquals(AgentMode.STUDY, AgentMode.of("STUDY"), "解析应大小写不敏感");

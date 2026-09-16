@@ -60,7 +60,7 @@ public class DistillTools {
 
     /* ==================== 蒸馏 ==================== */
 
-    @AgentTool(name = "distill.draft", tags = {"codex", "doc", "read"}, requiresConfirm = true,
+    @AgentTool(name = "distill.draft", tags = {"codex", "doc", "distill", "read"}, requiresConfirm = true,
             description = "从一份原料（PDF / docx / md / txt）起草一篇 guide。"
                     + "★不写任何文件，只返回草稿与结构校验结果。"
                     + "需要确认是因为它会对原料分段做多次 LLM 调用，成本不低。"
@@ -124,7 +124,7 @@ public class DistillTools {
         return m;
     }
 
-    @AgentTool(name = "distill.write", tags = {"codex", "doc", "write"}, requiresConfirm = true,
+    @AgentTool(name = "distill.write", tags = {"codex", "doc", "distill", "write"}, requiresConfirm = true,
             description = "把已起草的 guide 草稿写入仓库（只新建，绝不覆盖既有文件）。"
                     + "必须先 distill.draft 拿到 draftKey。刻意不接受直接传内容——"
                     + "否则「必须有止损线」这条约束只要换个入口就能绕过。写入后不提交。")
@@ -160,7 +160,7 @@ public class DistillTools {
 
     /* ==================== 出题 ==================== */
 
-    @AgentTool(name = "exam.draft", tags = {"codex", "doc", "read"}, requiresConfirm = true,
+    @AgentTool(name = "exam.draft", tags = {"codex", "doc", "distill", "read"}, requiresConfirm = true,
             description = "为一篇知识文档起草落地检验题目（L0~L3）。不写文件。"
                     + "必须同时指定对应的动手项目目录——没有 lab 时任何验收命令都只能是编的。"
                     + "★返回里的 discarded 是被丢弃的题及原因，必须如实转述："
@@ -202,7 +202,7 @@ public class DistillTools {
         return m;
     }
 
-    @AgentTool(name = "exam.write", tags = {"codex", "doc", "write"}, requiresConfirm = true,
+    @AgentTool(name = "exam.write", tags = {"codex", "doc", "distill", "write"}, requiresConfirm = true,
             description = "把已起草的检验题目写入仓库并载入检验表（只新建，绝不覆盖既有检验册）。"
                     + "写入后不提交。")
     public Map<String, Object> writeExam(

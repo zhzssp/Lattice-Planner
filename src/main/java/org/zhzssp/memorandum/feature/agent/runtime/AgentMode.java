@@ -103,12 +103,24 @@ public enum AgentMode {
      * （{@code doc.write} / {@code doc.insert_backref} / {@code distill.*} / {@code exam.*}），
      * 检索类的 {@code doc.search} / {@code doc.read} / {@code doc.outline} 不带它，
      * 所以这条 deny 不会影响研读本身。</p>
+     *
+     * <p>G7 另加 deny {@code distill}：与 {@code doc} 双保险。{@code path.read}
+     * 只带 {@code path} 不带 {@code write}，研读时仍可看路径。</p>
      */
     STUDY("study",
             Set.of("codex", "kb", "note", "read", "subagent", "mcp"),
             // 补 insight / planner：与 LEARN 同因——两者都只带 {域, read}，
             // 靠 read 命中 allow。原先只 deny 了 task/goal，等于漏了另外两个域。
-            Set.of("write", "task", "goal", "insight", "planner", "exec", "doc")),
+            Set.of("write", "task", "goal", "insight", "planner", "exec", "doc", "distill")),
+    /**
+     * 迭代（G7）：沿路径问答、改要点、沉淀笔记。待办只经 {@code path.apply} 投影。
+     *
+     * <p>能写笔记（{@code doc.write}）与路径文件，不能蒸馏/出题/提交/跑检验/改任务。
+     * 蒸馏带 {@code distill} 而不是靠 deny {@code doc}：后者会把笔记写入一并挡掉。</p>
+     */
+    ITERATE("iterate",
+            Set.of("codex", "kb", "note", "read", "write", "path", "subagent", "mcp"),
+            Set.of("exec", "insight", "planner", "task", "goal", "distill", "git")),
 
     /**
      * 策展（V4）：整理知识仓库（挂域、补引用、修死链、开 PR、蒸馏、出题）。
@@ -150,7 +162,7 @@ public enum AgentMode {
          * 「忘记同步 deny 列表」是这类治理最典型的失效方式。</p>
          */
         static final Set<String> CODEX_FAMILY =
-                Set.of("codex", "doc", "git", "checkpoint", "lab", "exec");
+                Set.of("codex", "doc", "git", "checkpoint", "lab", "exec", "path", "distill");
 
         /**
          * 安全边界 tag：子代理必须无条件继承的那一类 deny。

@@ -59,7 +59,9 @@
         .ck-judge textarea { width: 100%; min-height: 60px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.88rem; box-sizing: border-box; }
     </style>
 </head>
-<body>
+<body data-lp-agent-group="codex-verify" data-lp-agent-default="verify">
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="ck-container">
     <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
@@ -463,5 +465,8 @@
     loadStats();
     loadList();
 </script>
+</div>
+<div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 </body>
 </html>

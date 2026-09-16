@@ -24,6 +24,32 @@
 
     if (!stream || !input || !sendBtn || !panel) return;
 
+    function initModeSelect() {
+        if (!modeSel) return;
+        const group = (document.body && document.body.dataset.lpAgentGroup) || 'dashboard';
+        const family = group.indexOf('codex') === 0 ? 'codex' : 'dashboard';
+        Array.prototype.forEach.call(modeSel.options, function (opt) {
+            const groups = (opt.getAttribute('data-groups') || 'dashboard').split(/\s+/);
+            const show = groups.indexOf(family) !== -1;
+            opt.hidden = !show;
+            opt.disabled = !show;
+        });
+        const visible = Array.prototype.filter.call(modeSel.options, function (o) {
+            return !o.disabled;
+        }).map(function (o) { return o.value; });
+        const key = 'lp-agent-mode:' + group;
+        let saved = null;
+        try { saved = localStorage.getItem(key); } catch (e) { /* ignore */ }
+        const def = (document.body && document.body.dataset.lpAgentDefault) || visible[0];
+        const pick = visible.indexOf(saved) >= 0 ? saved
+            : (visible.indexOf(def) >= 0 ? def : visible[0]);
+        if (pick) modeSel.value = pick;
+        modeSel.addEventListener('change', function () {
+            try { localStorage.setItem(key, modeSel.value); } catch (e) { /* ignore */ }
+        });
+    }
+    initModeSelect();
+
     function notifyHostResize() {
         window.dispatchEvent(new Event('resize'));
     }

@@ -32,7 +32,12 @@ class AgentPanelLayoutTest {
             "addMemo.html",
             "mcp-settings.html",
             "preferenceSettings.html",
-            "selectFeatures.html"
+            "selectFeatures.html",
+            "codex.html",
+            "distill.html",
+            "checkpoint.html",
+            "curate.html",
+            "gap.html"
     );
 
     @Test
@@ -40,6 +45,8 @@ class AgentPanelLayoutTest {
     void fragmentIsWorkbenchNotOverlay() throws IOException {
         String html = Files.readString(projectFile("src/main/resources/templates/fragments/agent-panel.html"));
         assertTrue(html.contains("lp-agent-workbench"));
+        assertTrue(html.contains("value=\"iterate\""));
+        assertTrue(html.contains("data-groups=\"codex\""));
         assertTrue(html.contains("id=\"lp-agent-sash\""));
         assertTrue(html.contains("id=\"lp-agent-fab\""));
         assertTrue(html.contains("class=\"lp-agent-mount\""));
@@ -76,6 +83,12 @@ class AgentPanelLayoutTest {
             assertTrue(html.contains("lp-page-shell"), page + " missing lp-page-shell");
             assertTrue(html.contains("lp-page-main"), page + " missing lp-page-main");
             assertTrue(html.contains("fragments/agent-panel"), page + " missing agent panel");
+            if (page.equals("codex.html") || page.equals("distill.html")
+                    || page.equals("checkpoint.html") || page.equals("curate.html")
+                    || page.equals("gap.html")) {
+                assertTrue(html.contains("data-lp-agent-group="),
+                        page + " missing Codex agent group");
+            }
         }
         assertFalse(Files.exists(projectFile("src/main/java/org/zhzssp/memorandum/config/AgentLayoutFilter.java")));
         assertFalse(Files.exists(projectFile("src/main/java/org/zhzssp/memorandum/config/AgentLayoutAssets.java")));

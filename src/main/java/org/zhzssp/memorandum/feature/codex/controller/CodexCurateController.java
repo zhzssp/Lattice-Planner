@@ -229,7 +229,7 @@ public class CodexCurateController {
                 body.repoName(), body.title(), body.body(), body.summary(),
                 body.guidePath(), body.anchor(), body.sectionLabel(), body.notePath(),
                 body.sourceExcerpt(), body.sessionId(), mode,
-                body.createBranch(), body.insertBackref());
+                body.createBranch(), body.insertBackref(), null);
         SedimentService.Result r = sediment.sediment(u.getId(), req);
 
         Map<String, Object> m = new LinkedHashMap<>();

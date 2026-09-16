@@ -73,7 +73,9 @@
         .ds-find.warn b { color: #ad4e00; }
     </style>
 </head>
-<body>
+<body data-lp-agent-group="codex-distill" data-lp-agent-default="curate">
+<div class="lp-page-shell">
+<div class="lp-page-main">
 <div class="ds-wrap">
     <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
@@ -544,5 +546,8 @@
         await loadRoute();
     })();
 </script>
+</div>
+<div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
 </body>
 </html>

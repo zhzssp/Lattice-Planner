@@ -21,25 +21,32 @@ public class LearningPathRenderer {
         }
         sb.append("---\n\n");
         for (LearningPathParser.ParsedStation s : path.stations()) {
-            sb.append("## ").append(s.id()).append(" · ").append(s.title()).append("\n");
-            if (!s.sources().isEmpty()) {
-                sb.append("- sources: ").append(String.join(", ", s.sources())).append('\n');
-            }
-            if (s.lab() != null && !s.lab().isBlank()) {
-                sb.append("- lab: ").append(s.lab()).append('\n');
-            }
-            if (!s.next().isEmpty()) {
-                sb.append("- next: ").append(String.join(", ", s.next())).append('\n');
-            }
-            sb.append('\n');
-            sb.append("| id | 级别 | 要点 |\n");
-            sb.append("|----|------|------|\n");
-            for (LearningPathParser.ParsedPoint p : s.points()) {
-                sb.append("| ").append(p.id()).append(" | ").append(p.level().name())
-                        .append(" | ").append(p.statement()).append(" |\n");
-            }
-            sb.append('\n');
+            sb.append(renderStation(s));
         }
+        return sb.toString();
+    }
+
+    /** 单站 Markdown，可直接作为 PATH_DELTA。 */
+    public String renderStation(LearningPathParser.ParsedStation s) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("## ").append(s.id()).append(" · ").append(s.title()).append("\n");
+        if (!s.sources().isEmpty()) {
+            sb.append("- sources: ").append(String.join(", ", s.sources())).append('\n');
+        }
+        if (s.lab() != null && !s.lab().isBlank()) {
+            sb.append("- lab: ").append(s.lab()).append('\n');
+        }
+        if (!s.next().isEmpty()) {
+            sb.append("- next: ").append(String.join(", ", s.next())).append('\n');
+        }
+        sb.append('\n');
+        sb.append("| id | 级别 | 要点 |\n");
+        sb.append("|----|------|------|\n");
+        for (LearningPathParser.ParsedPoint p : s.points()) {
+            sb.append("| ").append(p.id()).append(" | ").append(p.level().name())
+                    .append(" | ").append(p.statement()).append(" |\n");
+        }
+        sb.append('\n');
         return sb.toString();
     }
 

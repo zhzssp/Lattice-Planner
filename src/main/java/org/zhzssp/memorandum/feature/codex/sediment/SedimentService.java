@@ -75,7 +75,8 @@ public class SedimentService {
     public record Request(String repoName, String title, String body, String summary,
                           String guidePath, String anchor, String sectionLabel,
                           String notePath, String sourceExcerpt, String sessionId,
-                          WriteMode mode, Boolean createBranch, Boolean insertBackref) {}
+                          WriteMode mode, Boolean createBranch, Boolean insertBackref,
+                          String pointId) {}
 
     public record Result(boolean ok, String code, String message,
                          String branch, String notePath, String guidePath,
@@ -293,7 +294,7 @@ public class SedimentService {
                 return Result.fail("GUIDE_READ_FAILED",
                         "读取知识文档失败：" + guide.getPath() + " — " + e.getMessage());
             }
-            backrefText = template.backrefLine(guide.getPath(), notePath, req.summary());
+            backrefText = template.backrefLine(guide.getPath(), notePath, req.summary(), req.pointId());
             int bodyStart = fm.parse(guideContent).bodyStart();
             BackrefInserter.Result ins = inserter.insert(
                     guideContent, bodyStart, req.anchor(), backrefText, notePath);

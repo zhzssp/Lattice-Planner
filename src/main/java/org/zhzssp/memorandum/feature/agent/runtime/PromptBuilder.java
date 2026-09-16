@@ -25,6 +25,7 @@ import java.util.Set;
  *  reflect -> 任务/目标/insight/笔记/读（+ kb 读，复盘时检索过往）
  *  learn   -> kb/note/read（"我以前学过 X 吗"等纯检索问答）
  *  study   -> V4：知识仓库检索问答（codex + kb），禁写禁执行
+ *  iterate -> G7：沿路径问答、改要点、沉淀笔记；禁蒸馏/提交/exec/任务
  *  curate  -> V4：整理知识仓库（codex 读写），禁任务/目标/执行
  *  verify  -> V4：跑知识落地检验，唯一开放 exec 的模式
  *
@@ -125,7 +126,7 @@ public class PromptBuilder {
     /**
      * 旧 tag 过滤（降级路径）。
      *
-     * <p>V4 新增 study/curate/verify 三个模式。注意 {@code default} 分支（含 chat）
+     * <p>V4 新增 study/iterate/curate/verify。注意 {@code default} 分支（含 chat）
      * 返回 null 表示「不过滤」——这在可见性开关关闭时会让 Codex 工具在 chat 下可见。
      * 这是降级路径的已知取舍：{@code agent.tool.visibility.enabled=true} 是默认值，
      * 走 {@link AgentMode} 的 deny 语义；只有显式关掉可见性时才会落到这里。</p>
@@ -136,6 +137,7 @@ public class PromptBuilder {
             case "reflect" -> Set.of("task", "goal", "insight", "note", "kb", "read", "subagent", "mcp");
             case "learn" -> Set.of("kb", "note", "read", "subagent", "mcp");
             case "study" -> Set.of("codex", "kb", "note", "read", "subagent", "mcp");
+            case "iterate" -> Set.of("codex", "kb", "note", "read", "write", "path", "subagent", "mcp");
             case "curate" -> Set.of("codex", "kb", "read", "write", "subagent");
             case "verify" -> Set.of("codex", "checkpoint", "lab", "exec", "read");
             default -> null;
@@ -187,7 +189,7 @@ public class PromptBuilder {
                 - 严禁调用任何不含 mcp. 前缀的 local.* 工具（旧的 Electron 桥接工具已下线，
                   调用会失败并误导用户）。
 
-                【知识仓库原则】（涉及用户 Git 知识体系时执行，仅 study/curate/verify 模式可用）
+                【知识仓库原则】（涉及用户 Git 知识体系时执行，仅 study/iterate/curate/verify 模式可用）
                 - 涉及"我的知识库/知识仓库/学习资料/学习路线/我整理过的文档"时，
                   先调用 doc.search 检索知识仓库（与 kb.semantic_search 分工：本工具查仓库文档，后者查随手笔记）。
                 - 引用命中内容时必须给出出处，格式为「文档标题 §章节」，并可附 locator 供用户跳转。
@@ -196,7 +198,7 @@ public class PromptBuilder {
                 - 若结果里出现 _indexWarning 或 truncatedDocs > 0，说明该文档索引不完整，
                   必须提醒用户"检索不到不代表原文没写"，不可断言"你没写过"。
 
-                【知识沉淀原则】（curate 模式可用；用户明确要求「写笔记/记下来/沉淀这段」时才执行，不要主动发起）
+                【知识沉淀原则】（curate / iterate 模式可用；用户明确要求「写笔记/记下来/沉淀这段」时才执行，不要主动发起）
                 - 顺序不可省：先 doc.search 定位挂靠的知识文档 → doc.anchors 确认章节 anchor 真实存在
                   → doc.write 写笔记（同时自动插入速记引用）。anchor 必须来自工具输出，猜错会把引用插到无关章节。
                 - 沉淀的对象是用户刚认可的那次回答，不是另起炉灶重写长文。
@@ -208,7 +210,7 @@ public class PromptBuilder {
                 - ci.run_local 的结果里 status=SKIPPED 表示「没检查」而非「通过」，总结时必须明示，
                   不可把「9 项有 7 项 OK」说成知识库健康。
 
-                【知识缺口原则】（study/curate 模式可用）
+                【知识缺口原则】（study/iterate/curate 模式可用）
                 - 用户问「我还有哪些没搞懂的/我的盲区/该学什么」时，调用 gap.list 而不要凭印象猜。
                 - 三类来源的补法完全不同，必须分别说明：
                   CRAG=补资料（库里确实没有）、CP_FAIL=补动手（做不出来）、
@@ -217,7 +219,7 @@ public class PromptBuilder {
                   「你可能还需要了解 X」这类猜测会淹没真正有证据的信号。
                 - 关闭缺口必须给出补上它的文档路径；若判定不该补，用 gap.dismiss 而非 gap.close。
 
-                【蒸馏与定线原则】（curate 模式可用；study 模式只可读 route.next / route.stages）
+                【蒸馏与定线原则】（curate 模式可用；study/iterate 只可读 route.next / route.stages / path.read）
                 - 用户问「我该学什么/接下来干什么/进度如何」时调用 route.next，不要凭印象答。
                   它的结论是对库里记录的确定性计算，转述时必须连「依据」一起说；
                   也不要在它之外自己补建议——那会让可核对的结论混进不可核对的猜测。
@@ -231,6 +233,14 @@ public class PromptBuilder {
                   被丢弃通常是模型引用了不存在的脚本，那种题跑起来失败在环境上而非知识上。
                 - AI 出的题标记为 AGENT_DRAFT，通过率与用户手写的题分开统计。
                   汇报进度时不可把两者合并成一个数字。
+
+                【路径迭代原则】（iterate 模式主职；curate 也可提议路径）
+                - 用户谈「学到哪了/路径/要点/接下来干什么」时先 path.read，必要时再 route.next。
+                - 改路径：path.propose（看预览）→ 把补丁原样念给用户 → 他确认后 path.apply。
+                  不要跳过预览，也不要把自然语言直接当 delta——补丁按站整站替换，漏写会覆盖要点。
+                - path.apply 会把窗口内 MUST 投影为 Dashboard 任务。不要 task.create / goal.create。
+                - 沉淀问答用 doc.write；能对应到具体要点时，用 doc.insert_backref 的 pointId 挂上。
+                - 蒸馏教材、出题、开 PR / commit 请切到策展；跑检验请切到检验模式。
 
                 【用户长期记忆（来自历史 Agent 会话归档）】
                 %s

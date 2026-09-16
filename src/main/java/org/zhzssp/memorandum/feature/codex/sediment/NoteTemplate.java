@@ -90,12 +90,23 @@ public class NoteTemplate {
      * @param summary   一句话摘要——它的作用是让扫读者决定是否点开，因此不能省
      */
     public String backrefLine(String guidePath, String notePath, String summary) {
+        return backrefLine(guidePath, notePath, summary, null);
+    }
+
+    /**
+     * @param pointId 可选，挂到路径要点时追加 {@code <!-- point:s1.p1 -->}
+     */
+    public String backrefLine(String guidePath, String notePath, String summary, String pointId) {
         String rel = relative(guidePath, notePath);
         String s = summary == null ? "" : summary.strip();
         // 摘要末尾补句号，但已有中英文终止标点时不重复补
         if (!s.isEmpty() && !endsWithTerminator(s)) s = s + "。";
-        return BACKREF_PREFIX + "[" + rel + "](" + rel + ")"
+        String line = BACKREF_PREFIX + "[" + rel + "](" + rel + ")"
                 + (s.isEmpty() ? "" : " —— " + s);
+        if (pointId != null && !pointId.isBlank()) {
+            line += " <!-- point:" + pointId.strip() + " -->";
+        }
+        return line;
     }
 
     private static boolean endsWithTerminator(String s) {

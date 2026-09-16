@@ -200,12 +200,14 @@ class VerifyDisciplineTest {
         }
 
         @Test
-        @DisplayName("study/curate 显式 deny exec")
+        @DisplayName("study/curate/iterate 显式 deny exec")
         void studyAndCurateDenyExec() {
             assertTrue(AgentMode.STUDY.denyTags().contains("exec"),
                     "研读模式不该能执行命令");
             assertTrue(AgentMode.CURATE.denyTags().contains("exec"),
                     "策展模式不该能执行命令");
+            assertTrue(AgentMode.ITERATE.denyTags().contains("exec"),
+                    "迭代模式不该能执行命令");
         }
 
         @Test
