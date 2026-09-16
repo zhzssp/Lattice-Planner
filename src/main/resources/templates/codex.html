@@ -391,10 +391,18 @@
                 return;
             }
             const stations = p.stations || [];
+            const revs = churn.revisions || [];
+            const revHtml = revs.length
+                ? `<div class="cx-kv">近 ${esc(churn.days || 14)} 天每次变动（一峰一行；改笔记不改路径应为 0）：</div>`
+                    + revs.map(e => `<div class="cx-kv">${esc(e.at || '')} · v${esc(e.version)}
+                        要点 +${esc(e.added)} / −${esc(e.removed)}
+                        ${e.reordered ? ' · 站顺序改了' : ''}</div>`).join('')
+                : '';
             box.innerHTML = `<div class="cx-kv">version ${esc(p.version)} · 当前站 ${esc(p.cursor || '—')}
                 · MUST ${esc(p.must)} / SKIP ${esc(p.skip)}
                 ${p.parseOk ? '' : ' · <span style="color:#a33227;">解析失败：' + esc(p.error) + '</span>'}</div>
                 <div class="cx-kv">${esc(churn.caption || '')}</div>
+                ${revHtml}
                 <div class="cx-kv">${esc(cov.caption || '')}</div>`
                 + stations.map(s => `<div class="cx-repo-card" style="margin-top:0.6rem;">
                     <div class="cx-repo-name">${s.cursor ? '<span class="cx-tag">当前</span> ' : ''}
