@@ -46,7 +46,7 @@ public class SearchBothTools {
         int k = (topK == null || topK <= 0) ? 4 : Math.min(topK, 10);
         List<Map<String, Object>> hits = new ArrayList<>();
 
-        if (gitSearch.enabled()) {
+        if (gitSearch.searchable(u.getId())) {
             for (CodexSearchService.GitHit h : gitSearch.search(u.getId(), query, k)) {
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("source", "GIT");
@@ -91,7 +91,8 @@ public class SearchBothTools {
         m.put("hitCount", hits.size());
         m.put("hits", hits);
         m.put("_caveat", "GIT 是知识仓库权威源；PKM 是随手记。未晋升的 PKM 不进路径文件。"
-                + (gitSearch.enabled() ? "" : " 当前 pkm.rag.git.enabled=false，GIT 侧为空。"));
+                + (gitSearch.searchable(u.getId()) ? ""
+                : " 未接入仓库且 pkm.rag.git.enabled=false，GIT 侧为空。"));
         return m;
     }
 }

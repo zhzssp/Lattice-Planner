@@ -100,8 +100,20 @@ public class CodexSearchService {
         this.metrics = metrics;
     }
 
+    /**
+     * 配置项本身。默认 false，评测进程不要走 Git 检索。
+     * 用户是否该搜仓库看 {@link #searchable(Long)}，不要用本方法闸门。
+     */
     public boolean enabled() {
         return gitSearchEnabled;
+    }
+
+    /**
+     * 该用户是否执行 Git 检索：配置强制开，或已接入仓库（与 G12 {@code readable} 同口径）。
+     */
+    public boolean searchable(Long userId) {
+        if (userId == null) return false;
+        return gitSearchEnabled || registry.readable(userId);
     }
 
     /**
@@ -149,7 +161,7 @@ public class CodexSearchService {
      * @param topK 返回条数
      */
     public List<GitHit> search(Long userId, String query, Integer topK) {
-        if (!gitSearchEnabled || userId == null || query == null || query.isBlank()) {
+        if (!searchable(userId) || query == null || query.isBlank()) {
             return List.of();
         }
         List<KnowledgeRepo> repos = registry.listEnabled(userId);

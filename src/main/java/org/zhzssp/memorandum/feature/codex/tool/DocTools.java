@@ -78,13 +78,9 @@ public class DocTools {
             @ToolParam(value = "topK", desc = "返回条数（1~20，默认 6）") Integer topK
     ) {
         User u = AgentContext.requireUser();
-        if (!registry.readable(u.getId())) {
+        if (!search.searchable(u.getId())) {
             return List.of(Map.of("error", "CODEX_DISABLED",
                     "message", registry.notReadableHint()));
-        }
-        if (!search.enabled()) {
-            return List.of(Map.of("error", "GIT_SEARCH_DISABLED",
-                    "message", "知识仓库检索未启用（pkm.rag.git.enabled=false）。"));
         }
         List<CodexSearchService.GitHit> hits = search.search(u.getId(), query, topK);
 

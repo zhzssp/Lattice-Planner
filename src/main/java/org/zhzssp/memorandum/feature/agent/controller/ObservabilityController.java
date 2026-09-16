@@ -269,6 +269,7 @@ public class ObservabilityController {
         config.put("enabled", codexRegistry.enabled());
         config.put("operational", codexRegistry.operational());
         config.put("gitSearchEnabled", codexSearch.enabled());
+        config.put("gitSearchFollowsConnect", true);
         config.put("gitVersion", codexRegistry.gitVersion());
         section.put("config", config);
 
