@@ -93,6 +93,20 @@ public class CodexViewController {
         return "distill";
     }
 
+    @GetMapping("/codex/notes")
+    public String notes(@AuthenticationPrincipal UserDetails principal, Model model) {
+        model.addAttribute("codexNav", "notes");
+        fillFlags(principal, model);
+        return "codex-notes";
+    }
+
+    @GetMapping("/codex/tools")
+    public String tools(@AuthenticationPrincipal UserDetails principal, Model model) {
+        model.addAttribute("codexNav", "tools");
+        fillFlags(principal, model);
+        return "codex-tools";
+    }
+
     private void fillFlags(UserDetails principal, Model model) {
         User u = findUser(principal);
         Long uid = u == null ? null : u.getId();

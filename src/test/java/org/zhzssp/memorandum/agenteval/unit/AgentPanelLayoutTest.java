@@ -35,6 +35,8 @@ class AgentPanelLayoutTest {
             "selectFeatures.html",
             "codex.html",
             "distill.html",
+            "codex-notes.html",
+            "codex-tools.html",
             "checkpoint.html",
             "curate.html",
             "gap.html"
@@ -84,6 +86,7 @@ class AgentPanelLayoutTest {
             assertTrue(html.contains("lp-page-main"), page + " missing lp-page-main");
             assertTrue(html.contains("fragments/agent-panel"), page + " missing agent panel");
             if (page.equals("codex.html") || page.equals("distill.html")
+                    || page.equals("codex-notes.html") || page.equals("codex-tools.html")
                     || page.equals("checkpoint.html") || page.equals("curate.html")
                     || page.equals("gap.html")) {
                 assertTrue(html.contains("data-lp-agent-group="),

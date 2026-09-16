@@ -2,6 +2,7 @@ package org.zhzssp.memorandum.feature.codex.path;
 
 import org.springframework.stereotype.Service;
 import org.zhzssp.memorandum.feature.codex.entity.KnowledgeRepo;
+import org.zhzssp.memorandum.feature.codex.entity.KbPoint;
 import org.zhzssp.memorandum.feature.codex.sediment.DocWriteGuard;
 import org.zhzssp.memorandum.feature.codex.service.RepoRegistryService;
 import org.zhzssp.memorandum.feature.codex.service.RepoSyncService;
@@ -217,6 +218,101 @@ public class PathApplyService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * 改某一站的一个要点：拼成该站 PATH_DELTA 再走 {@link #apply}。
+     * 没有 pointId 则追加；级别只认 MUST / SKIP。
+     */
+    public ApplyResult updatePoint(Long userId, String repoName, String stationId,
+                                   String pointId, String levelRaw, String statement,
+                                   boolean confirmed) {
+        KnowledgeRepo repo = resolveRepo(userId, repoName);
+        if (repo == null) {
+            return ApplyResult.fail("REPO_NOT_FOUND", "未找到知识仓库"
+                    + (repoName == null ? "" : "：" + repoName));
+        }
+        String existing = readExisting(repo);
+        if (existing == null || existing.isBlank()) {
+            return ApplyResult.fail("NO_PATH", "还没有 docs/learning-path.md，请先蒸馏或手写路径。");
+        }
+        String delta;
+        try {
+            delta = pointDelta(existing, stationId, pointId, levelRaw, statement);
+        } catch (IllegalArgumentException ex) {
+            return ApplyResult.fail("POINT_EDIT_FAILED", ex.getMessage());
+        }
+        return apply(userId, repoName, delta, confirmed);
+    }
+
+    /** 纯函数：已有路径文件 → 单站 PATH_DELTA。供测试与 HTTP 共用。 */
+    public String pointDelta(String existingContent, String stationId,
+                             String pointId, String levelRaw, String statement) {
+        if (stationId == null || stationId.isBlank()) {
+            throw new IllegalArgumentException("缺少 stationId。");
+        }
+        if (statement == null || statement.isBlank()) {
+            throw new IllegalArgumentException("要点原文不能为空。");
+        }
+        KbPoint.Level level = parseLevel(levelRaw);
+        LearningPathParser.ParsedPath current = parser.parseDocument(existingContent, true);
+        if (!current.ok()) {
+            throw new IllegalArgumentException("权威路径文件当前无法解析：" + current.error());
+        }
+        LearningPathParser.ParsedStation station = null;
+        for (LearningPathParser.ParsedStation s : current.stations()) {
+            if (s.id().equals(stationId.strip())) {
+                station = s;
+                break;
+            }
+        }
+        if (station == null) {
+            throw new IllegalArgumentException("没有这座车站：" + stationId);
+        }
+        String id = (pointId == null || pointId.isBlank())
+                ? nextPointId(station)
+                : pointId.strip();
+        List<LearningPathParser.ParsedPoint> points = new ArrayList<>();
+        boolean replaced = false;
+        for (LearningPathParser.ParsedPoint p : station.points()) {
+            if (p.id().equals(id)) {
+                points.add(new LearningPathParser.ParsedPoint(id, level, statement.strip()));
+                replaced = true;
+            } else {
+                points.add(p);
+            }
+        }
+        if (!replaced) {
+            points.add(new LearningPathParser.ParsedPoint(id, level, statement.strip()));
+        }
+        LearningPathParser.ParsedStation updated = new LearningPathParser.ParsedStation(
+                station.id(), station.title(), station.sources(), station.lab(),
+                station.next(), points);
+        return renderer.renderStation(updated);
+    }
+
+    private static KbPoint.Level parseLevel(String raw) {
+        if (raw == null || raw.isBlank()) return KbPoint.Level.MUST;
+        try {
+            return KbPoint.Level.valueOf(raw.strip().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("级别只认 MUST 或 SKIP，收到：" + raw);
+        }
+    }
+
+    private static String nextPointId(LearningPathParser.ParsedStation station) {
+        int max = 0;
+        String prefix = station.id() + ".p";
+        for (LearningPathParser.ParsedPoint p : station.points()) {
+            if (p.id() != null && p.id().startsWith(prefix)) {
+                try {
+                    max = Math.max(max, Integer.parseInt(p.id().substring(prefix.length())));
+                } catch (NumberFormatException ignored) {
+                    // 非数字后缀忽略
+                }
+            }
+        }
+        return prefix + (max + 1);
     }
 
     private Merge mergeOnDisk(KnowledgeRepo repo, String deltaOrFull) {

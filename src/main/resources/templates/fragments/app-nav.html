@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<body>
+<!--
+  应用级目的地：规划 | 知识。设置在右侧。
+  选中态看当前 URI，不依赖各页再传 appDest。
+-->
+<header class="lp-app-nav" th:fragment="chrome"
+        th:with="uri=${#httpServletRequest != null ? #httpServletRequest.requestURI : ''}">
+    <nav class="lp-app-dest" aria-label="应用目的地">
+        <a href="/dashboard"
+           th:classappend="${uri.startsWith('/dashboard') or uri.startsWith('/memo') or uri.startsWith('/select-features') or uri.startsWith('/change-mode')} ? ' is-active'"
+           th:aria-current="${uri.startsWith('/dashboard') or uri.startsWith('/memo') or uri.startsWith('/select-features') or uri.startsWith('/change-mode')} ? 'page'">规划</a>
+        <a href="/codex"
+           th:classappend="${uri.startsWith('/codex') or uri.startsWith('/note')} ? ' is-active'"
+           th:aria-current="${uri.startsWith('/codex') or uri.startsWith('/note')} ? 'page'">知识</a>
+    </nav>
+    <div class="lp-app-nav-right">
+        <a href="/preference/settings"
+           th:classappend="${uri.startsWith('/preference') or uri.startsWith('/mcp')} ? ' is-active'">设置</a>
+    </div>
+</header>
+</body>
+</html>

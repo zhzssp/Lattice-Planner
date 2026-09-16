@@ -2,40 +2,30 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="zh">
 <body>
 <!--
-  Codex 工作台顶栏：独立于三模式 Dashboard。
-  各 /codex* 页在容器顶部以
-    <div th:replace="~{fragments/codex-nav :: chrome}"></div>
-  引入。选中态由 Model 的 codexNav 决定。
+  知识目的地二级导航。应用级顶栏见 fragments/app-nav。
+  选中态由 Model 的 codexNav 决定。检验/缺口/策展算「工具」。
 -->
 <header class="cx-workbench" th:fragment="chrome">
     <div class="cx-workbench-bar">
-        <h1 class="cx-workbench-title">知识仓库</h1>
-        <div class="cx-workbench-right">
-            <span id="cx-autosync" class="cx-workbench-sync" aria-live="polite"></span>
-            <a class="cx-workbench-back" href="/dashboard">返回 Dashboard</a>
-        </div>
+        <span id="cx-autosync" class="cx-workbench-sync" aria-live="polite"></span>
     </div>
-    <nav class="cx-seg" aria-label="知识仓库分区">
+    <nav class="cx-seg" aria-label="知识分区">
         <a href="/codex" class="cx-seg-item"
-           title="当前路径、要点、投影任务与收敛"
+           title="路径、要点、投影任务"
            th:classappend="${codexNav=='path'} ? ' is-active'"
-           th:aria-current="${codexNav=='path'} ? 'page'">路径</a>
+           th:aria-current="${codexNav=='path'} ? 'page'">体系</a>
         <a href="/codex/distill" class="cx-seg-item"
-           title="原料列表、蒸馏、路径补丁预览"
+           title="原料阅读与蒸馏"
            th:classappend="${codexNav=='distill'} ? ' is-active'"
            th:aria-current="${codexNav=='distill'} ? 'page'">资料</a>
-        <a href="/codex/checkpoints" class="cx-seg-item"
-           title="先预测再跑检验"
-           th:classappend="${codexNav=='checkpoints'} ? ' is-active'"
-           th:aria-current="${codexNav=='checkpoints'} ? 'page'">检验</a>
-        <a href="/codex/gaps" class="cx-seg-item"
-           title="三源合流台账与止损线"
-           th:classappend="${codexNav=='gaps'} ? ' is-active'"
-           th:aria-current="${codexNav=='gaps'} ? 'page'">缺口</a>
-        <a href="/codex/curate" class="cx-seg-item"
-           title="CI、沉淀、分支——维护面"
-           th:classappend="${codexNav=='curate'} ? ' is-active'"
-           th:aria-current="${codexNav=='curate'} ? 'page'">策展</a>
+        <a href="/codex/notes" class="cx-seg-item"
+           title="Git 笔记与随手记收件箱"
+           th:classappend="${codexNav=='notes'} ? ' is-active'"
+           th:aria-current="${codexNav=='notes'} ? 'page'">笔记</a>
+        <a href="/codex/tools" class="cx-seg-item"
+           title="接入仓库、检验、缺口、策展"
+           th:classappend="${codexNav=='tools' or codexNav=='checkpoints' or codexNav=='gaps' or codexNav=='curate'} ? ' is-active'"
+           th:aria-current="${codexNav=='tools' or codexNav=='checkpoints' or codexNav=='gaps' or codexNav=='curate'} ? 'page'">工具</a>
     </nav>
 </header>
 <script>

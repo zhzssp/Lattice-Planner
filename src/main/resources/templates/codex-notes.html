@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title>笔记 · 知识</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/app-nav.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=2)}">
+    <style>
+        .cx-container { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+        .cx-intro { color: #666; margin-bottom: 1rem; line-height: 1.7; font-size: 0.94rem; }
+        .cx-grid { display: grid; grid-template-columns: minmax(200px, 280px) 1fr; gap: 1rem; }
+        .cx-section { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+        .cx-section h3 { margin: 0 0 0.7rem; font-size: 1rem; }
+        .cx-item { display: block; padding: 0.45rem 0.5rem; border-radius: 6px; cursor: pointer; color: #333; text-decoration: none; font-size: 0.9rem; }
+        .cx-item:hover, .cx-item.is-on { background: #f5f3ff; }
+        .cx-kv { color: #666; font-size: 0.82rem; margin-top: 0.35rem; }
+        .cx-empty { color: #999; padding: 1rem 0; }
+        .cx-btn-sm { padding: 0.32rem 0.75rem; font-size: 0.85rem; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; }
+        #nt-title { width: 100%; padding: 0.45rem; margin-bottom: 0.5rem; box-sizing: border-box; }
+        #nt-body { width: 100%; min-height: 280px; padding: 0.6rem; font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; box-sizing: border-box; }
+        @media (max-width: 800px) { .cx-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body data-lp-agent-group="codex-path" data-lp-agent-default="iterate">
+<div class="lp-page-shell">
+<div class="lp-page-main">
+<div th:replace="~{fragments/app-nav :: chrome}"></div>
+<div class="cx-container">
+    <div th:replace="~{fragments/codex-nav :: chrome}"></div>
+    <div class="cx-intro">
+        默认列表是仓库 <code>docs/notes</code>。下面的随手记尚未晋升，点头后才进 Git。
+        完整标签编辑仍可打开 <a href="/note">随手记列表</a>。
+    </div>
+    <div class="cx-grid">
+        <div>
+            <div class="cx-section">
+                <h3>体系笔记（Git）</h3>
+                <div id="nt-git"><div class="cx-empty">加载中…</div></div>
+            </div>
+            <div class="cx-section">
+                <h3>未晋升收件箱</h3>
+                <div id="nt-inbox"><div class="cx-empty">加载中…</div></div>
+            </div>
+        </div>
+        <div class="cx-section">
+            <input id="nt-title" placeholder="标题（新建时使用）">
+            <textarea id="nt-body" placeholder="打开一篇 Git 笔记，或晋升后在此编辑 Markdown"></textarea>
+            <div class="cx-kv">
+                <button class="cx-btn-sm" id="nt-save" type="button">保存到 Git</button>
+                <span id="nt-msg"></span>
+            </div>
+            <div class="cx-kv" id="nt-path"></div>
+        </div>
+    </div>
+</div>
+</div>
+<div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
+<script>
+    const CSRF_TOKEN = document.querySelector('meta[name="_csrf"]')?.content;
+    const CSRF_HEADER = document.querySelector('meta[name="_csrf_header"]')?.content;
+    function headers() {
+        const h = { 'Content-Type': 'application/json' };
+        if (CSRF_TOKEN && CSRF_HEADER) h[CSRF_HEADER] = CSRF_TOKEN;
+        return h;
+    }
+    function esc(s) {
+        if (s == null) return '';
+        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    let currentPath = '';
+    async function loadStudio() {
+        const d = await (await fetch('/api/codex/studio')).json();
+        const git = d.gitNotes || [];
+        document.getElementById('nt-git').innerHTML = git.length
+            ? git.map(n => `<a class="cx-item" data-path="${esc(n.path)}" href="#">${esc(n.title || n.path)}</a>`).join('')
+            : '<div class="cx-empty">还没有 Git 笔记。</div>';
+        document.getElementById('nt-git').querySelectorAll('a').forEach(a => {
+            a.addEventListener('click', (e) => { e.preventDefault(); openGit(a.getAttribute('data-path')); });
+        });
+        const inbox = d.inbox || [];
+        document.getElementById('nt-inbox').innerHTML = inbox.length
+            ? inbox.map(n => `<div class="cx-item">${esc(n.title || '(无标题)')}
+                <div class="cx-kv"><a href="/note/${n.id}/edit">编辑</a>
+                · <button class="cx-btn-sm" data-promote="${n.id}">晋升进 Git</button></div></div>`).join('')
+            : '<div class="cx-empty">收件箱是空的。</div>';
+        document.querySelectorAll('[data-promote]').forEach(btn => {
+            btn.addEventListener('click', () => promote(Number(btn.getAttribute('data-promote'))));
+        });
+    }
+    async function openGit(path) {
+        currentPath = path;
+        document.getElementById('nt-path').textContent = path;
+        const d = await (await fetch('/api/codex/doc/content?path=' + encodeURIComponent(path))).json();
+        document.getElementById('nt-body').value = d.content || d.message || '';
+        const first = (d.content || '').split('\n')[0] || '';
+        document.getElementById('nt-title').value = first.replace(/^#\s*/, '');
+        document.querySelectorAll('#nt-git .cx-item').forEach(el => {
+            el.classList.toggle('is-on', el.getAttribute('data-path') === path);
+        });
+    }
+    async function promote(noteId) {
+        if (!confirm('把这条随手记写入 docs/notes？原文仍留在个人笔记里。')) return;
+        const d = await (await fetch('/api/codex/studio/promote', {
+            method: 'POST', headers: headers(),
+            body: JSON.stringify({ noteId, insertBackref: false })
+        })).json();
+        document.getElementById('nt-msg').textContent = d.message || d.error || '';
+        if (d.ok) {
+            await loadStudio();
+            if (d.promotedPath) await openGit(d.promotedPath);
+        }
+    }
+    document.getElementById('nt-save').addEventListener('click', async () => {
+        const body = document.getElementById('nt-body').value;
+        const title = document.getElementById('nt-title').value.trim() || '未命名';
+        let path = currentPath;
+        if (!path) {
+            const slug = title.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-').replace(/^-|-$/g, '') || 'note';
+            path = 'docs/notes/' + slug + '.md';
+        }
+        const d = await (await fetch('/api/codex/studio/write', {
+            method: 'POST', headers: headers(),
+            body: JSON.stringify({ path, content: body })
+        })).json();
+        document.getElementById('nt-msg').textContent = d.message || d.error || '';
+        if (d.ok) { currentPath = d.path; await loadStudio(); }
+    });
+    loadStudio();
+</script>
+</body>
+</html>

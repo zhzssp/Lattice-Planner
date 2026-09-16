@@ -78,7 +78,7 @@ public class RepoRegistryService {
         if (!git.available()) {
             return "未检测到 git，请安装并确保在 PATH 中。当前检测：" + git.version();
         }
-        return "在路径页接入一个 Git 仓库即可浏览索引与路径，不必改 application.properties。";
+        return "在工具页接入一个 Git 仓库即可浏览索引与路径，不必改 application.properties。";
     }
 
     public List<KnowledgeRepo> list(Long userId) {

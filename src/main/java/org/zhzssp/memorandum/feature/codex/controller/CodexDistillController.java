@@ -94,7 +94,7 @@ public class CodexDistillController {
         m.put("pathFiles", writeGuard.pathFiles());
         m.put("maxGuideChars", writeGuard.maxGuideChars());
         m.put("hint", "起草（draft）只需 codex.distill.enabled / codex.exam.enabled，"
-                + "不碰磁盘；落盘还需要在路径页打开「允许写入工作副本」，或设置 codex.write.enabled=true。"
+                + "不碰磁盘；落盘还需要在工具页打开「允许写入工作副本」，或设置 codex.write.enabled=true。"
                 + "建议先只开起草，看几篇产物质量再决定给不给写权限。"
                 + "★注意 create-only：蒸馏与出题只能新建文件，"
                 + "既有的 guide 与检验册永远不会被机器覆盖。");

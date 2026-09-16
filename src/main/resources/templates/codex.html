@@ -1,12 +1,13 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="_csrf" th:content="${_csrf.token}">
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
-    <title>知识仓库 · Codex</title>
+    <title>体系 · 知识</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
-    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=1)}">
+    <link rel="stylesheet" th:href="@{/css/app-nav.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=2)}">
     <style>
         .cx-container { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
         .cx-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
@@ -47,19 +48,25 @@
         .cx-detail li { padding: 2px 0; word-break: break-all; }
         .cx-empty { color: #999; text-align: center; padding: 1.8rem 0; }
         .cx-log { background: #f7f7f9; border-radius: 6px; padding: 0.75rem; font-family: monospace; font-size: 0.82rem; white-space: pre-wrap; margin-top: 0.8rem; max-height: 200px; overflow-y: auto; }
-        .cx-kv { color: #666; font-size: 0.85rem; margin-top: 0.5rem; }
+        .cx-path-grid { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 1rem; }
+        .cx-station { cursor: pointer; padding: 0.55rem 0.65rem; border: 1px solid #eee; border-radius: 6px; margin-bottom: 0.4rem; }
+        .cx-station.is-on { border-color: #6c5ce7; background: #f5f3ff; }
+        .cx-point-row { display: grid; grid-template-columns: 4.5rem 1fr auto; gap: 0.4rem; align-items: start; margin-top: 0.45rem; }
+        .cx-point-row textarea { width: 100%; min-height: 52px; font: inherit; padding: 0.4rem; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        @media (max-width: 720px) { .cx-path-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body data-lp-agent-group="codex-path" data-lp-agent-default="iterate">
 <div class="lp-page-shell">
 <div class="lp-page-main">
+<div th:replace="~{fragments/app-nav :: chrome}"></div>
 <div class="cx-container">
     <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
     <div class="cx-intro">
-        第一屏是<strong>路径与要点</strong>（Git 文件 <code>docs/learning-path.md</code> 是权威源）。
-        右侧 Agent 默认 <code>iterate</code>：沿路径问答、改要点、把认可的随手记晋升进仓库。
-        没有路径时去「资料」蒸馏，或手写该文件后切回本页。
+        这是知识目的地的首页：<strong>路径与要点</strong>（权威文件 <code>docs/learning-path.md</code>）。
+        点左侧车站，可改 MUST/SKIP；确认后写入 Git 工作副本（需在工具页打开写入）。
+        规划上的待办是这些要点的投影，不要在这里另建一份清单。
     </div>
 
     <div class="cx-banner cx-banner-err" th:if="${!gitAvailable}">
@@ -68,12 +75,12 @@
         当前检测：<span th:text="${gitVersion}"></span>
     </div>
     <div class="cx-banner cx-banner-warn" th:if="${gitAvailable and !codexReadable}">
-        还没有接入仓库。在下方设置区填入本地 git 工作副本即可浏览索引与路径，
+        还没有接入仓库。<a href="/codex/tools">去工具页接入</a>本地 git 工作副本即可浏览，
         <strong>不必改</strong> <code>application.properties</code>。
     </div>
     <div class="cx-banner cx-banner-warn" th:if="${codexReadable and !writeEnabled}">
-        只读已打开。写入（改路径、沉淀、蒸馏落盘）会修改 git 工作副本，
-        请在下方打开「允许写入工作副本」。
+        只读已打开。改要点、沉淀笔记会修改 git 工作副本，
+        请在<a href="/codex/tools">工具页</a>打开「允许写入工作副本」。
     </div>
 
     <div class="cx-section">
@@ -88,44 +95,6 @@
         </h3>
         <div id="cx-proj"><div class="cx-empty">加载中…</div></div>
     </div>
-
-    <details class="cx-section" id="cx-settings" th:attr="open=${!codexReadable}">
-        <summary style="cursor:pointer;font-weight:600;font-size:1.08rem;">仓库设置（接入 / 同步 / 写入）</summary>
-        <div style="margin-top:1rem;">
-            <label class="cx-kv" style="display:flex;gap:0.5rem;align-items:center;">
-                <input type="checkbox" id="cx-write"> 允许写入工作副本
-            </label>
-            <div class="cx-kv" id="cx-write-msg"></div>
-        </div>
-        <h3 style="margin-top:1.2rem;">接入本地仓库</h3>
-        <div class="cx-form">
-            <div>
-                <label for="cx-name">仓库名称</label>
-                <input id="cx-name" type="text" placeholder="AI-Infra">
-            </div>
-            <div>
-                <label for="cx-kind">用途</label>
-                <select id="cx-kind">
-                    <option value="LEARNING">学习（论文/文档 → 学习路线）</option>
-                    <option value="WORK">工作（设计/工单 → 知识沉淀）</option>
-                </select>
-            </div>
-            <div class="cx-form-full">
-                <label for="cx-path">本地路径（必须是已有的 git 工作副本）</label>
-                <input id="cx-path" type="text" placeholder="C:\Users\you\Desktop\AI-Infra">
-            </div>
-            <div class="cx-form-full">
-                <button class="cx-btn" id="cx-register">接入并建立索引</button>
-                <span class="cx-kv" id="cx-register-msg"></span>
-            </div>
-        </div>
-        <div class="cx-kv">
-            接入过程<strong>不会修改仓库任何文件</strong>，只读取内容建立索引。
-        </div>
-
-        <h3 style="margin-top:1.2rem;">已接入仓库</h3>
-        <div id="cx-repos"><div class="cx-empty">加载中…</div></div>
-    </details>
 </div>
 
 <!--
@@ -149,231 +118,7 @@
             ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
-    /** 指标卡；bad=true 时红色高亮（如死链、截断文档） */
-    function metric(label, value, bad, ok) {
-        const cls = bad ? ' cx-metric-bad' : (ok ? ' cx-metric-ok' : '');
-        return `<div class="cx-metric${cls}">
-            <div class="cx-metric-label">${esc(label)}</div>
-            <div class="cx-metric-value">${esc(value)}</div></div>`;
-    }
-
-    async function loadRepos() {
-        const box = document.getElementById('cx-repos');
-        try {
-            const res = await fetch('/api/codex/repos');
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const repos = await res.json();
-            if (!repos.length) {
-                box.innerHTML = '<div class="cx-empty">尚未接入任何仓库。在上方填入本地 git 仓库路径即可开始。</div>';
-                return;
-            }
-            box.innerHTML = repos.map(renderRepo).join('');
-        } catch (e) {
-            box.innerHTML = `<div class="cx-empty">加载失败：${esc(e.message)}</div>`;
-        }
-    }
-
-    function renderRepo(r) {
-        const h = r.health || {};
-        const run = h.lastRun || {};
-        const kinds = h.kindDistribution || {};
-        const kindStr = Object.entries(kinds).map(([k, v]) => `${k}:${v}`).join(' / ') || '—';
-
-        // skipRate 是增量索引是否真的生效的直接证据：长期为 0 应怀疑 blobHash 计算
-        const skipPct = run.skipRate != null ? Math.round(run.skipRate * 100) + '%' : '—';
-
-        let extra = '';
-        if (h.truncatedDocs > 0) {
-            extra += `<div class="cx-banner cx-banner-warn" style="margin-top:0.8rem;">
-                <strong>${h.truncatedDocs} 篇文档被截断。</strong>
-                这些文档只有前一部分进入了索引，检索不到不代表原文没写。
-                可调大 <code>codex.index.max-chunks-per-document</code> 后重新索引。
-            </div>`;
-        }
-
-        return `<div class="cx-repo-card" data-id="${r.id}">
-            <div class="cx-repo-head">
-                <div>
-                    <div class="cx-repo-name">${esc(r.name)}
-                        <span class="cx-tag">${esc(r.kind)}</span>
-                        <span class="cx-tag">${esc(r.provider)}</span>
-                        <span class="cx-tag">${esc(r.branch || '?')}</span>
-                        ${r.syncStatus === 'DIRTY' ? '<span class="cx-tag" style="background:#fff3cd;color:#8a6d1f;">有未提交改动</span>' : ''}
-                        ${r.syncStatus === 'ERROR' ? '<span class="cx-tag" style="background:#fdecea;color:#a33227;">索引出错</span>' : ''}
-                    </div>
-                    <div class="cx-repo-path">${esc(r.localPath)}</div>
-                    ${r.syncError ? `<div class="cx-repo-path" style="color:#e74c3c;">${esc(r.syncError)}</div>` : ''}
-                </div>
-                <div class="cx-repo-actions">
-                    <button class="cx-btn-sm" onclick="doSync(${r.id}, false)">增量同步</button>
-                    <button class="cx-btn-sm" onclick="doSync(${r.id}, true)">全量重建</button>
-                    <button class="cx-btn-sm cx-btn-danger" onclick="doUnregister(${r.id}, '${esc(r.name)}')">移除</button>
-                </div>
-            </div>
-
-            <div class="cx-metrics">
-                ${metric('文档', h.documents ?? '—')}
-                ${metric('章节', h.sections ?? '—')}
-                ${metric('切片', h.chunks ?? '—')}
-                ${metric('被截断', h.truncatedDocs ?? '—', (h.truncatedDocs || 0) > 0, (h.truncatedDocs === 0))}
-                ${metric('死链', h.brokenLinks ?? '—', (h.brokenLinks || 0) > 0)}
-                ${metric('孤岛', h.orphanDocs ?? '—', (h.orphanDocs || 0) > 0)}
-                ${metric('增量命中', skipPct)}
-                ${metric('索引耗时', run.durationMs != null ? run.durationMs + 'ms' : '—')}
-            </div>
-
-            <div class="cx-kv">类型分布：${esc(kindStr)}</div>
-            ${run.mode ? `<div class="cx-kv">最近索引：${esc(run.mode)} · ${esc(run.status)} ·
-                重建 ${run.docsReindexed ?? 0} / 跳过 ${run.docsSkipped ?? 0} / 移除 ${run.docsRemoved ?? 0} ·
-                embedding 调用 ${run.embedCalls ?? 0} 次</div>` : ''}
-            ${extra}
-
-            <details class="cx-detail">
-                <summary>查看健康详情（死链 / 截断 / 孤岛清单）</summary>
-                <div id="cx-detail-${r.id}">点击加载…</div>
-            </details>
-            <div class="cx-log" id="cx-log-${r.id}" style="display:none;"></div>
-        </div>`;
-    }
-
-    document.getElementById('cx-register').addEventListener('click', async () => {
-        const btn = document.getElementById('cx-register');
-        const msg = document.getElementById('cx-register-msg');
-        const name = document.getElementById('cx-name').value.trim();
-        const localPath = document.getElementById('cx-path').value.trim();
-        const kind = document.getElementById('cx-kind').value;
-        if (!name || !localPath) {
-            msg.textContent = '请填写仓库名称与本地路径';
-            return;
-        }
-        btn.disabled = true;
-        msg.textContent = '正在校验并建立索引（首次可能需要一段时间）…';
-        try {
-            const res = await fetch('/api/codex/repos', {
-                method: 'POST', headers: headers(),
-                body: JSON.stringify({ name, localPath, kind, provider: 'LOCAL' })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
-            msg.textContent = '接入成功，正在建立索引…';
-            await fetch(`/api/codex/repos/${data.id}/sync`, { method: 'POST', headers: headers() });
-            msg.textContent = '完成';
-            document.getElementById('cx-name').value = '';
-            document.getElementById('cx-path').value = '';
-            await loadRepos();
-            await loadPath();
-        } catch (e) {
-            msg.textContent = '失败：' + e.message;
-        } finally {
-            btn.disabled = false;
-        }
-    });
-
-    async function doSync(id, full) {
-        const log = document.getElementById('cx-log-' + id);
-        log.style.display = 'block';
-        log.textContent = full ? '正在全量重建索引…' : '正在增量同步…';
-        try {
-            const url = full ? `/api/codex/repos/${id}/rebuild` : `/api/codex/repos/${id}/sync`;
-            const res = await fetch(url, { method: 'POST', headers: headers() });
-            const d = await res.json();
-            if (!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
-            log.textContent =
-                `模式：${d.mode}\n` +
-                `文档总数：${d.docsTotal}\n` +
-                `重新索引：${d.docsReindexed}    跳过（内容未变）：${d.docsSkipped}    移除：${d.docsRemoved}\n` +
-                `增量命中率：${Math.round((d.skipRate || 0) * 100)}%\n` +
-                `写入切片：${d.chunksWritten}    embedding 调用：${d.embedCalls} 次\n` +
-                `死链：${d.brokenLinks}    被截断文档：${d.truncatedDocs}\n` +
-                `耗时：${d.durationMs}ms` +
-                (d.warning ? `\n⚠ ${d.warning}` : '') +
-                (d.error ? `\n✗ ${d.error}` : '');
-            await loadRepos();
-            await loadPath();
-        } catch (e) {
-            log.textContent = '失败：' + e.message;
-        }
-    }
-
-    async function doUnregister(id, name) {
-        if (!confirm(`确定移除仓库「${name}」的索引？\n\n本地文件不会被删除，只移除索引与注册信息。`)) return;
-        try {
-            const res = await fetch(`/api/codex/repos/${id}`, { method: 'DELETE', headers: headers() });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            await loadRepos();
-            await loadPath();
-        } catch (e) {
-            alert('移除失败：' + e.message);
-        }
-    }
-
-    // 展开详情时按需加载，避免列表页一次拉全部清单
-    document.addEventListener('toggle', async (ev) => {
-        const d = ev.target;
-        if (d.tagName !== 'DETAILS' || !d.open) return;
-        const card = d.closest('.cx-repo-card');
-        if (!card) return;
-        const id = card.dataset.id;
-        const box = document.getElementById('cx-detail-' + id);
-        if (!box || box.dataset.loaded === '1') return;
-        box.textContent = '加载中…';
-        try {
-            const res = await fetch(`/api/codex/repos/${id}/health`);
-            const h = await res.json();
-            let html = '';
-            if ((h.brokenLinkList || []).length) {
-                html += `<strong>死链（${h.brokenLinkList.length}）</strong><ul>` +
-                    h.brokenLinkList.map(b =>
-                        `<li><code>${esc(b.srcPath)}</code> → ${esc(b.rawTarget)}
-                         <span style="color:#e74c3c;">[${esc(b.reason)}]</span></li>`).join('') + '</ul>';
-            }
-            if ((h.truncatedList || []).length) {
-                html += `<strong>被截断文档（${h.truncatedList.length}）</strong><ul>` +
-                    h.truncatedList.map(t =>
-                        `<li><code>${esc(t.path)}</code> — ${esc(t.charCount)} 字符，
-                         仅 ${esc(t.chunkCount)} 切片，丢失约 ${Math.round((t.lossRatio || 0) * 100)}%</li>`).join('') + '</ul>';
-            }
-            if ((h.orphanList || []).length) {
-                html += `<strong>孤岛文档（${h.orphanList.length}，无任何入链）</strong><ul>` +
-                    h.orphanList.map(p => `<li><code>${esc(p)}</code></li>`).join('') + '</ul>';
-            }
-            box.innerHTML = html || '<span style="color:#2ecc71;">未发现死链、截断或孤岛问题。</span>';
-            box.dataset.loaded = '1';
-        } catch (e) {
-            box.textContent = '加载失败：' + e.message;
-        }
-    }, true);
-
-    loadRepos();
-    loadPath();
-    loadWritePref();
-
-    async function loadWritePref() {
-        const box = document.getElementById('cx-write');
-        const msg = document.getElementById('cx-write-msg');
-        if (!box) return;
-        try {
-            const d = await (await fetch('/api/codex/status')).json();
-            box.checked = !!d.writeEnabled;
-            msg.textContent = d.writeEnabled
-                ? '写入已开：apply / 沉淀会改工作副本。'
-                : '写入默认关。打开后才允许改路径文件与笔记。';
-        } catch (e) { /* ignore */ }
-        box.addEventListener('change', async () => {
-            try {
-                const res = await fetch('/api/codex/write-pref', {
-                    method: 'POST', headers: headers(),
-                    body: JSON.stringify({ enabled: box.checked })
-                });
-                const d = await res.json();
-                msg.textContent = d.writeEnabled
-                    ? '已允许写入工作副本。'
-                    : '已关闭写入。';
-            } catch (e) {
-                msg.textContent = '保存失败：' + e.message;
-            }
-        });
-    }
+    let pathState = { stations: [], selected: null, writeEnabled: false };
 
     async function loadPath() {
         const box = document.getElementById('cx-path');
@@ -383,47 +128,120 @@
             const res = await fetch('/api/codex/path');
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const p = await res.json();
+            pathState.writeEnabled = !!p.writeEnabled;
             const churn = p.churn || {};
             const cov = p.coverage || {};
             if (!p.present) {
-                box.innerHTML = `<div class="cx-empty">${esc(p.message || '尚未抽出路径。去资料页蒸馏，或手写 docs/learning-path.md 后同步。')}</div>`;
-                if (proj) proj.innerHTML = '<div class="cx-empty">没有路径，也就没有投影任务。<a href="/codex/distill">去资料蒸馏</a></div>';
+                box.innerHTML = `<div class="cx-empty">${esc(p.message || '尚未抽出路径。去资料页蒸馏，或手写 docs/learning-path.md 后同步。')}
+                    <div class="cx-kv"><a href="/codex/distill">去资料蒸馏</a> · <a href="/codex/tools">去工具接入仓库</a></div></div>`;
+                if (proj) proj.innerHTML = '<div class="cx-empty">没有路径，也就没有投影任务。</div>';
                 return;
             }
             const stations = p.stations || [];
+            pathState.stations = stations;
+            if (!pathState.selected || !stations.some(s => s.id === pathState.selected)) {
+                const cur = stations.find(s => s.cursor) || stations[0];
+                pathState.selected = cur ? cur.id : null;
+            }
             const revs = churn.revisions || [];
             const revHtml = revs.length
-                ? `<div class="cx-kv">近 ${esc(churn.days || 14)} 天每次变动（一峰一行；改笔记不改路径应为 0）：</div>`
+                ? `<div class="cx-kv">近 ${esc(churn.days || 14)} 天每次变动：</div>`
                     + revs.map(e => `<div class="cx-kv">${esc(e.at || '')} · v${esc(e.version)}
                         要点 +${esc(e.added)} / −${esc(e.removed)}
                         ${e.reordered ? ' · 站顺序改了' : ''}</div>`).join('')
                 : '';
+            const sid = pathState.selected;
+            const st = stations.find(s => s.id === sid) || stations[0];
+            const list = stations.map(s =>
+                `<div class="cx-station${s.id === sid ? ' is-on' : ''}" data-sid="${esc(s.id)}">
+                    ${s.cursor ? '<span class="cx-tag">当前</span> ' : ''}
+                    <code>${esc(s.id)}</code> ${esc(s.title)}
+                    <div class="cx-kv">${(s.points || []).length} 条要点</div>
+                </div>`).join('');
+            const points = (st.points || []).map(pt =>
+                `<div class="cx-point-row" data-pid="${esc(pt.id)}">
+                    <select>
+                        <option value="MUST" ${pt.level === 'MUST' ? 'selected' : ''}>MUST</option>
+                        <option value="SKIP" ${pt.level === 'SKIP' ? 'selected' : ''}>SKIP</option>
+                    </select>
+                    <textarea>${esc(pt.statement)}</textarea>
+                    <button class="cx-btn-sm" type="button" data-save="${esc(pt.id)}">保存</button>
+                </div>`).join('');
             box.innerHTML = `<div class="cx-kv">version ${esc(p.version)} · 当前站 ${esc(p.cursor || '—')}
                 · MUST ${esc(p.must)} / SKIP ${esc(p.skip)}
                 ${p.parseOk ? '' : ' · <span style="color:#a33227;">解析失败：' + esc(p.error) + '</span>'}</div>
                 <div class="cx-kv">${esc(churn.caption || '')}</div>
                 ${revHtml}
-                <div class="cx-kv">${esc(cov.caption || '')}</div>`
-                + stations.map(s => `<div class="cx-repo-card" style="margin-top:0.6rem;">
-                    <div class="cx-repo-name">${s.cursor ? '<span class="cx-tag">当前</span> ' : ''}
-                        <code>${esc(s.id)}</code> ${esc(s.title)}</div>
-                    ${(s.points || []).map(pt =>
-                        `<div class="cx-kv"><b>${esc(pt.level)}</b> ${esc(pt.statement)}</div>`).join('')}
-                </div>`).join('');
+                <div class="cx-kv">${esc(cov.caption || '')}</div>
+                <div class="cx-path-grid" style="margin-top:0.8rem;">
+                    <div>${list}</div>
+                    <div>
+                        <div class="cx-repo-name"><code>${esc(st.id)}</code> ${esc(st.title)}</div>
+                        <div class="cx-kv">sources：${esc(st.sources || '—')} · lab：${esc(st.lab || '—')}</div>
+                        ${points || '<div class="cx-empty">这一站还没有要点</div>'}
+                        <div class="cx-point-row" style="margin-top:0.8rem;">
+                            <select id="cx-new-level"><option value="MUST">MUST</option><option value="SKIP">SKIP</option></select>
+                            <textarea id="cx-new-stmt" placeholder="新增一条要点"></textarea>
+                            <button class="cx-btn-sm" type="button" id="cx-add-point">追加</button>
+                        </div>
+                        <div class="cx-kv" id="cx-point-msg"></div>
+                    </div>
+                </div>`;
+            box.querySelectorAll('.cx-station').forEach(el => {
+                el.addEventListener('click', () => {
+                    pathState.selected = el.getAttribute('data-sid');
+                    loadPath();
+                });
+            });
+            box.querySelectorAll('button[data-save]').forEach(btn => {
+                btn.addEventListener('click', () => savePoint(st.id, btn.getAttribute('data-save'), btn.closest('.cx-point-row')));
+            });
+            const add = document.getElementById('cx-add-point');
+            if (add) add.addEventListener('click', () => {
+                const stmt = document.getElementById('cx-new-stmt').value;
+                const level = document.getElementById('cx-new-level').value;
+                savePoint(st.id, '', { querySelector: (sel) => {
+                    if (sel === 'select') return { value: level };
+                    if (sel === 'textarea') return { value: stmt };
+                    return null;
+                }});
+            });
             if (proj) {
                 const rows = p.projections || [];
                 proj.innerHTML = `<div class="cx-kv">
                     <button class="cx-btn-sm" onclick="doProject()">生成本站任务</button>
-                    <a class="cx-kv" href="/dashboard" style="margin-left:0.6rem;">去 Dashboard 学这些任务</a>
+                    <a class="cx-kv" href="/dashboard" style="margin-left:0.6rem;">去规划学这些任务</a>
                     <span id="cx-proj-msg" class="cx-kv"></span>
                 </div>`
                     + (rows.length ? rows.map(r =>
                         `<div class="cx-kv"><b>${esc(r.state)}</b> ${esc(r.title || r.pointId)}
                          <code>${esc(r.pointId)}</code></div>`).join('')
-                        : '<div class="cx-empty">当前窗口还没有投影。点「生成本站任务」后会出现在 Dashboard。</div>');
+                        : '<div class="cx-empty">当前窗口还没有投影。点「生成本站任务」后会出现在规划页。</div>');
             }
         } catch (e) {
             box.innerHTML = `<div class="cx-empty">读取路径失败：${esc(e.message)}</div>`;
+        }
+    }
+
+    async function savePoint(stationId, pointId, row) {
+        const msg = document.getElementById('cx-point-msg');
+        const level = row.querySelector('select').value;
+        const statement = row.querySelector('textarea').value;
+        if (!statement || !statement.trim()) {
+            if (msg) msg.textContent = '要点原文不能为空。';
+            return;
+        }
+        if (!confirm('确认把这条要点写入 docs/learning-path.md？（尚未 commit）')) return;
+        try {
+            const res = await fetch('/api/codex/path/point', {
+                method: 'POST', headers: headers(),
+                body: JSON.stringify({ stationId, pointId, level, statement, confirmed: true })
+            });
+            const d = await res.json();
+            if (msg) msg.textContent = d.message || '';
+            if (d.ok) await loadPath();
+        } catch (e) {
+            if (msg) msg.textContent = '失败：' + e.message;
         }
     }
 
@@ -440,7 +258,10 @@
             if (msg) msg.textContent = '失败：' + e.message;
         }
     }
+
+    loadPath();
 </script>
+
 </div>
 <div th:replace="~{fragments/agent-panel :: panel}"></div>
 </div>

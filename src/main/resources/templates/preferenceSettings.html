@@ -6,16 +6,19 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>偏好设置</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/app-nav.css}">
 </head>
 <body class="preference-settings-page" th:classappend="${theme == 'dark'} ? 'theme-dark' : ''" th:attr="data-selected-mode=${selectedMode}">
 <div class="lp-page-shell">
 <div class="lp-page-main">
+<div th:replace="~{fragments/app-nav :: chrome}"></div>
 <div class="container">
     <div class="preference-header">
         <h2>偏好设置</h2>
         <button type="button" class="reset-btn" id="resetPreferenceBtn">恢复默认设置</button>
     </div>
-    <p class="preference-intro">先选择要设置的思维模式，再修改该模式下可用的选项，避免混淆。</p>
+    <p class="preference-intro">先选择要设置的思维模式，再修改该模式下可用的选项，避免混淆。
+        MCP 连接在 <a href="/mcp/settings">单独一页</a>。</p>
 
     <form th:action="@{/preference/update}" method="post" id="preferenceForm">
         <!-- 通用：与具体模式无关 -->

@@ -6,10 +6,12 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title th:text="${isNew ? '新建笔记' : '编辑笔记'} + ' · Lattice-Planner'"></title>
     <link rel="stylesheet" th:href="@{/css/note.css}">
+    <link rel="stylesheet" th:href="@{/css/app-nav.css}">
 </head>
 <body>
 <div class="lp-page-shell">
 <div class="lp-page-main">
+<div th:replace="~{fragments/app-nav :: chrome}"></div>
 <div class="note-page note-edit">
     <header class="note-header">
         <h2 th:text="${isNew} ? '新建笔记' : '编辑笔记'"></h2>

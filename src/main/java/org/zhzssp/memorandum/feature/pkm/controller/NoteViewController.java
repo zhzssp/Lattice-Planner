@@ -64,6 +64,11 @@ public class NoteViewController {
         this.rag = rag;
     }
 
+    @ModelAttribute
+    public void knowledgeChrome(Model model) {
+        model.addAttribute("codexNav", "notes");
+    }
+
     @GetMapping
     public String list(Model model, Principal principal) {
         User user = currentUser(principal);

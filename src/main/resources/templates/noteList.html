@@ -2,19 +2,21 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>我的笔记 · Lattice-Planner</title>
+    <title>随手记 · Lattice-Planner</title>
     <link rel="stylesheet" th:href="@{/css/note.css}">
+    <link rel="stylesheet" th:href="@{/css/app-nav.css}">
     <meta name="_csrf" th:content="${_csrf != null ? _csrf.token : ''}"/>
     <meta name="_csrf_header" th:content="${_csrf != null ? _csrf.headerName : ''}"/>
 </head>
 <body>
 <div class="lp-page-shell">
 <div class="lp-page-main">
+<div th:replace="~{fragments/app-nav :: chrome}"></div>
 <div class="note-page">
     <header class="note-header">
-        <h2 th:text="${activeTag != null ? '#' + activeTag + ' · 我的笔记' : '我的笔记'}">我的笔记</h2>
+        <h2 th:text="${activeTag != null ? '#' + activeTag + ' · 随手记' : '随手记'}">随手记</h2>
         <div>
-            <a href="/dashboard" class="btn btn-secondary">返回 Dashboard</a>
+            <a href="/codex/notes" class="btn btn-secondary">笔记工作室</a>
             <a th:if="${activeTag != null}" href="/note" class="btn btn-secondary">清除标签筛选</a>
             <a href="/note/new" class="btn">＋ 新建笔记</a>
         </div>

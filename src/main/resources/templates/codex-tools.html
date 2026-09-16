@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title>工具 · 知识</title>
+    <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+    <link rel="stylesheet" th:href="@{/css/app-nav.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=2)}">
+    <style>
+        .cx-container { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+        .cx-intro { color: #666; margin-bottom: 1.25rem; line-height: 1.7; font-size: 0.94rem; }
+        .cx-section { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.4rem; margin-bottom: 1.25rem; }
+        .cx-section h3 { margin: 0 0 1rem; font-size: 1.08rem; }
+        .cx-banner { border-radius: 8px; padding: 0.9rem 1.1rem; margin-bottom: 1.25rem; font-size: 0.92rem; line-height: 1.6; }
+        .cx-banner-warn { background: #fff8e6; border: 1px solid #f0d9a0; color: #8a6d1f; }
+        .cx-banner-err { background: #fdecea; border: 1px solid #f5c2bd; color: #a33227; }
+        .cx-form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 0.8rem; }
+        .cx-form label { display: block; font-size: 0.85rem; color: #666; margin-bottom: 0.25rem; }
+        .cx-form input, .cx-form select { width: 100%; padding: 0.5rem 0.7rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.93rem; box-sizing: border-box; }
+        .cx-form-full { grid-column: 1 / -1; }
+        .cx-btn { padding: 0.5rem 1.1rem; background: #6c5ce7; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.93rem; }
+        .cx-btn-sm { padding: 0.32rem 0.75rem; font-size: 0.85rem; background: #f0f0f0; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; }
+        .cx-btn-danger { color: #e74c3c; }
+        .cx-repo-card { border: 1px solid #eee; border-radius: 6px; padding: 1rem; margin-bottom: 0.85rem; }
+        .cx-repo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 0.6rem; }
+        .cx-repo-name { font-weight: 600; }
+        .cx-repo-path { color: #888; font-size: 0.83rem; word-break: break-all; }
+        .cx-tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 0.75rem; background: #eef0ff; color: #5b4bd5; margin-left: 6px; }
+        .cx-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 0.6rem; margin-top: 0.8rem; }
+        .cx-metric { background: #fafafa; border-radius: 6px; padding: 0.6rem 0.7rem; }
+        .cx-metric-label { font-size: 0.76rem; color: #999; }
+        .cx-metric-value { font-size: 1.22rem; font-weight: 600; margin-top: 2px; }
+        .cx-metric-bad .cx-metric-value { color: #e74c3c; }
+        .cx-metric-ok .cx-metric-value { color: #2ecc71; }
+        .cx-detail { margin-top: 0.8rem; font-size: 0.87rem; color: #555; }
+        .cx-empty { color: #999; text-align: center; padding: 1.8rem 0; }
+        .cx-log { background: #f7f7f9; border-radius: 6px; padding: 0.75rem; font-family: monospace; font-size: 0.82rem; white-space: pre-wrap; margin-top: 0.8rem; max-height: 200px; overflow-y: auto; }
+        .cx-kv { color: #666; font-size: 0.85rem; margin-top: 0.5rem; }
+        .cx-tool-links { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+        .cx-tool-links a { padding: 0.55rem 0.9rem; border: 1px solid #e0e0e0; border-radius: 8px; text-decoration: none; color: #333; }
+        .cx-tool-links a:hover { border-color: #6c5ce7; }
+    </style>
+</head>
+<body data-lp-agent-group="codex-curate" data-lp-agent-default="curate">
+<div class="lp-page-shell">
+<div class="lp-page-main">
+<div th:replace="~{fragments/app-nav :: chrome}"></div>
+<div class="cx-container">
+    <div th:replace="~{fragments/codex-nav :: chrome}"></div>
+    <div class="cx-intro">检验、缺口、策展和仓库接入放在这里，不占知识首页。</div>
+    <div class="cx-section">
+        <h3>回路工具</h3>
+        <div class="cx-tool-links">
+            <a href="/codex/checkpoints">检验 · 先预测再跑</a>
+            <a href="/codex/gaps">缺口 · 止损线召回</a>
+            <a href="/codex/curate">策展 · CI / 沉淀 / 分支</a>
+        </div>
+    </div>
+    <div class="cx-banner cx-banner-err" th:if="${!gitAvailable}">
+        <strong>未检测到 git。</strong> 当前检测：<span th:text="${gitVersion}"></span>
+    </div>
+    <div class="cx-section">
+        <h3>写入</h3>
+        <label class="cx-kv" style="display:flex;gap:0.5rem;align-items:center;">
+            <input type="checkbox" id="cx-write"> 允许写入工作副本
+        </label>
+        <div class="cx-kv" id="cx-write-msg"></div>
+    </div>
+    <div class="cx-section">
+        <h3>接入本地仓库</h3>
+        <div class="cx-form">
+            <div>
+                <label for="cx-name">仓库名称</label>
+                <input id="cx-name" type="text" placeholder="AI-Infra">
+            </div>
+            <div>
+                <label for="cx-kind">用途</label>
+                <select id="cx-kind">
+                    <option value="LEARNING">学习</option>
+                    <option value="WORK">工作</option>
+                </select>
+            </div>
+            <div class="cx-form-full">
+                <label for="cx-path">本地路径（已有 git 工作副本）</label>
+                <input id="cx-path" type="text" placeholder="C:\Users\you\Desktop\AI-Infra">
+            </div>
+            <div class="cx-form-full">
+                <button class="cx-btn" id="cx-register">接入并建立索引</button>
+                <span class="cx-kv" id="cx-register-msg"></span>
+            </div>
+        </div>
+        <div class="cx-kv">接入不修改仓库文件，只建检索索引。</div>
+        <h3 style="margin-top:1.2rem;">已接入仓库</h3>
+        <div id="cx-repos"><div class="cx-empty">加载中…</div></div>
+    </div>
+</div>
+</div>
+<div th:replace="~{fragments/agent-panel :: panel}"></div>
+</div>
+<script>
+    const CSRF_TOKEN = document.querySelector('meta[name="_csrf"]')?.content;
+    const CSRF_HEADER = document.querySelector('meta[name="_csrf_header"]')?.content;
+    function headers() {
+        const h = { 'Content-Type': 'application/json' };
+        if (CSRF_TOKEN && CSRF_HEADER) h[CSRF_HEADER] = CSRF_TOKEN;
+        return h;
+    }
+    function esc(s) {
+        if (s === null || s === undefined) return '';
+        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function metric(label, value, bad, ok) {
+        const cls = bad ? ' cx-metric-bad' : (ok ? ' cx-metric-ok' : '');
+        return `<div class="cx-metric${cls}"><div class="cx-metric-label">${esc(label)}</div><div class="cx-metric-value">${esc(value)}</div></div>`;
+    }
+    async function loadRepos() {
+        const box = document.getElementById('cx-repos');
+        try {
+            const res = await fetch('/api/codex/repos');
+            const repos = await res.json();
+            if (!repos.length) {
+                box.innerHTML = '<div class="cx-empty">尚未接入仓库。</div>';
+                return;
+            }
+            box.innerHTML = repos.map(renderRepo).join('');
+        } catch (e) {
+            box.innerHTML = `<div class="cx-empty">加载失败：${esc(e.message)}</div>`;
+        }
+    }
+    function renderRepo(r) {
+        const h = r.health || {};
+        const run = h.lastRun || {};
+        const skipPct = run.skipRate != null ? Math.round(run.skipRate * 100) + '%' : '—';
+        return `<div class="cx-repo-card" data-id="${r.id}">
+            <div class="cx-repo-head"><div>
+                <div class="cx-repo-name">${esc(r.name)}<span class="cx-tag">${esc(r.kind)}</span></div>
+                <div class="cx-repo-path">${esc(r.localPath)}</div>
+            </div>
+            <div>
+                <button class="cx-btn-sm" onclick="doSync(${r.id}, false)">增量同步</button>
+                <button class="cx-btn-sm" onclick="doSync(${r.id}, true)">全量重建</button>
+                <button class="cx-btn-sm cx-btn-danger" onclick="doUnregister(${r.id}, '${esc(r.name)}')">移除</button>
+            </div></div>
+            <div class="cx-metrics">
+                ${metric('文档', h.documents ?? '—')}
+                ${metric('被截断', h.truncatedDocs ?? '—', (h.truncatedDocs || 0) > 0, h.truncatedDocs === 0)}
+                ${metric('死链', h.brokenLinks ?? '—', (h.brokenLinks || 0) > 0)}
+                ${metric('增量命中', skipPct)}
+            </div>
+            <div class="cx-log" id="cx-log-${r.id}" style="display:none;"></div>
+        </div>`;
+    }
+    document.getElementById('cx-register').addEventListener('click', async () => {
+        const btn = document.getElementById('cx-register');
+        const msg = document.getElementById('cx-register-msg');
+        const name = document.getElementById('cx-name').value.trim();
+        const localPath = document.getElementById('cx-path').value.trim();
+        const kind = document.getElementById('cx-kind').value;
+        if (!name || !localPath) { msg.textContent = '请填写名称与路径'; return; }
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/codex/repos', {
+                method: 'POST', headers: headers(),
+                body: JSON.stringify({ name, localPath, kind, provider: 'LOCAL' })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+            await fetch(`/api/codex/repos/${data.id}/sync`, { method: 'POST', headers: headers() });
+            msg.textContent = '完成';
+            await loadRepos();
+        } catch (e) { msg.textContent = '失败：' + e.message; }
+        finally { btn.disabled = false; }
+    });
+    async function doSync(id, full) {
+        const log = document.getElementById('cx-log-' + id);
+        log.style.display = 'block';
+        log.textContent = full ? '全量重建…' : '增量同步…';
+        try {
+            const url = full ? `/api/codex/repos/${id}/rebuild` : `/api/codex/repos/${id}/sync`;
+            const res = await fetch(url, { method: 'POST', headers: headers() });
+            const d = await res.json();
+            log.textContent = JSON.stringify(d, null, 2);
+            await loadRepos();
+        } catch (e) { log.textContent = '失败：' + e.message; }
+    }
+    async function doUnregister(id, name) {
+        if (!confirm('移除仓库「' + name + '」的索引？本地文件不会删除。')) return;
+        await fetch(`/api/codex/repos/${id}`, { method: 'DELETE', headers: headers() });
+        await loadRepos();
+    }
+    async function loadWritePref() {
+        const box = document.getElementById('cx-write');
+        const msg = document.getElementById('cx-write-msg');
+        const d = await (await fetch('/api/codex/status')).json();
+        box.checked = !!d.writeEnabled;
+        msg.textContent = d.writeEnabled ? '写入已开。' : '写入默认关。';
+        box.addEventListener('change', async () => {
+            const res = await fetch('/api/codex/write-pref', {
+                method: 'POST', headers: headers(),
+                body: JSON.stringify({ enabled: box.checked })
+            });
+            const x = await res.json();
+            msg.textContent = x.writeEnabled ? '已允许写入。' : '已关闭写入。';
+        });
+    }
+    loadRepos();
+    loadWritePref();
+</script>
+</body>
+</html>

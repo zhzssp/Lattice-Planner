@@ -1,0 +1,68 @@
+/* 应用级顶栏：规划 | 知识。不覆盖各页业务区块。 */
+
+.lp-app-nav {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.45rem 1.2rem;
+    background: #fff;
+    border-bottom: 1px solid #e8eaed;
+}
+
+.lp-app-dest {
+    display: flex;
+    gap: 0.2rem;
+}
+
+.lp-app-dest a,
+.lp-app-nav-right a {
+    text-decoration: none;
+    color: #57606a;
+    font-size: 0.92rem;
+    font-weight: 500;
+    padding: 0.4rem 0.85rem;
+    border-radius: 8px;
+}
+
+.lp-app-dest a:hover,
+.lp-app-nav-right a:hover {
+    color: #1f2328;
+    background: #f6f8fa;
+}
+
+.lp-app-dest a.is-active {
+    color: #1f2328;
+    font-weight: 700;
+    background: #f6f8fa;
+}
+
+.lp-app-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.lp-page-main > .lp-app-nav + .container {
+    margin-top: 24px;
+}
+
+.theme-dark .lp-app-nav {
+    background: #161b22;
+    border-bottom-color: #30363d;
+}
+
+.theme-dark .lp-app-dest a,
+.theme-dark .lp-app-nav-right a {
+    color: #8b949e;
+}
+
+.theme-dark .lp-app-dest a:hover,
+.theme-dark .lp-app-nav-right a:hover,
+.theme-dark .lp-app-dest a.is-active {
+    color: #e6edf3;
+    background: #21262d;
+}

@@ -89,6 +89,25 @@ public class CodexPathController {
         return ResponseEntity.ok(applyService.toMap(r));
     }
 
+    public record PointEditRequest(String stationId, String pointId, String level,
+                                   String statement, String repoName, Long repoId,
+                                   Boolean confirmed) {}
+
+    @PostMapping("/path/point")
+    public ResponseEntity<?> updatePoint(@AuthenticationPrincipal UserDetails principal,
+                                         @RequestBody PointEditRequest req) {
+        User u = currentUser(principal);
+        if (u == null) return unauth();
+        if (req == null) {
+            return ResponseEntity.badRequest().body(err("EMPTY", "缺少要点改动"));
+        }
+        boolean confirmed = Boolean.TRUE.equals(req.confirmed());
+        PathApplyService.ApplyResult r = applyService.updatePoint(
+                u.getId(), req.repoName(), req.stationId(), req.pointId(),
+                req.level(), req.statement(), confirmed);
+        return ResponseEntity.ok(applyService.toMap(r));
+    }
+
     @PostMapping("/path/project")
     public ResponseEntity<?> project(@AuthenticationPrincipal UserDetails principal,
                                      @RequestBody(required = false) DeltaRequest req) {

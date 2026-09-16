@@ -17,13 +17,15 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Codex 工作台分段导航：五页共用 fragment，选中态由 {@code codexNav} 决定。
+ * 应用顶栏 规划|知识；知识二级 体系|资料|笔记|工具。
  */
 class CodexNavTest {
 
-    private static final List<String> CODEX_PAGES = List.of(
+    private static final List<String> KNOWLEDGE_PAGES = List.of(
             "codex.html",
             "distill.html",
+            "codex-notes.html",
+            "codex-tools.html",
             "checkpoint.html",
             "curate.html",
             "gap.html"
@@ -32,21 +34,41 @@ class CodexNavTest {
     private static final List<String> TAB_HREFS = List.of(
             "/codex",
             "/codex/distill",
-            "/codex/checkpoints",
-            "/codex/gaps",
-            "/codex/curate"
+            "/codex/notes",
+            "/codex/tools"
     );
 
     @Test
-    @DisplayName("fragment 含五个分区 href，顺序为路径→资料→检验→缺口→策展")
-    void fragmentHasFiveTabsInDailyOrder() throws IOException {
+    @DisplayName("应用顶栏只有规划、知识、设置")
+    void appNavHasTwoDestinations() throws IOException {
+        String html = Files.readString(projectFile("src/main/resources/templates/fragments/app-nav.html"));
+        assertTrue(html.contains("th:fragment=\"chrome\""));
+        assertTrue(html.contains(">规划</a>"));
+        assertTrue(html.contains(">知识</a>"));
+        assertTrue(html.contains(">设置</a>"));
+        assertTrue(html.contains("href=\"/dashboard\""));
+        assertTrue(html.contains("href=\"/codex\""));
+        assertTrue(html.contains("href=\"/preference/settings\""));
+        assertFalse(html.contains("我的笔记"));
+        assertFalse(html.contains("知识仓库"));
+    }
+
+    @Test
+    @DisplayName("知识二级 Tab 为体系→资料→笔记→工具，检验不占一级")
+    void fragmentHasFourKnowledgeTabs() throws IOException {
         String html = Files.readString(projectFile("src/main/resources/templates/fragments/codex-nav.html"));
         assertTrue(html.contains("th:fragment=\"chrome\""));
-        assertTrue(html.contains("返回 Dashboard"));
-        assertTrue(html.contains("href=\"/dashboard\""));
-        assertTrue(html.contains(">路径</a>"));
+        assertTrue(html.contains(">体系</a>"));
         assertTrue(html.contains(">资料</a>"));
+        assertTrue(html.contains(">笔记</a>"));
+        assertTrue(html.contains(">工具</a>"));
+        assertFalse(html.contains("返回 Dashboard"));
+        assertFalse(html.contains("href=\"/dashboard\""));
+        assertFalse(html.contains(">路径</a>"));
         assertFalse(html.contains(">接入</a>"), "接入不再是一级 Tab");
+        assertFalse(html.contains(">检验</a>"));
+        assertFalse(html.contains(">缺口</a>"));
+        assertFalse(html.contains(">策展</a>"));
         assertFalse(html.contains(">定线</a>"));
 
         int prev = -1;
@@ -59,17 +81,14 @@ class CodexNavTest {
     }
 
     @Test
-    @DisplayName("传入 codexNav=curate 时仅策展 Tab 带 is-active")
-    void curateTabIsActiveWhenCodexNavIsCurate() {
+    @DisplayName("codexNav=curate 时工具 Tab 带 is-active")
+    void toolsTabIsActiveForCuratePages() {
         String html = renderChrome("curate");
-        assertTrue(html.contains("class=\"cx-seg-item is-active\"")
-                || html.contains("class=\"cx-seg-item  is-active\""));
-
         Matcher items = Pattern.compile(
                 "<a href=\"([^\"]+)\"[^>]*class=\"([^\"]*)\"",
                 Pattern.CASE_INSENSITIVE).matcher(html);
         int active = 0;
-        boolean curateActive = false;
+        boolean toolsActive = false;
         while (items.find()) {
             String href = items.group(1);
             String cls = items.group(2);
@@ -79,21 +98,23 @@ class CodexNavTest {
             boolean isActive = cls.contains("is-active");
             if (isActive) {
                 active++;
-                curateActive = "/codex/curate".equals(href);
+                toolsActive = "/codex/tools".equals(href);
             }
         }
         assertEquals(1, active, html);
-        assertTrue(curateActive, html);
+        assertTrue(toolsActive, html);
         assertTrue(html.contains("aria-current=\"page\""));
     }
 
     @Test
-    @DisplayName("五份 Codex 页引入 fragment 与 css，不再各自堆页间箭头链接")
-    void fivePagesShareChrome() throws IOException {
+    @DisplayName("知识页引入应用顶栏与二级导航")
+    void knowledgePagesShareChrome() throws IOException {
         Path templates = projectFile("src/main/resources/templates");
-        for (String page : CODEX_PAGES) {
+        for (String page : KNOWLEDGE_PAGES) {
             String html = Files.readString(templates.resolve(page));
+            assertTrue(html.contains("fragments/app-nav :: chrome"), page + " missing app-nav");
             assertTrue(html.contains("fragments/codex-nav :: chrome"), page + " missing nav fragment");
+            assertTrue(html.contains("app-nav.css"), page + " missing app-nav.css");
             assertTrue(html.contains("codex-nav.css"), page + " missing codex-nav.css");
             assertFalse(html.contains("蒸馏与定线 →"), page);
             assertFalse(html.contains("知识落地检验 →"), page);
@@ -102,34 +123,43 @@ class CodexNavTest {
         }
         String controller = Files.readString(
                 projectFile("src/main/java/org/zhzssp/memorandum/feature/codex/controller/CodexViewController.java"));
-        for (String tab : List.of("path", "distill", "checkpoints", "curate", "gaps")) {
+        for (String tab : List.of("path", "distill", "notes", "tools", "checkpoints", "curate", "gaps")) {
             assertTrue(controller.contains("\"codexNav\", \"" + tab + "\""), "controller missing " + tab);
         }
     }
 
     @Test
-    @DisplayName("Dashboard 只保留跳出入口，不内嵌 Codex 分区")
-    void dashboardKeepsSingleCodexExit() throws IOException {
+    @DisplayName("Dashboard 用应用顶栏，不再并列我的笔记/知识仓库按钮")
+    void dashboardUsesAppDestinations() throws IOException {
         String html = Files.readString(projectFile("src/main/resources/templates/dashboard.html"));
-        assertTrue(html.contains("href=\"/codex\""));
+        assertTrue(html.contains("fragments/app-nav :: chrome"));
+        assertFalse(html.contains("我的笔记"));
+        assertFalse(html.contains("知识仓库"));
+        assertFalse(html.contains("fragments/codex-nav"));
         assertFalse(html.contains("/codex/distill"));
         assertFalse(html.contains("/codex/checkpoints"));
         assertFalse(html.contains("/codex/curate"));
         assertFalse(html.contains("/codex/gaps"));
-        assertFalse(html.contains("fragments/codex-nav"));
-        int exits = count(html, "href=\"/codex\"");
-        assertEquals(1, exits);
+        assertTrue(html.contains("/codex/notes"));
+        assertTrue(html.contains("随手记"));
     }
 
     @Test
-    @DisplayName("路径页是主角：不强迫改 properties，接入收进设置区")
+    @DisplayName("体系页是主角：不强迫改 properties，接入收进工具页")
     void pathPageDoesNotDemandProperties() throws IOException {
         String html = Files.readString(projectFile("src/main/resources/templates/codex.html"));
         assertTrue(html.contains("当前路径"));
-        assertTrue(html.contains("允许写入工作副本"));
-        assertTrue(html.contains("仓库设置"));
-        assertFalse(html.contains("codex.enabled=true"));
         assertTrue(html.contains("学 · 投影任务"));
+        assertTrue(html.contains("/codex/tools"));
+        assertTrue(html.contains("/api/codex/path/point"));
+        assertFalse(html.contains("id=\"cx-register\""));
+        assertFalse(html.contains("id=\"cx-write\""));
+        assertFalse(html.contains("codex.enabled=true"));
+        String tools = Files.readString(projectFile("src/main/resources/templates/codex-tools.html"));
+        assertTrue(tools.contains("允许写入工作副本"));
+        assertTrue(tools.contains("/codex/checkpoints"));
+        assertTrue(tools.contains("/codex/gaps"));
+        assertTrue(tools.contains("/codex/curate"));
     }
 
     private static String renderChrome(String tab) {
@@ -144,14 +174,6 @@ class CodexNavTest {
         Context ctx = new Context();
         ctx.setVariable("codexNav", tab);
         return engine.process("fragments/codex-nav", ctx);
-    }
-
-    private static int count(String haystack, String needle) {
-        int n = 0;
-        for (int i = 0; (i = haystack.indexOf(needle, i)) >= 0; i += needle.length()) {
-            n++;
-        }
-        return n;
     }
 
     private static Path projectFile(String relative) {

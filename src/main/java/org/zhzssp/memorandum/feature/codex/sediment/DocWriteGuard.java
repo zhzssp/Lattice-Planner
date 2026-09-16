@@ -190,7 +190,7 @@ public class DocWriteGuard {
         if (!canRead) {
             return Decision.deny("CODEX_DISABLED",
                     "知识仓库只读尚未打开。",
-                    "在路径页接入一个 Git 仓库即可浏览索引与路径，不必改配置文件。写入仍需单独允许。");
+                    "在工具页接入一个 Git 仓库即可浏览索引与路径，不必改配置文件。写入仍需单独允许。");
         }
         if (userId == null && !registry.operational()) {
             return Decision.deny("GIT_UNAVAILABLE",
@@ -200,7 +200,7 @@ public class DocWriteGuard {
         if (!enabled(userId)) {
             return Decision.deny("WRITE_DISABLED",
                     "知识仓库写入未启用。",
-                    "写入会真实修改 git 工作副本。请在路径页打开「允许写入工作副本」，或设置 codex.write.enabled=true。");
+                    "写入会真实修改 git 工作副本。请在工具页打开「允许写入工作副本」，或设置 codex.write.enabled=true。");
         }
         return Decision.ok();
     }

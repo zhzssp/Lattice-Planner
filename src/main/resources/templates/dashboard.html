@@ -6,6 +6,7 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>Your Dashboard</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css(v=12)}">
+    <link rel="stylesheet" th:href="@{/css/app-nav.css}">
     <link rel="stylesheet" th:href="@{/css/filter.css}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
@@ -19,15 +20,12 @@
 <body th:classappend="${theme == 'dark'} ? 'theme-dark' : ''">
 <div class="lp-page-shell">
 <div class="lp-page-main">
+<div th:replace="~{fragments/app-nav :: chrome}"></div>
 <div class="container">
     <div class="top-bar">
         <span class="current-mode" th:text="${mindsetMode=='execute' ? '当前：执行模式' : (mindsetMode=='learn' ? '当前：学习模式' : '当前：规划模式')}"></span>
         <div>
             <button type="button" id="toggleGoalTreeBtn" class="switch-mode-btn goal-tree-toggle-btn" style="margin-right: 8px;" title="显示/隐藏目标与任务关系树">目标与任务树</button>
-            <a href="/note" class="switch-mode-btn" style="margin-right: 8px;" title="进入个人知识库">我的笔记</a>
-            <a href="/codex" class="switch-mode-btn" style="margin-right: 8px;" title="当前学习路径与要点">知识仓库</a>
-            <a th:href="@{/preference/settings(mode=${mindsetMode})}" class="switch-mode-btn" style="margin-right: 8px;">偏好设置</a>
-            <a href="/mcp/settings" class="switch-mode-btn" style="margin-right: 8px;">MCP 连接</a>
             <a href="/change-mode" class="switch-mode-btn">切换思维模式</a>
         </div>
     </div>
@@ -77,13 +75,14 @@
             <a href="/memo/add" class="add-btn">＋ 添加任务</a>
         </div>
         <div class="learn-notes-column" id="notesSection">
-            <h3>笔记</h3>
+            <h3>随手记</h3>
+            <p class="goal-tree-desc">体系笔记在知识目的地。<a href="/codex/notes">打开笔记工作室</a></p>
             <ul id="noteList">
                 <li th:each="n : ${notes}">
                     <span th:text="'[' + (n.type ?: 'SCRATCH') + '] ' + (n.title ?: '(无标题)')"></span>
                 </li>
             </ul>
-            <button type="button" id="openNoteModal" class="add-btn">＋ 创建笔记</button>
+            <button type="button" id="openNoteModal" class="add-btn">＋ 创建随手记</button>
         </div>
     </div>
 

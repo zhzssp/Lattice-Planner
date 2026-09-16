@@ -6,7 +6,8 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>知识策展 · Codex</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
-    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=1)}">
+    <link rel="stylesheet" th:href="@{/css/app-nav.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=2)}">
     <style>
         .cu-wrap { max-width: 1180px; margin: 0 auto; padding: 1.5rem; }
         .cu-header { display: flex; justify-content: space-between; align-items: center;
@@ -69,6 +70,7 @@
 <body data-lp-agent-group="codex-curate" data-lp-agent-default="curate">
 <div class="lp-page-shell">
 <div class="lp-page-main">
+<div th:replace="~{fragments/app-nav :: chrome}"></div>
 <div class="cu-wrap">
     <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
@@ -76,11 +78,11 @@
         <strong>未检测到 git</strong>：请安装 git 并确保在 PATH 中。
     </div>
     <div th:if="${gitAvailable and !codexReadable}" class="cu-banner off">
-        还没有接入仓库。到<a href="/codex">路径页</a>接入即可浏览，不必改 <code>application.properties</code>。
+        还没有接入仓库。到<a href="/codex/tools">工具页</a>接入即可浏览，不必改 <code>application.properties</code>。
     </div>
     <div th:if="${codexReadable and !writeEnabled}" class="cu-banner off">
         <strong>写入未启用</strong>。知识 CI（只读）仍可用；沉淀与提交会被拒绝。
-        请到路径页打开「允许写入工作副本」。
+        请到<a href="/codex/tools">工具页</a>打开「允许写入工作副本」。
     </div>
 
     <div class="cu-card">

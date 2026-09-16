@@ -6,7 +6,8 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>资料 · Codex</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
-    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=1)}">
+    <link rel="stylesheet" th:href="@{/css/app-nav.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=2)}">
     <style>
         .ds-wrap { max-width: 1180px; margin: 0 auto; padding: 1.5rem; }
         .ds-header { display: flex; justify-content: space-between; align-items: center;
@@ -76,6 +77,7 @@
 <body data-lp-agent-group="codex-distill" data-lp-agent-default="curate">
 <div class="lp-page-shell">
 <div class="lp-page-main">
+<div th:replace="~{fragments/app-nav :: chrome}"></div>
 <div class="ds-wrap">
     <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
@@ -130,6 +132,11 @@
                 <label>原料（仓库内的 PDF / md / docx）</label>
                 <select class="ds-sel" id="dSource" style="width:100%;"></select>
             </div>
+            <div class="ds-field">
+                <label>点一篇打开正文（蒸馏是动作，不是这一页的名字）</label>
+                <button class="ds-btn" type="button" onclick="readSelected()">阅读选中原料</button>
+            </div>
+            <div class="ds-pre" id="srcReader">选择原料后点阅读。</div>
             <div class="ds-field">
                 <label>标题（留空则用文件名）</label>
                 <input class="ds-in" id="dTitle" style="width:100%;" placeholder="FlashAttention">
@@ -207,7 +214,7 @@
         }
         if (!cfg.writeEnabled) {
             html += `<div class="ds-banner info">写入未启用——可以起草并查看产物，但不能落盘。
-                     请到路径页打开「允许写入工作副本」。这是刻意的顺序：
+                     请到<a href="/codex/tools">工具页</a>打开「允许写入工作副本」。这是刻意的顺序：
                      先看几篇产物的质量，再决定给不给它写文件的权限。</div>`;
         } else {
             html += `<div class="ds-banner info">写入已启用。蒸馏与出题只能<b>新建</b>文件
@@ -293,6 +300,19 @@
         if (d.localHint) {
             document.getElementById('cfgBanner').innerHTML +=
                 `<div class="ds-banner info">${esc(d.localHint)}</div>`;
+        }
+    }
+
+    async function readSelected() {
+        const path = document.getElementById('dSource').value;
+        const box = document.getElementById('srcReader');
+        if (!path) { box.textContent = '没有可阅读的原料。'; return; }
+        box.textContent = '读取中…';
+        try {
+            const d = await (await fetch('/api/codex/doc/content?path=' + encodeURIComponent(path))).json();
+            box.textContent = d.content || d.message || '无法阅读';
+        } catch (e) {
+            box.textContent = '失败：' + e.message;
         }
     }
 

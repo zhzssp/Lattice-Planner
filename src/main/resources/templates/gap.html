@@ -6,7 +6,8 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>知识缺口 · Codex</title>
     <link rel="stylesheet" th:href="@{/css/dashboard.css}">
-    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=1)}">
+    <link rel="stylesheet" th:href="@{/css/app-nav.css}">
+    <link rel="stylesheet" th:href="@{/css/codex-nav.css(v=2)}">
     <style>
         .gp-wrap { max-width: 1120px; margin: 0 auto; padding: 1.5rem; }
         .gp-header { display: flex; justify-content: space-between; align-items: center;
@@ -58,6 +59,7 @@
 <body data-lp-agent-group="codex-gap" data-lp-agent-default="curate">
 <div class="lp-page-shell">
 <div class="lp-page-main">
+<div th:replace="~{fragments/app-nav :: chrome}"></div>
 <div class="gp-wrap">
     <div th:replace="~{fragments/codex-nav :: chrome}"></div>
 
