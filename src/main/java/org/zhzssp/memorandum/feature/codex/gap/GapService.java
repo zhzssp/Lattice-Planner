@@ -5,23 +5,19 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.zhzssp.memorandum.entity.User;
-import org.zhzssp.memorandum.feature.agent.dto.ApplyGoalPlanResponse;
-import org.zhzssp.memorandum.feature.agent.dto.GoalPlanRequest;
-import org.zhzssp.memorandum.feature.agent.dto.GoalPlanResponse;
-import org.zhzssp.memorandum.feature.agent.service.AgentPlanApplyService;
-import org.zhzssp.memorandum.feature.agent.service.PlannerAgentService;
 import org.zhzssp.memorandum.feature.codex.entity.KbDocument;
 import org.zhzssp.memorandum.feature.codex.entity.KbEntity;
 import org.zhzssp.memorandum.feature.codex.entity.KbGap;
+import org.zhzssp.memorandum.feature.codex.entity.KbStation;
 import org.zhzssp.memorandum.feature.codex.entity.KnowledgeRepo;
 import org.zhzssp.memorandum.feature.codex.git.GitHubPrClient;
+import org.zhzssp.memorandum.feature.codex.path.PathApplyService;
 import org.zhzssp.memorandum.feature.codex.repository.KbDocumentRepository;
 import org.zhzssp.memorandum.feature.codex.repository.KbEntityRepository;
 import org.zhzssp.memorandum.feature.codex.repository.KbGapRepository;
+import org.zhzssp.memorandum.feature.codex.repository.KbStationRepository;
 import org.zhzssp.memorandum.feature.codex.service.CodexMetrics;
 import org.zhzssp.memorandum.feature.codex.service.RepoRegistryService;
-import org.zhzssp.memorandum.repository.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,7 +32,7 @@ import java.util.Map;
  * <pre>
  * 问不出来 / 跳过的被反复问到 / 检验没过
  *   → 记缺口（本服务）
- *   → 转学习计划（复用 PlannerAgentService + AgentPlanApplyService，不另造一套）
+ *   → 转学习计划（打开一条路径补丁草稿，确认后 path.apply，再投影任务）
  *   → 学完产出 Guide / Note（P2 的沉淀）
  *   → 关闭缺口（须给出关闭它的那篇文档，作为证据）
  * </pre>
@@ -63,10 +59,9 @@ public class GapService {
     private final KbDocumentRepository docRepo;
     private final QuestionNormalizer normalizer;
     private final RepoRegistryService registry;
-    private final PlannerAgentService planner;
-    private final AgentPlanApplyService planApply;
+    private final PathApplyService pathApply;
+    private final KbStationRepository stationRepo;
     private final GitHubPrClient github;
-    private final UserRepository userRepository;
     private final CodexMetrics metrics;
 
     @Value("${codex.gap.enabled:false}")
@@ -80,20 +75,18 @@ public class GapService {
                       KbDocumentRepository docRepo,
                       QuestionNormalizer normalizer,
                       RepoRegistryService registry,
-                      PlannerAgentService planner,
-                      AgentPlanApplyService planApply,
+                      PathApplyService pathApply,
+                      KbStationRepository stationRepo,
                       GitHubPrClient github,
-                      UserRepository userRepository,
                       CodexMetrics metrics) {
         this.gapRepo = gapRepo;
         this.entityRepo = entityRepo;
         this.docRepo = docRepo;
         this.normalizer = normalizer;
         this.registry = registry;
-        this.planner = planner;
-        this.planApply = planApply;
+        this.pathApply = pathApply;
+        this.stationRepo = stationRepo;
         this.github = github;
-        this.userRepository = userRepository;
         this.metrics = metrics;
     }
 
@@ -217,11 +210,9 @@ public class GapService {
     /* ==================== 状态流转 ==================== */
 
     /**
-     * 转成学习计划：复用既有的目标 / 任务体系。
+     * 转成学习计划：打开一条路径补丁草稿，不再另建 Goal 树。
      *
-     * <p>刻意<strong>不新建一套「学习计划」实体</strong>。用户的目标体系已经存在，
-     * 学习本身就是一个目标——另造一套会让「我在推进的事」分裂成两个列表，
-     * 而两个待办列表的结局一定是其中一个被遗忘。</p>
+     * <p>待办只有一份，来自路径投影。缺口转计划 = 提议把该问题写成当前站的 MUST。</p>
      */
     @Transactional
     public Map<String, Object> toLearningPlan(Long userId, Long gapId, List<String> constraints) {
@@ -230,52 +221,63 @@ public class GapService {
         if (gap.getStatus() == KbGap.Status.CLOSED) {
             return err("ALREADY_CLOSED", "该缺口已关闭，无需再转学习计划");
         }
-        User user = userRepository.findById(userId).orElse(null);
-        if (user == null) return err("USER_NOT_FOUND", "用户不存在");
+
+        KnowledgeRepo repo = null;
+        if (gap.getRepoId() != null) {
+            repo = registry.find(userId, gap.getRepoId()).orElse(null);
+        }
+        if (repo == null) {
+            List<KnowledgeRepo> all = registry.listEnabled(userId);
+            repo = all.isEmpty() ? null : all.get(0);
+        }
+        if (repo == null) {
+            return err("NO_REPO", "没有已接入的知识仓库，无法生成路径补丁。");
+        }
 
         String statement = buildGoalStatement(gap);
-        List<String> cons = new ArrayList<>();
-        if (constraints != null) cons.addAll(constraints);
-        cons.add("这是一次补知识缺口的学习，产出必须落成知识仓库里的文档或笔记");
-        cons.add("必须包含一条可执行的验收（能改能跑），不接受「读完就算学会」");
-
-        GoalPlanResponse plan;
-        try {
-            plan = planner.draftPlan(new GoalPlanRequest(statement, cons));
-        } catch (Exception e) {
-            return err("PLAN_FAILED", "生成学习计划失败：" + e.getMessage());
+        if (constraints != null && !constraints.isEmpty()) {
+            statement = statement + " 约束：" + String.join("；", constraints);
         }
-        if (plan.tasks() == null || plan.tasks().isEmpty()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("ok", false);
-            m.put("code", "NEEDS_CLARIFY");
-            m.put("message", "计划器需要更多信息才能拆解");
-            m.put("clarifyQuestions", plan.clarifyQuestions());
-            m.put("goalStatement", statement);
-            return m;
+        String stationId = "s-gap";
+        String stationTitle = "由缺口补入";
+        List<KbStation> stations = stationRepo.findByRepoIdOrderByOrdinalAsc(repo.getId());
+        for (KbStation s : stations) {
+            if (s.isCursorFlag()) {
+                stationId = s.getStationId();
+                stationTitle = s.getTitle();
+                break;
+            }
         }
-
-        ApplyGoalPlanResponse applied;
-        try {
-            applied = planApply.apply(user, plan);
-        } catch (Exception e) {
-            return err("APPLY_FAILED", "落库失败：" + e.getMessage());
+        if (!stations.isEmpty() && "s-gap".equals(stationId)) {
+            stationId = stations.get(0).getStationId();
+            stationTitle = stations.get(0).getTitle();
         }
+        String pointId = "gap." + gap.getId();
+        String delta = """
+                ## %s · %s
+                | id | 级别 | 要点 |
+                |----|------|------|
+                | %s | MUST | %s |
+                """.formatted(stationId, stationTitle, pointId, statement.replace("|", "/"));
 
+        PathApplyService.Proposal preview = pathApply.preview(userId, repo.getName(), delta);
         gap.setStatus(KbGap.Status.PLANNED);
-        gap.setGoalId(applied.goalId());
         gap.setUpdatedAt(LocalDateTime.now());
         gapRepo.save(gap);
         metrics.recordGapPlanned();
 
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("ok", true);
-        m.put("code", "PLANNED");
+        m.put("ok", preview.ok());
+        m.put("code", preview.ok() ? "PATH_PATCH" : preview.code());
         m.put("gapId", gap.getId());
-        m.put("goalId", applied.goalId());
-        m.put("createdTaskCount", applied.createdTaskCount());
+        m.put("repo", repo.getName());
+        m.put("delta", delta);
+        m.put("preview", preview.preview());
         m.put("goalStatement", statement);
-        m.put("message", "已生成学习目标与 " + applied.createdTaskCount() + " 个任务");
+        m.put("message", preview.ok()
+                ? "已生成路径补丁（尚未写入）。到定线页确认写入路径，再点「生成本站任务」。不再另建一棵 Goal。"
+                : "缺口已标记为已规划，但补丁预览失败：" + preview.message());
+        m.put("next", "/codex/distill");
         return m;
     }
 

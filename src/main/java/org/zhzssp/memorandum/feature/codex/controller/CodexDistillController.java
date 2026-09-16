@@ -88,6 +88,7 @@ public class CodexDistillController {
         m.put("writeEnabled", writeGuard.enabled());
         m.put("outputDir", distill.outputDir());
         m.put("createOnlyPaths", writeGuard.createOnlyPaths());
+        m.put("pathFiles", writeGuard.pathFiles());
         m.put("maxGuideChars", writeGuard.maxGuideChars());
         // 三个开关各自独立、可分别打开，这一点必须说清：
         // 「起草能用但写入不能用」是完全正常的中间状态
@@ -205,6 +206,19 @@ public class CodexDistillController {
         if (d.verdict() != null) m.put("structureCheck", verdict(d.verdict()));
         // 未通过也把内容返回：用户要能看到「差在哪」，而不是只看到一句被拒
         m.put("content", d.content());
+        if (d.path() != null) {
+            DistillService.PathProposal pp = d.path();
+            Map<String, Object> path = new LinkedHashMap<>();
+            path.put("present", pp.present());
+            path.put("parseOk", pp.parseOk());
+            path.put("error", pp.error());
+            path.put("delta", pp.delta());
+            path.put("preview", pp.preview());
+            path.put("stations", pp.stations());
+            path.put("must", pp.must());
+            path.put("skip", pp.skip());
+            m.put("path", path);
+        }
         if (d.ok()) {
             String key = "g" + Math.abs(System.nanoTime() % 1_000_000);
             if (guideDrafts.size() > 16) guideDrafts.clear();
@@ -402,6 +416,10 @@ public class CodexDistillController {
             x.put("todo", s.todo());
             x.put("l2Passed", s.l2Passed());
             x.put("agentDrafted", s.agentDrafted());
+            x.put("stationId", s.stationId());
+            x.put("cursor", s.cursor());
+            x.put("mustCount", s.mustCount());
+            x.put("skipCount", s.skipCount());
             stages.add(x);
         }
         Map<String, Object> m = new LinkedHashMap<>();

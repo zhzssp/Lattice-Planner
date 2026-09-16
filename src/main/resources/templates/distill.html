@@ -47,6 +47,9 @@
         .k-CLOSE_GAP { background: #e6fffb; color: #006d75; border: 1px solid #87e8de; }
         .k-NEEDS_CHECKPOINT, .k-PREDICT, .k-IDLE {
             background: #f5f5f5; color: #595959; border: 1px solid #d9d9d9; }
+        .k-EXTRACT_PATH, .k-FIX_PATH { background: #fff7e6; color: #ad4e00; border: 1px solid #ffd591; }
+        .k-PATH_WINDOW { background: #f6ffed; color: #237804; border: 1px solid #b7eb8f; }
+        .pt-cursor { background: #f0f5ff; }
         table.ds-tb { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
         table.ds-tb th, table.ds-tb td { text-align: left; padding: 0.4rem 0.5rem;
             border-bottom: 1px solid #f0f0f0; }
@@ -88,6 +91,22 @@
         </div>
         <div id="routeActions" style="margin-top:0.8rem;"></div>
         <div id="routeCaveats" class="ds-note"></div>
+    </div>
+
+    <!-- ============ 学习路径 ============ -->
+    <div class="ds-card">
+        <h3>学习路径
+            <span style="font-size:0.78rem;color:#999;font-weight:400;">
+                — Git 权威文件 docs/learning-path.md，没有就不假充</span>
+        </h3>
+        <div>
+            <button class="ds-btn" onclick="loadPath()">刷新路径</button>
+            <button class="ds-btn primary" id="projectBtn" onclick="projectPath()" disabled>生成本站任务</button>
+            <span id="pathSummary" style="font-size:0.82rem;color:#888;margin-left:0.5rem;"></span>
+        </div>
+        <div id="pathBody" style="margin-top:0.8rem;"></div>
+        <div id="pathProj" style="margin-top:0.6rem;"></div>
+        <div id="pathMsg"></div>
     </div>
 
     <!-- ============ 阶段表 ============ -->
@@ -153,7 +172,7 @@
     const CSRF = document.querySelector('meta[name="_csrf"]')?.content;
     const CSRF_H = document.querySelector('meta[name="_csrf_header"]')?.content;
 
-    let cfg = {}, targets = [], gDraftKey = null, eDraftKey = null;
+    let cfg = {}, targets = [], gDraftKey = null, eDraftKey = null, pathDelta = null;
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -208,7 +227,10 @@
 
         const s = r.summary || {};
         document.getElementById('routeSummary').textContent =
-            `${s.guides || 0} 篇文档 · ${s.guidesVerifiable || 0} 篇有检验 · `
+            (s.pathPresent
+                ? `${s.stations || 0} 站 · MUST ${s.must || 0} / SKIP ${s.skip || 0} · `
+                : '尚未抽出路径 · ')
+            + `${s.guides || 0} 篇文档 · ${s.guidesVerifiable || 0} 站有检验 · `
             + `${s.drafts || 0} 篇待核对草稿 · 人写题通过率 `
             + (s.passRateHumanAuthored == null ? '—' : (s.passRateHumanAuthored * 100).toFixed(0) + '%');
 
@@ -231,19 +253,20 @@
     function renderStages(stages) {
         if (!stages.length) {
             document.getElementById('stageTable').innerHTML =
-                '<div class="ds-note">还没有 kind=GUIDE 的文档。可先在仓库页同步索引。</div>';
+                '<div class="ds-note">尚未抽出路径。下面不会用 GUIDE 列表冒充路线。'
+                + '请先蒸馏 PATH_DELTA 并确认写入，或手写 <code>docs/learning-path.md</code> 后同步。</div>';
             return;
         }
         document.getElementById('stageTable').innerHTML = `
             <table class="ds-tb">
-                <tr><th>主题</th><th>成熟度</th><th>有 lab</th><th>检验</th>
+                <tr><th>站</th><th>要点</th><th>有 lab</th><th>检验</th>
                     <th>通过</th><th>L2 通过</th><th>失败</th><th>待办</th></tr>
                 ${stages.map(s => `
-                <tr>
-                    <td>${esc(s.topic)}
+                <tr class="${s.cursor ? 'pt-cursor' : ''}">
+                    <td>${s.cursor ? '<span class="ds-chip">当前</span> ' : ''}
+                        <code>${esc(s.stationId || '')}</code> ${esc(s.topic)}
                         ${s.agentDrafted ? '<span class="ds-chip">含 AI 出题</span>' : ''}</td>
-                    <td>${s.maturity === 'draft'
-                        ? '<span class="ds-no">draft 待核对</span>' : esc(s.maturity || '—')}</td>
+                    <td>MUST ${s.mustCount || 0} / SKIP ${s.skipCount || 0}</td>
                     <td>${s.labExists
                         ? `<span class="ds-yes">${esc(s.labDir)}</span>`
                         : '<span class="ds-no">无</span>'}</td>
@@ -329,6 +352,7 @@
                 + `${esc(r.targetPath || '—')}）</div>`
                 + `<div class="ds-pre">${esc(r.content)}</div>`;
         }
+        renderPathProposal(r.path);
         if (r.ok && r.draftKey) {
             gDraftKey = r.draftKey;
             document.getElementById('dWriteBtn').disabled = !cfg.writeEnabled;
@@ -370,6 +394,100 @@
         }
         msg('dMsg', text, !!r.ok);
         if (r.ok) loadRoute();
+        if (r.ok) loadPath();
+    }
+
+    /* ---------- 路径 ---------- */
+    async function loadPath() {
+        let p;
+        try { p = await (await fetch('/api/codex/path')).json(); }
+        catch (e) {
+            document.getElementById('pathBody').innerHTML = '<div class="ds-msg bad">读取路径失败</div>';
+            return;
+        }
+        const sum = [];
+        if (!p.present) sum.push(p.message || '尚未抽出路径');
+        else {
+            sum.push(`version ${p.version || 1}`);
+            if (p.cursor) sum.push('当前站 ' + p.cursor);
+            sum.push(`MUST ${p.must || 0} / SKIP ${p.skip || 0}`);
+            if (!p.parseOk && p.error) sum.push('解析失败：' + p.error);
+        }
+        document.getElementById('pathSummary').textContent = sum.join(' · ');
+        document.getElementById('projectBtn').disabled = !p.present;
+
+        if (!(p.stations || []).length) {
+            document.getElementById('pathBody').innerHTML =
+                '<div class="ds-note">' + esc(p.message || '还没有路径文件。') + '</div>';
+        } else {
+            document.getElementById('pathBody').innerHTML = (p.stations || []).map(s => `
+                <div class="ds-act ${s.cursor ? 'pt-cursor' : ''}" style="padding:0.55rem;">
+                    <div class="ds-what">${s.cursor ? '<span class="ds-chip">当前</span> ' : ''}
+                        <code>${esc(s.id)}</code> ${esc(s.title)}</div>
+                    <div class="ds-why">资料：${esc(s.sources || '—')}
+                        ${s.lab ? ' · lab ' + esc(s.lab) : ''}</div>
+                    ${(s.points || []).map(pt =>
+                        `<div class="ds-find"><b>${esc(pt.level)}</b> <code>${esc(pt.id)}</code> ${esc(pt.statement)}</div>`
+                    ).join('')}
+                </div>`).join('');
+        }
+        const projs = p.projections || [];
+        const stale = projs.filter(x => x.state === 'STALE');
+        let ph = '';
+        if (stale.length) {
+            ph += '<div class="ds-note"><b>路径已改，这些任务不再是下一站</b></div>'
+                + stale.map(x => `<div class="ds-find"><b>STALE</b> #${x.taskId} ${esc(x.title || x.pointId)}</div>`).join('');
+        }
+        const active = projs.filter(x => x.state === 'ACTIVE');
+        if (active.length) {
+            ph += '<div class="ds-note">ACTIVE 任务 '
+                + active.map(x => `#${x.taskId}`).join('、') + '</div>';
+        }
+        document.getElementById('pathProj').innerHTML = ph;
+    }
+
+    function renderPathProposal(path) {
+        pathDelta = null;
+        if (!path) return;
+        let html = '<div class="ds-note"><b>路径补丁 PATH_DELTA</b>：';
+        if (!path.present) {
+            html += esc(path.error || '未抽出') + '。教材草稿仍可保存，不会把 guide 正文假装成路径。</div>';
+            document.getElementById('dCheck').innerHTML += html;
+            return;
+        }
+        if (!path.parseOk) {
+            html += '抽出了但解析失败：' + esc(path.error)
+                + '。可以写入 paper-note，路径文件保持不动。</div>';
+            if (path.delta) html += `<div class="ds-pre">${esc(path.delta)}</div>`;
+            document.getElementById('dCheck').innerHTML += html;
+            return;
+        }
+        pathDelta = path.delta;
+        html += `可解析（${path.stations} 站，MUST ${path.must} / SKIP ${path.skip}）。`
+            + '确认后才写入 docs/learning-path.md。</div>';
+        html += `<button class="ds-btn warn" id="pathApplyBtn" onclick="applyPathDelta()"
+                 ${cfg.writeEnabled ? '' : 'disabled'}>认可并写入路径</button>`;
+        if (path.preview) {
+            html += `<div class="ds-note">合并后预览</div><div class="ds-pre">${esc(path.preview)}</div>`;
+        }
+        document.getElementById('dCheck').innerHTML += html;
+    }
+
+    async function applyPathDelta() {
+        if (!pathDelta) return;
+        const r = await post('/api/codex/path/apply', {delta: pathDelta, confirmed: true});
+        msg('dMsg', r.message || '', !!r.ok);
+        if (r.ok) {
+            pathDelta = null;
+            await loadPath();
+            await loadRoute();
+        }
+    }
+
+    async function projectPath() {
+        const r = await post('/api/codex/path/project', {});
+        msg('pathMsg', r.message || '', !!r.ok);
+        if (r.ok) await loadPath();
     }
 
     /* ---------- 出题 ---------- */
@@ -422,7 +540,7 @@
 
     (async function init() {
         await loadConfig();
-        await Promise.all([loadSources(), loadTargets()]);
+        await Promise.all([loadSources(), loadTargets(), loadPath()]);
         await loadRoute();
     })();
 </script>

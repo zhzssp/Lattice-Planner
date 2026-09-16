@@ -129,6 +129,17 @@ class DocWriteGuardTest {
         }
 
         @Test
+        @DisplayName("路径文件 docs/learning-path.md 允许 REPLACE，guide 仍拒绝")
+        void allowsLearningPathFileButNotGuides() {
+            assertTrue(guard.checkPath(repo, "docs/learning-path.md").allowed());
+            assertTrue(guard.checkPath(repo, "docs/learning-path.md.draft").allowed());
+            assertTrue(guard.isPathFile("docs/learning-path.md"));
+            assertTrue(guard.checkCreatable(repo, "docs/learning-path.md", true).allowed(),
+                    "路径文件是唯一允许整文件替换的体系骨架");
+            assertFalse(guard.checkPath(repo, "docs/learning-guides/g.md").allowed());
+        }
+
+        @Test
         @DisplayName("非 Markdown 拒绝")
         void rejectsNonMarkdown() {
             DocWriteGuard.Decision d = guard.checkPath(repo, "docs/notes/x.txt");

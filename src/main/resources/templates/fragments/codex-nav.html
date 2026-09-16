@@ -10,7 +10,10 @@
 <header class="cx-workbench" th:fragment="chrome">
     <div class="cx-workbench-bar">
         <h1 class="cx-workbench-title">知识仓库</h1>
-        <a class="cx-workbench-back" href="/dashboard">返回 Dashboard</a>
+        <div class="cx-workbench-right">
+            <span id="cx-autosync" class="cx-workbench-sync" aria-live="polite"></span>
+            <a class="cx-workbench-back" href="/dashboard">返回 Dashboard</a>
+        </div>
     </div>
     <nav class="cx-seg" aria-label="知识仓库分区">
         <a href="/codex" class="cx-seg-item"
@@ -35,5 +38,24 @@
            th:aria-current="${codexNav=='gaps'} ? 'page'">缺口</a>
     </nav>
 </header>
+<script>
+(function () {
+    const KEY = 'codex.autosync.ts';
+    const last = Number(sessionStorage.getItem(KEY) || '0');
+    if (Date.now() - last < 8000) return;
+    sessionStorage.setItem(KEY, String(Date.now()));
+    const token = document.querySelector('meta[name="_csrf"]')?.content;
+    const headerName = document.querySelector('meta[name="_csrf_header"]')?.content;
+    const headers = { 'Content-Type': 'application/json' };
+    if (token && headerName) headers[headerName] = token;
+    fetch('/api/codex/repos/autosync', { method: 'POST', headers: headers })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            var el = document.getElementById('cx-autosync');
+            if (el && d && d.message) el.textContent = d.message;
+        })
+        .catch(function () { /* 自动同步失败不挡浏览 */ });
+})();
+</script>
 </body>
 </html>

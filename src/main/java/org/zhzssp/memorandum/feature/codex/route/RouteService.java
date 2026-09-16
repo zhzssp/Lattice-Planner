@@ -8,10 +8,17 @@ import org.springframework.stereotype.Service;
 import org.zhzssp.memorandum.feature.codex.entity.KbCheckpoint;
 import org.zhzssp.memorandum.feature.codex.entity.KbDocument;
 import org.zhzssp.memorandum.feature.codex.entity.KbGap;
+import org.zhzssp.memorandum.feature.codex.entity.KbPathSnapshot;
+import org.zhzssp.memorandum.feature.codex.entity.KbPoint;
+import org.zhzssp.memorandum.feature.codex.entity.KbStation;
 import org.zhzssp.memorandum.feature.codex.entity.KnowledgeRepo;
 import org.zhzssp.memorandum.feature.codex.gap.GapService;
+import org.zhzssp.memorandum.feature.codex.path.LearningPathParser;
 import org.zhzssp.memorandum.feature.codex.repository.KbCheckpointRepository;
 import org.zhzssp.memorandum.feature.codex.repository.KbDocumentRepository;
+import org.zhzssp.memorandum.feature.codex.repository.KbPathSnapshotRepository;
+import org.zhzssp.memorandum.feature.codex.repository.KbPointRepository;
+import org.zhzssp.memorandum.feature.codex.repository.KbStationRepository;
 import org.zhzssp.memorandum.feature.codex.service.RepoRegistryService;
 
 import java.nio.file.Files;
@@ -20,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -78,7 +84,8 @@ public class RouteService {
     public record Stage(String topic, String guidePath, String guideTitle,
                         String maturity, String labDir, boolean labExists,
                         int checkpointTotal, int passed, int failed, int todo,
-                        int l2Passed, boolean agentDrafted) {
+                        int l2Passed, boolean agentDrafted,
+                        String stationId, boolean cursor, int mustCount, int skipCount) {
 
         public boolean verifiable() {
             return checkpointTotal > 0;
@@ -92,17 +99,26 @@ public class RouteService {
     private final RepoRegistryService registry;
     private final KbDocumentRepository docRepo;
     private final KbCheckpointRepository cpRepo;
+    private final KbStationRepository stationRepo;
+    private final KbPointRepository pointRepo;
+    private final KbPathSnapshotRepository pathSnapRepo;
     private final GapService gapService;
     private final ObjectMapper om;
 
     public RouteService(RepoRegistryService registry,
                         KbDocumentRepository docRepo,
                         KbCheckpointRepository cpRepo,
+                        KbStationRepository stationRepo,
+                        KbPointRepository pointRepo,
+                        KbPathSnapshotRepository pathSnapRepo,
                         GapService gapService,
                         ObjectMapper om) {
         this.registry = registry;
         this.docRepo = docRepo;
         this.cpRepo = cpRepo;
+        this.stationRepo = stationRepo;
+        this.pointRepo = pointRepo;
+        this.pathSnapRepo = pathSnapRepo;
         this.gapService = gapService;
         this.om = om;
     }
@@ -122,42 +138,50 @@ public class RouteService {
         List<KbDocument> docs = docRepo.findByRepoId(repo.getId());
         List<KbCheckpoint> cps = cpRepo.findByRepoIdOrderByCodeAsc(repo.getId());
         Path root = registry.rootOf(repo);
+        KbPathSnapshot snap = pathSnapRepo.findByRepoId(repo.getId()).orElse(null);
+        List<KbStation> stations = stationRepo.findByRepoIdOrderByOrdinalAsc(repo.getId());
+        List<KbPoint> points = pointRepo.findByRepoIdOrderByPointIdAsc(repo.getId());
 
-        List<Stage> stages = buildStages(repo, docs, cps, root);
-        List<Action> actions = buildActions(userId, repo, docs, cps, stages);
+        List<Stage> stages = buildStages(repo, docs, cps, root, stations, points);
+        List<Action> actions = buildActions(userId, repo, docs, cps, stages, snap, stations);
         actions.sort(Comparator.comparingInt(Action::weight).reversed());
 
         return new Route(repo.getName(), actions, stages,
-                summarize(docs, cps, stages), caveats(docs, cps, stages));
+                summarize(docs, cps, stages, snap, stations),
+                caveats(docs, cps, stages, snap, stations));
     }
 
     /* ==================== 阶段表 ==================== */
 
     /**
-     * 由仓库结构算出读→做→验三列。
-     *
-     * <p>guide ↔ lab ↔ checkpoint 的对应关系不猜：lab 取自检验册里
-     * 「对应动手项目」那一行（已由 {@code CheckpointParser} 解析成 {@code lab} 字段），
-     * 或按命名约定 {@code xxx-learning-guide.md ↔ xxx-lab/} 匹配<strong>且目录必须存在</strong>。
-     * 匹配不上就显示空，不填一个猜测值——阶段表里一个错误的 lab 路径会让人
-     * 照着它 cd 进不存在的目录，然后怀疑是不是自己环境坏了。</p>
+     * 阶段表读 {@code kb_station}，不再用 GUIDE 列表假充路径。
      */
     private List<Stage> buildStages(KnowledgeRepo repo, List<KbDocument> docs,
-                                    List<KbCheckpoint> cps, Path root) {
+                                    List<KbCheckpoint> cps, Path root,
+                                    List<KbStation> stations, List<KbPoint> points) {
         List<Stage> out = new ArrayList<>();
-        for (KbDocument d : docs) {
-            if (d.getKind() != KbDocument.DocKind.GUIDE) continue;
-
-            String topic = topicOf(d.getPath());
-            List<KbCheckpoint> mine = cps.stream()
-                    .filter(c -> c.getDocumentId() != null && c.getDocumentId().equals(d.getId()))
+        for (KbStation s : stations) {
+            List<KbPoint> minePts = points.stream()
+                    .filter(p -> s.getStationId().equals(p.getStationId()))
                     .toList();
+            int must = 0, skip = 0;
+            for (KbPoint p : minePts) {
+                if (p.getLevel() == KbPoint.Level.MUST) must++;
+                else skip++;
+            }
+            String guidePath = firstGuideSource(s.getSourcesCsv());
+            KbDocument guide = guidePath == null ? null : docs.stream()
+                    .filter(d -> guidePath.equals(d.getPath()))
+                    .findFirst().orElse(null);
+            List<KbCheckpoint> mine = matchCheckpoints(s, guide, cps, docs);
 
-            String lab = mine.stream()
-                    .map(KbCheckpoint::getLab)
-                    .filter(s -> s != null && !s.isBlank())
-                    .findFirst()
-                    .orElseGet(() -> guessLab(root, topic));
+            String lab = blankToNull(s.getLab());
+            if (lab == null) {
+                lab = mine.stream()
+                        .map(KbCheckpoint::getLab)
+                        .filter(x -> x != null && !x.isBlank())
+                        .findFirst().orElse(null);
+            }
             boolean labExists = lab != null && Files.isDirectory(root.resolve(lab));
 
             int passed = 0, failed = 0, todo = 0, l2Passed = 0;
@@ -176,15 +200,15 @@ public class RouteService {
                     agentDrafted = true;
                 }
             }
-            out.add(new Stage(topic, d.getPath(),
-                    d.getTitle() == null ? topic : d.getTitle(),
-                    maturityOf(d), lab, labExists,
-                    mine.size(), passed, failed, todo, l2Passed, agentDrafted));
+            String title = s.getTitle();
+            out.add(new Stage(title,
+                    guidePath,
+                    guide == null ? title : (guide.getTitle() == null ? title : guide.getTitle()),
+                    guide == null ? null : maturityOf(guide),
+                    lab, labExists,
+                    mine.size(), passed, failed, todo, l2Passed, agentDrafted,
+                    s.getStationId(), s.isCursorFlag(), must, skip));
         }
-        // 未验的排前面：阶段表的用处是"下一步去哪"，已经验完的主题不需要占视线
-        out.sort(Comparator
-                .comparingInt((Stage s) -> s.verifiable() ? 1 : 0)
-                .thenComparing(Stage::topic));
         return out;
     }
 
@@ -192,8 +216,40 @@ public class RouteService {
 
     private List<Action> buildActions(Long userId, KnowledgeRepo repo,
                                       List<KbDocument> docs, List<KbCheckpoint> cps,
-                                      List<Stage> stages) {
+                                      List<Stage> stages, KbPathSnapshot snap,
+                                      List<KbStation> stations) {
         List<Action> out = new ArrayList<>();
+
+        boolean pathOk = snap != null && snap.isParseOk() && !stations.isEmpty();
+        boolean pathMissing = stations.isEmpty() && (snap == null || !snap.isParseOk());
+        if (pathMissing) {
+            String why = snap != null && snap.getParseError() != null
+                    ? "路径解析失败：" + snap.getParseError()
+                    : "仓库里还没有可解析的 docs/learning-path.md。"
+                    + "定线现在只读车站，不会用 GUIDE 列表假充路线。";
+            out.add(new Action("EXTRACT_PATH", 110,
+                    "抽出学习路径",
+                    why + " 去蒸馏页看 PATH_DELTA，或手写路径文件后同步。",
+                    LearningPathParser.DEFAULT_PATH, "/codex/distill"));
+        } else if (snap != null && !snap.isParseOk()) {
+            out.add(new Action("FIX_PATH", 105,
+                    "路径文件解析失败，展示仍是上一版车站",
+                    nvl(snap.getParseError())
+                            + " 权威文件没被静默丢行；修好后再同步。",
+                    LearningPathParser.DEFAULT_PATH, "/codex/distill"));
+        }
+        if (pathOk) {
+            Stage cursor = stages.stream().filter(Stage::cursor).findFirst()
+                    .orElse(stages.isEmpty() ? null : stages.get(0));
+            String station = cursor == null ? "" : cursor.stationId();
+            out.add(new Action("PATH_WINDOW", 95,
+                    "当前站 " + (cursor == null ? "" : cursor.topic())
+                            + " 的 MUST 即 Dashboard 待办",
+                    "待办只有一份：由路径窗口投影。"
+                            + "在定线页点「生成本站任务」后会出现在 Dashboard；"
+                            + "改路径后过时任务会标 STALE。",
+                    station, "/dashboard"));
+        }
 
         // ① 未核对的蒸馏草稿——唯一一项「不做会扩散」的
         for (KbDocument d : docs) {
@@ -305,9 +361,18 @@ public class RouteService {
     /* ==================== 汇总与如实声明 ==================== */
 
     private Map<String, Object> summarize(List<KbDocument> docs, List<KbCheckpoint> cps,
-                                          List<Stage> stages) {
+                                          List<Stage> stages, KbPathSnapshot snap,
+                                          List<KbStation> stations) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("guides", stages.size());
+        m.put("pathPresent", !stations.isEmpty());
+        m.put("pathParseOk", snap != null && snap.isParseOk());
+        m.put("pathError", snap == null ? null : snap.getParseError());
+        m.put("pathVersion", snap == null ? 0 : snap.getVersion());
+        m.put("cursor", snap == null ? null : snap.getCursor());
+        m.put("stations", stations.size());
+        m.put("must", snap == null ? stages.stream().mapToInt(Stage::mustCount).sum() : snap.getMustCount());
+        m.put("skip", snap == null ? stages.stream().mapToInt(Stage::skipCount).sum() : snap.getSkipCount());
+        m.put("guides", docs.stream().filter(d -> d.getKind() == KbDocument.DocKind.GUIDE).count());
         m.put("guidesVerifiable", stages.stream().filter(Stage::verifiable).count());
         m.put("guidesWithLab", stages.stream().filter(Stage::labExists).count());
         m.put("drafts", docs.stream().filter(d -> "draft".equalsIgnoreCase(maturityOf(d))).count());
@@ -341,10 +406,18 @@ public class RouteService {
      * 不说清楚的话，用户会把「软件说我没事可做」理解成"我确实没事可做"。</p>
      */
     private List<String> caveats(List<KbDocument> docs, List<KbCheckpoint> cps,
-                                List<Stage> stages) {
+                                List<Stage> stages, KbPathSnapshot snap,
+                                List<KbStation> stations) {
         List<String> out = new ArrayList<>();
         out.add("本页全部结论来自库里已有记录的确定性计算，不调用 LLM，也不做推测——"
                 + "每条建议后面的「依据」都可以点开核对。");
+        if (stations.isEmpty()) {
+            out.add("尚未抽出路径：阶段表为空，不会用 GUIDE 列表冒充路线。"
+                    + "请蒸馏 PATH_DELTA 或手写 docs/learning-path.md 后同步。");
+        } else if (snap != null && !snap.isParseOk()) {
+            out.add("路径文件最近一次解析失败（" + nvl(snap.getParseError())
+                    + "），下面仍是上一版车站。");
+        }
         if (cps.isEmpty()) {
             out.add("检验表为空：可能确实还没有检验，也可能只是还没同步（检验面板里点一次同步）。"
                     + "两种情况这里无法区分，所以不做判断。");
@@ -367,27 +440,56 @@ public class RouteService {
 
     /* ==================== 内部 ==================== */
 
-    private KnowledgeRepo firstEnabled(Long userId) {
-        List<KnowledgeRepo> all = registry.listEnabled(userId);
-        return all.isEmpty() ? null : all.get(0);
+    private List<KbCheckpoint> matchCheckpoints(KbStation station, KbDocument guide,
+                                                List<KbCheckpoint> cps, List<KbDocument> docs) {
+        String lab = blankToNull(station.getLab());
+        List<String> sources = csv(station.getSourcesCsv());
+        List<KbCheckpoint> out = new ArrayList<>();
+        for (KbCheckpoint c : cps) {
+            if (lab != null && lab.equals(c.getLab())) {
+                out.add(c);
+                continue;
+            }
+            if (guide != null && c.getDocumentId() != null && c.getDocumentId().equals(guide.getId())) {
+                out.add(c);
+                continue;
+            }
+            if (c.getDocumentId() != null) {
+                for (KbDocument d : docs) {
+                    if (d.getId().equals(c.getDocumentId()) && sources.contains(d.getPath())) {
+                        out.add(c);
+                        break;
+                    }
+                }
+            }
+        }
+        return out;
     }
 
-    /** 按命名约定猜 lab，但<strong>目录不存在就返回 null</strong>。 */
-    private String guessLab(Path root, String topic) {
-        if (topic == null || topic.isBlank()) return null;
-        String t = topic.toLowerCase(Locale.ROOT);
-        for (String candidate : List.of(t + "-lab", t + "-compile", t + "-dialect", t)) {
-            if (Files.isDirectory(root.resolve(candidate))) return candidate;
+    private static String firstGuideSource(String csv) {
+        for (String s : csv(csv)) {
+            if (s.endsWith(".md")) return s;
         }
         return null;
     }
 
-    private String topicOf(String path) {
-        String base = path.substring(path.lastIndexOf('/') + 1)
-                .replaceAll("\\.md$", "")
-                .replaceAll("-learning-guide$", "")
-                .replaceAll("-guide$", "");
-        return base.isBlank() ? path : base;
+    private static List<String> csv(String raw) {
+        List<String> out = new ArrayList<>();
+        if (raw == null || raw.isBlank()) return out;
+        for (String p : raw.split("[,，]")) {
+            String s = p.strip().replace("`", "");
+            if (!s.isEmpty()) out.add(s);
+        }
+        return out;
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.strip();
+    }
+
+    private KnowledgeRepo firstEnabled(Long userId) {
+        List<KnowledgeRepo> all = registry.listEnabled(userId);
+        return all.isEmpty() ? null : all.get(0);
     }
 
     private String maturityOf(KbDocument d) {

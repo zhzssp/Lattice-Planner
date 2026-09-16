@@ -54,6 +54,8 @@ public class RepoLayout {
         rs.add(rule("docs/paper-notes/**/*.md", DocKind.GUIDE, "paper-note"));
         rs.add(rule("docs/notes/**/*.md", DocKind.NOTE, null));
         rs.add(rule("docs/checkpoints/**/*.md", DocKind.CHECKPOINT_SET, null));
+        // 精确路径必须排在 README / **/*.md 之前，否则会被 ROADMAP 或 UNKNOWN 吃掉
+        rs.add(rule("docs/learning-path.md", DocKind.LEARNING_PATH, null));
         rs.add(rule("docs/README.md", DocKind.ROADMAP, null));
         rs.add(rule("README.md", DocKind.ROADMAP, null));
         rs.add(rule("**/*-lab/README.md", DocKind.LAB, null));

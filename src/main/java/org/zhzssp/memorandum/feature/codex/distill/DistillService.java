@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.zhzssp.memorandum.feature.agent.service.LlmGateway;
 import org.zhzssp.memorandum.feature.codex.entity.KnowledgeRepo;
+import org.zhzssp.memorandum.feature.codex.path.LearningPathParser;
+import org.zhzssp.memorandum.feature.codex.path.LearningPathRenderer;
 import org.zhzssp.memorandum.feature.codex.sediment.DocWriteGuard;
 import org.zhzssp.memorandum.feature.codex.service.CodexMetrics;
 import org.zhzssp.memorandum.feature.codex.service.RepoRegistryService;
@@ -52,18 +54,30 @@ public class DistillService {
     private static final String M_FEATURES = "@@FEATURES@@";
     private static final String M_MASTERY = "@@MASTERY@@";
     private static final String M_SKIP = "@@SKIP@@";
+    private static final String M_PATH = "@@PATH@@";
     private static final String M_OPEN = "@@OPEN@@";
     private static final String M_END = "@@END@@";
+
+    /** 路径补丁（可缺、可失败，不否决教材草稿）。 */
+    public record PathProposal(boolean present, boolean parseOk, String error,
+                               String delta, String preview,
+                               int stations, int must, int skip) {
+        static PathProposal none(String error) {
+            return new PathProposal(false, false, error, null, null, 0, 0, 0);
+        }
+    }
 
     /** 起草结果（未落盘）。 */
     public record Draft(boolean ok, String code, String message,
                         String title, String targetPath, String content,
                         SourceReader.Source source,
                         DistillGuard.Verdict verdict,
-                        int llmCalls, long elapsedMs) {
+                        int llmCalls, long elapsedMs,
+                        PathProposal path) {
 
         static Draft fail(String code, String message) {
-            return new Draft(false, code, message, null, null, null, null, null, 0, 0);
+            return new Draft(false, code, message, null, null, null, null, null, 0, 0,
+                    PathProposal.none(null));
         }
     }
 
@@ -86,6 +100,8 @@ public class DistillService {
     private final RepoSyncService syncService;
     private final LlmGateway llm;
     private final CodexMetrics metrics;
+    private final LearningPathParser pathParser;
+    private final LearningPathRenderer pathRenderer;
 
     @Value("${codex.distill.enabled:false}")
     private boolean distillEnabled;
@@ -104,7 +120,9 @@ public class DistillService {
                           RepoWriteService writeService,
                           RepoSyncService syncService,
                           LlmGateway llm,
-                          CodexMetrics metrics) {
+                          CodexMetrics metrics,
+                          LearningPathParser pathParser,
+                          LearningPathRenderer pathRenderer) {
         this.reader = reader;
         this.template = template;
         this.guard = guard;
@@ -114,6 +132,8 @@ public class DistillService {
         this.syncService = syncService;
         this.llm = llm;
         this.metrics = metrics;
+        this.pathParser = pathParser;
+        this.pathRenderer = pathRenderer;
     }
 
     public boolean enabled() {
@@ -145,7 +165,7 @@ public class DistillService {
         if (!src.ok()) {
             metrics.recordDistillRejected(src.code());
             return new Draft(false, src.code(), src.message(), null, null, null,
-                    src, null, 0, System.currentTimeMillis() - t0);
+                    src, null, 0, System.currentTimeMillis() - t0, PathProposal.none(null));
         }
 
         metrics.recordDistillAttempt();
@@ -178,7 +198,7 @@ public class DistillService {
             return new Draft(false, "LLM_UNAVAILABLE",
                     "所有分段的抽取都失败了，多半是 LLM 不可用或密钥未配置。",
                     finalTitle, null, null, src, null, calls,
-                    System.currentTimeMillis() - t0);
+                    System.currentTimeMillis() - t0, PathProposal.none(null));
         }
 
         // ---- reduce：汇总成四个小节 ----
@@ -189,7 +209,7 @@ public class DistillService {
         } catch (Exception e) {
             return new Draft(false, "LLM_FAILED",
                     "汇总阶段调用失败：" + e.getMessage(), finalTitle, null, null,
-                    src, null, calls, System.currentTimeMillis() - t0);
+                    src, null, calls, System.currentTimeMillis() - t0, PathProposal.none(null));
         }
 
         List<String> openIssues = new ArrayList<>(splitLines(cut(reduced, M_OPEN, M_END)));
@@ -218,12 +238,14 @@ public class DistillService {
             metrics.recordDistillRejected(verdict.errors().get(0).code());
         }
 
-        String path = outputDir() + "/" + template.slug(finalTitle) + ".md";
+        PathProposal pathProposal = proposePath(userId, sourceFile, reduced);
+
+        String outPath = outputDir() + "/" + template.slug(finalTitle) + ".md";
         return new Draft(verdict.pass(),
                 verdict.pass() ? "DRAFTED" : "STRUCTURE_REJECTED",
                 verdict.summary() + (verdict.pass() ? "" : "：" + verdict.firstError()),
-                finalTitle, path, content, src, verdict, calls,
-                System.currentTimeMillis() - t0);
+                finalTitle, outPath, content, src, verdict, calls,
+                System.currentTimeMillis() - t0, pathProposal);
     }
 
     /* ==================== ③ 落盘 ==================== */
@@ -357,7 +379,7 @@ public class DistillService {
                 你在写一篇技术学习教材（guide），主题：%s。
                 原料是一份 %d 页 / %d 字符的文档，下面是从各段抽出的素材。
 
-                写成四个小节，用给定分隔符隔开，严格按顺序输出，不要写任何分隔符之外的话：
+                按给定分隔符依次输出各节，严格按顺序，不要写任何分隔符之外的话：
 
                 %s
                 一句话说清这套东西解决什么问题、以及为什么值得学。不超过 60 字。
@@ -385,6 +407,20 @@ public class DistillService {
                 至少 3 条。
 
                 %s
+                学习路径补丁 PATH_DELTA。用与 docs/learning-path.md 相同的车站写法，只写本次原料对应的站。
+                严格按下述形态，不要包在代码块里：
+                ## sN · 这一站的标题
+                - sources: 原料文件名或仓库内相对路径
+                - lab: 若有动手目录则写相对路径，没有就省略这一行
+                - next: 下一站 id（没有就省略）
+
+                | id | 级别 | 要点 |
+                |----|------|------|
+                | sN.p1 | MUST | 一条可判定的必学要点 |
+                | sN.p2 | SKIP | 一条可以先跳过的要点 |
+                级别只允许 MUST 或 SKIP。至少 1 条 MUST。解析失败不会否决上面的教材草稿。
+
+                %s
                 你不确定的地方，每条一个列表项。没有就写「无」。
 
                 %s
@@ -394,11 +430,55 @@ public class DistillService {
                 %s
                 ---
                 """.formatted(title, src.pageCount(), src.charCount(),
-                M_ONELINER, M_FRAMEWORK, M_FEATURES, M_MASTERY, M_SKIP, M_OPEN, M_END,
+                M_ONELINER, M_FRAMEWORK, M_FEATURES, M_MASTERY, M_SKIP, M_PATH, M_OPEN, M_END,
                 String.join("\n\n", notes));
     }
 
     /* ==================== 内部 ==================== */
+
+    private PathProposal proposePath(Long userId, Path sourceFile, String reduced) {
+        String raw = cut(reduced, M_PATH, M_OPEN);
+        if (raw == null || raw.isBlank()) {
+            return PathProposal.none("未抽出可应用的路径（蒸馏仍可保存教材草稿）。");
+        }
+        LearningPathParser.ParsedPath delta = pathParser.parseDelta(raw);
+        if (!delta.ok()) {
+            return new PathProposal(true, false, delta.error(), raw, null, 0, 0, 0);
+        }
+        LearningPathParser.ParsedPath existing = readExistingPath(userId, sourceFile);
+        LearningPathParser.ParsedPath merged = pathRenderer.merge(existing, delta);
+        String preview = pathRenderer.render(merged);
+        return new PathProposal(true, true, null, raw, preview,
+                merged.stations().size(), merged.mustCount(), merged.skipCount());
+    }
+
+    private LearningPathParser.ParsedPath readExistingPath(Long userId, Path sourceFile) {
+        KnowledgeRepo repo = repoOfSource(userId, sourceFile);
+        if (repo == null) return null;
+        Path file = registry.rootOf(repo).resolve(LearningPathParser.DEFAULT_PATH);
+        if (!Files.isRegularFile(file)) return null;
+        try {
+            LearningPathParser.ParsedPath p = pathParser.parseDocument(
+                    Files.readString(file, StandardCharsets.UTF_8), true);
+            return p.ok() ? p : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private KnowledgeRepo repoOfSource(Long userId, Path sourceFile) {
+        try {
+            Path abs = sourceFile.toAbsolutePath().normalize();
+            for (KnowledgeRepo r : registry.listEnabled(userId)) {
+                Path root = registry.rootOf(r).toAbsolutePath().normalize();
+                if (abs.startsWith(root)) return r;
+            }
+        } catch (Exception ignored) {
+            // 预览失败不影响蒸馏
+        }
+        List<KnowledgeRepo> all = registry.listEnabled(userId);
+        return all.isEmpty() ? null : all.get(0);
+    }
 
     /** 取两个分隔符之间的内容；缺失返回 null（只丢这一节，不影响其余）。 */
     static String cut(String text, String from, String to) {

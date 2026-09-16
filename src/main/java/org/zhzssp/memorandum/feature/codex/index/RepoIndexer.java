@@ -57,6 +57,9 @@ public class RepoIndexer {
     private final KbChunkRepository chunkRepo;
     private final KbLinkRepository linkRepo;
     private final KbIndexRunRepository runRepo;
+    private final KbStationRepository stationRepo;
+    private final KbPointRepository pointRepo;
+    private final KbPathSnapshotRepository pathSnapRepo;
     private final CodexMetrics metrics;
 
     @Value("${codex.index.max-chunks-per-document:400}")
@@ -85,6 +88,9 @@ public class RepoIndexer {
                        KbChunkRepository chunkRepo,
                        KbLinkRepository linkRepo,
                        KbIndexRunRepository runRepo,
+                       KbStationRepository stationRepo,
+                       KbPointRepository pointRepo,
+                       KbPathSnapshotRepository pathSnapRepo,
                        CodexMetrics metrics) {
         this.git = git;
         this.scanner = scanner;
@@ -100,6 +106,9 @@ public class RepoIndexer {
         this.chunkRepo = chunkRepo;
         this.linkRepo = linkRepo;
         this.runRepo = runRepo;
+        this.stationRepo = stationRepo;
+        this.pointRepo = pointRepo;
+        this.pathSnapRepo = pathSnapRepo;
         this.metrics = metrics;
     }
 
@@ -570,6 +579,9 @@ public class RepoIndexer {
         chunkRepo.deleteByRepoId(repoId);
         sectionRepo.deleteByRepoId(repoId);
         linkRepo.deleteByRepoId(repoId);
+        pointRepo.deleteByRepoId(repoId);
+        stationRepo.deleteByRepoId(repoId);
+        pathSnapRepo.deleteByRepoId(repoId);
         docRepo.deleteByRepoId(repoId);
     }
 

@@ -103,6 +103,15 @@ public class DocWriteGuard {
     @Value("${codex.write.create-only-paths:docs/paper-notes/**/*.md,docs/checkpoints/**/*.md}")
     private String createOnlyPathsRaw;
 
+    /**
+     * 第三类：路径文件。允许 REPLACE，且只限这些 glob。
+     *
+     * <p>教材 {@code docs/learning-guides/} 仍不可写。迭代面是
+     * {@code docs/learning-path.md}：没有这份文件就没有可改的 \(x\)。</p>
+     */
+    @Value("${codex.write.path-files:docs/learning-path.md,docs/learning-path.md.draft}")
+    private String pathFilesRaw;
+
     @Value("${codex.write.branch-prefix:lattice/}")
     private String branchPrefix;
 
@@ -124,6 +133,7 @@ public class DocWriteGuard {
 
     private volatile List<Pattern> allowedPatterns;
     private volatile List<Pattern> createOnlyPatterns;
+    private volatile List<Pattern> pathFilePatterns;
 
     public DocWriteGuard(RepoRegistryService registry, GitClient git) {
         this.registry = registry;
@@ -144,6 +154,17 @@ public class DocWriteGuard {
 
     public List<String> createOnlyPaths() {
         return splitCreateOnlyGlobs();
+    }
+
+    public List<String> pathFiles() {
+        return splitPathFileGlobs();
+    }
+
+    /** 是否落在路径文件白名单（可 REPLACE）。 */
+    public boolean isPathFile(String relPath) {
+        if (relPath == null || relPath.isBlank()) return false;
+        String normalized = RepoIndexer.normalizeSlashes(relPath.replace('\\', '/').strip());
+        return matchesPathFile(normalized);
     }
 
     public int maxGuideChars() {
@@ -200,15 +221,18 @@ public class DocWriteGuard {
             return Decision.deny("PATH_ESCAPE", "路径试图越出仓库：" + relPath,
                     "只允许仓库内的相对路径。");
         }
-        if (!normalized.toLowerCase().endsWith(".md")) {
+        String lower = normalized.toLowerCase();
+        if (!lower.endsWith(".md") && !lower.endsWith(".md.draft")) {
             return Decision.deny("PATH_NOT_MARKDOWN", "只允许写 Markdown 文件：" + normalized,
                     "知识资产的权威形态是 Markdown；其他格式请手动放入仓库。");
         }
-        if (!matchesAllowed(normalized) && !matchesCreateOnly(normalized)) {
+        if (!matchesAllowed(normalized) && !matchesCreateOnly(normalized)
+                && !matchesPathFile(normalized)) {
             return Decision.deny("PATH_NOT_ALLOWED",
                     "路径不在写入白名单内：" + normalized,
                     "可覆盖写入：" + String.join("、", splitGlobs())
                             + "；仅可新建：" + String.join("、", splitCreateOnlyGlobs())
+                            + "；路径文件（可整文件替换）：" + String.join("、", splitPathFileGlobs())
                             + "。既有 guide 只能通过 doc.insert_backref 插入一行速记引用，"
                             + "不允许整体改写——数十万字的语料一次幻觉就可能不可逆损失。");
         }
@@ -431,6 +455,13 @@ public class DocWriteGuard {
         return false;
     }
 
+    private boolean matchesPathFile(String normalized) {
+        for (Pattern p : pathFilePatternList()) {
+            if (p.matcher(normalized).matches()) return true;
+        }
+        return false;
+    }
+
     private List<Pattern> patterns() {
         List<Pattern> cached = allowedPatterns;
         if (cached != null) return cached;
@@ -453,6 +484,17 @@ public class DocWriteGuard {
         return built;
     }
 
+    private List<Pattern> pathFilePatternList() {
+        List<Pattern> cached = pathFilePatterns;
+        if (cached != null) return cached;
+        List<Pattern> built = new ArrayList<>();
+        for (String glob : splitPathFileGlobs()) {
+            built.add(RepoLayout.globToPattern(glob));
+        }
+        pathFilePatterns = built;
+        return built;
+    }
+
     private List<String> splitGlobs() {
         return splitRaw(allowedPathsRaw, "docs/notes/**/*.md");
     }
@@ -461,6 +503,10 @@ public class DocWriteGuard {
         // 留空是有意义的配置：表示「关掉蒸馏写入」，而不是回落到默认值
         if (createOnlyPathsRaw == null || createOnlyPathsRaw.isBlank()) return List.of();
         return splitRaw(createOnlyPathsRaw, "");
+    }
+
+    private List<String> splitPathFileGlobs() {
+        return splitRaw(pathFilesRaw, "docs/learning-path.md,docs/learning-path.md.draft");
     }
 
     private List<String> splitRaw(String raw, String fallback) {

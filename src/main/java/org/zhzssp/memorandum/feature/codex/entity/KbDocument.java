@@ -34,7 +34,12 @@ public class KbDocument {
         GUIDE,
         /** 对话沉淀短记，须有 backref 挂回 guide。 */
         NOTE,
-        /** 路线：优先级表 + 阶段表（读→做→验）。 */
+        /**
+         * 学习路径：站序 + MUST/SKIP 要点。权威文件默认 {@code docs/learning-path.md}。
+         * 与 GUIDE 分离——教材讲机制，路径只回答顺序与每站要点。
+         */
+        LEARNING_PATH,
+        /** 路线：优先级表 + 阶段表（读→做→验）。既有 README 仍按此归类，不假充路径。 */
         ROADMAP,
         /** 检验册：L0~L3 条目集合。 */
         CHECKPOINT_SET,

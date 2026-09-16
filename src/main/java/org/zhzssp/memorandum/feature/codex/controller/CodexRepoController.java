@@ -131,6 +131,42 @@ public class CodexRepoController {
     }
 
     /**
+     * 进入工作台时的增量索引：只编当前工作副本，不 pull。
+     */
+    @PostMapping("/repos/autosync")
+    public ResponseEntity<?> autosync(@AuthenticationPrincipal UserDetails principal) {
+        User u = currentUser(principal);
+        if (u == null) return ResponseEntity.status(401).body(Map.of("error", "UNAUTHENTICATED"));
+        if (!registry.enabled() || !registry.operational()) {
+            return ResponseEntity.ok(Map.of("ok", false, "skipped", true,
+                    "message", "Codex 未启用或未检测到 git，跳过自动同步。"));
+        }
+        List<Map<String, Object>> repos = new ArrayList<>();
+        int reindexed = 0;
+        for (KnowledgeRepo r : registry.listEnabled(u.getId())) {
+            RepoSyncService.SyncResult sr = syncService.sync(r, false, false);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", r.getId());
+            m.put("name", r.getName());
+            m.put("docsReindexed", sr.report().docsReindexed());
+            m.put("headSha", sr.headSha());
+            m.put("dirty", sr.dirty());
+            repos.add(m);
+            reindexed += sr.report().docsReindexed();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ok", true);
+        out.put("repoCount", repos.size());
+        out.put("docsReindexed", reindexed);
+        out.put("repos", repos);
+        out.put("message", repos.isEmpty()
+                ? "还没有接入仓库。"
+                : "已按工作副本增量索引 " + repos.size() + " 个仓库（重建 "
+                + reindexed + " 篇），未 pull 远端。");
+        return ResponseEntity.ok(out);
+    }
+
+    /**
      * 全量重建索引。
      *
      * <p>这个端点的存在本身就是架构约束的验收工具：先 {@code DELETE FROM kb_*}

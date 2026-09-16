@@ -355,6 +355,8 @@ class CodexIndexParsersTest {
                     layout.resolve("docs/README.md").kind());
             assertEquals(KbDocument.DocKind.SOURCE,
                     layout.resolve("paper/LLVM.pdf").kind());
+            assertEquals(KbDocument.DocKind.LEARNING_PATH,
+                    layout.resolve("docs/learning-path.md").kind());
         }
 
         @Test

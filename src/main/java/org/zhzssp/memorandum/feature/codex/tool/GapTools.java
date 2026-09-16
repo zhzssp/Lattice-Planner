@@ -125,20 +125,13 @@ public class GapTools {
     /**
      * 转学习计划。
      *
-     * <h3>关于「CURATE 模式 deny 了 task / goal，这个工具却会建目标」</h3>
-     * <p>看似矛盾，实则不是。那条 deny 防的是<strong>顺手改</strong>——
-     * 「让它整理笔记，结果动了我的任务」。而本工具的语义正相反：
-     * 它唯一的作用就是建目标，用户调用它时明确知道会发生什么，
-     * 且带 {@code requiresConfirm} 需逐次确认。</p>
-     *
-     * <p>刻意<strong>不给它加 {@code goal} tag</strong> 来「绕过」deny——
-     * tag 表达的是工具属于哪个能力域，不是用来调可见性的旋钮。
-     * 本工具属于 codex 域（缺口闭环），它调用目标体系是实现细节。</p>
+     * <p>不再直接建 Goal/任务树。待办只来自路径投影：本工具打开一条 MUST 补丁草稿，
+     * 人确认 {@code path.apply} 后再投影。</p>
      */
     @AgentTool(name = "gap.to_learning_plan", tags = {"codex", "write"}, requiresConfirm = true,
-            description = "把一条知识缺口转成学习目标 + 任务树（复用既有目标体系，会落库）。"
+            description = "把一条知识缺口转成路径补丁草稿（新增 MUST），不直接建 Goal。"
                     + "用户说「安排一下补这个」「转成学习计划」时调用。"
-                    + "生成的计划会强制包含一条可执行的验收——不接受「读完就算学会」。")
+                    + "返回预览；写入路径文件需在定线页确认。")
     public Map<String, Object> toLearningPlan(
             @ToolParam(value = "gapId", desc = "缺口 id", required = true) Long gapId,
             @ToolParam(value = "constraints", desc = "额外约束，如「每周只有 4 小时」") List<String> constraints
