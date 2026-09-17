@@ -31,7 +31,8 @@ public class KbPathSnapshot {
     @Column(nullable = false)
     private int version = 1;
 
-    @Column(length = 64)
+    /** 当前车站 id。列名避开 MySQL 8 保留字 CURSOR。 */
+    @Column(name = "path_cursor", length = 64)
     private String cursor;
 
     @Column(name = "parse_ok", nullable = false)

@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS kb_path_snapshot (
     user_id       BIGINT        NOT NULL,
     document_id   BIGINT        NULL,
     version       INT           NOT NULL DEFAULT 1,
-    cursor        VARCHAR(64)   NULL,
+    path_cursor   VARCHAR(64)   NULL,
     parse_ok      TINYINT(1)    NOT NULL DEFAULT 0,
     parse_error   VARCHAR(512)  NULL,
     station_count INT           NOT NULL DEFAULT 0,
