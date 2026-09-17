@@ -5,10 +5,11 @@
   Lattice-Agent 对话面板 fragment。
   在登录后页面 .lp-page-shell 内、.lp-page-main 之后以
   <div th:replace="~{fragments/agent-panel :: panel}"></div> 引入。
-  display:contents 让 FAB / sash / 右栏直接参与 shell 的横向 flex。
+  作为 .lp-page-shell 的右侧 flex 子项：关闭时宽度 0，FAB 钉在视口右下；
+  打开时占 --lp-agent-width。不用 contents，避免规划页主区拉满而右栏高度为 0。
 -->
 <div class="lp-agent-workbench" th:fragment="panel">
-    <link rel="stylesheet" th:href="@{/agent/chat-panel.css(v=13)}">
+    <link rel="stylesheet" th:href="@{/agent/chat-panel.css(v=14)}">
     <button id="lp-agent-fab" type="button" title="打开 Lattice-Agent">AI</button>
     <div id="lp-agent-sash" title="拖拽调整宽度" role="separator" aria-orientation="vertical" aria-hidden="true"></div>
     <div class="lp-agent-mount">
@@ -54,7 +55,7 @@
             </footer>
         </aside>
     </div>
-    <script th:src="@{/agent/chat-panel.js(v=13)}"></script>
+    <script th:src="@{/agent/chat-panel.js(v=14)}"></script>
 </div>
 </body>
 </html>

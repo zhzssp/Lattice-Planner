@@ -70,6 +70,7 @@ class AgentPanelLayoutTest {
         assertFalse(panelRuleIsFixed(css));
         assertFalse(css.contains("max-width: calc(100% - var(--lp-agent-width"));
         assertTrue(css.contains("flex: 0 0 var(--lp-agent-width)"));
+        assertFalse(css.contains("display: contents"));
         assertTrue(css.contains("#lp-agent-sash"));
         assertFalse(css.contains("lp-agent-layout-chip"));
         String dashboardCss = Files.readString(projectFile("src/main/resources/static/css/dashboard.css"));

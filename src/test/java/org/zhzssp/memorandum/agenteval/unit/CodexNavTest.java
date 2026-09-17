@@ -49,8 +49,22 @@ class CodexNavTest {
         assertTrue(html.contains("href=\"/dashboard\""));
         assertTrue(html.contains("href=\"/codex\""));
         assertTrue(html.contains("href=\"/preference/settings\""));
+        assertTrue(html.contains("lp-app-nav-slot"), "left slot keeps 规划/知识 optically centered");
         assertFalse(html.contains("我的笔记"));
         assertFalse(html.contains("知识仓库"));
+    }
+
+    @Test
+    @DisplayName("目的地顶栏居中、字号大于设置，选中态有底边")
+    void appNavCentersLargeDestinations() throws IOException {
+        String css = Files.readString(projectFile("src/main/resources/static/css/app-nav.css"));
+        assertTrue(css.contains("grid-template-columns: 1fr auto 1fr"));
+        assertTrue(css.contains("font-size: 1.45rem"));
+        assertTrue(css.contains(".lp-app-dest a.is-active::after"));
+        int dest = css.indexOf(".lp-app-dest a {");
+        int settings = css.indexOf(".lp-app-nav-right a {");
+        assertTrue(dest >= 0 && settings > dest);
+        assertTrue(css.contains("font-size: 0.88rem"));
     }
 
     @Test

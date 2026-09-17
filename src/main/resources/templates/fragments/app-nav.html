@@ -7,6 +7,7 @@
 -->
 <header class="lp-app-nav" th:fragment="chrome"
         th:with="uri=${#httpServletRequest != null ? #httpServletRequest.requestURI : ''}">
+    <div class="lp-app-nav-slot" aria-hidden="true"></div>
     <nav class="lp-app-dest" aria-label="应用目的地">
         <a href="/dashboard"
            th:classappend="${uri.startsWith('/dashboard') or uri.startsWith('/memo') or uri.startsWith('/select-features') or uri.startsWith('/change-mode')} ? ' is-active'"
